@@ -1,0 +1,103 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique  // Короткое имя (privox, techtrans...)
+  description String?
+  logoUrl     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users  User[]
+  groups Group[]
+}
+
+model User {
+  id             String   @id @default(uuid())
+  email          String   @unique
+  password       String   // bcrypt hash
+  callsign       String   // Позывной (ALPHA-1, ДИСПЕТЧЕР-2)
+  displayName    String
+  role           UserRole @default(USER)
+  isActive       Boolean  @default(true)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  groupMembers GroupMember[]
+  refreshTokens RefreshToken[]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  lastSeen    DateTime?
+
+  // Для push уведомлений (Этап 3)
+  deviceToken String?
+  deviceType  DeviceType?
+
+  @@index([organizationId])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Group {
+  id             String  @id @default(uuid())
+  name           String
+  description    String?
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  members        GroupMember[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  isPrivate      Boolean  @default(false)
+  // Приоритет группы (выше = важнее, каналы экстренной связи)
+  priority       Int      @default(0)
+  // Цвет для UI
+  color          String   @default("#3DDC84")
+
+  @@index([organizationId])
+}
+
+model GroupMember {
+  id       String @id @default(uuid())
+  userId   String
+  groupId  String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group    Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  joinedAt DateTime @default(now())
+  canSpeak Boolean  @default(true)   // false = только слушатель
+
+  @@unique([userId, groupId])
+  @@index([groupId])
+  @@index([userId])
+}
+
+enum UserRole {
+  SUPERADMIN  // Владелец всей системы — видит всё
+  ADMIN       // Администратор организации
+  DISPATCHER  // Диспетчер — видит всё, говорит в любую группу
+  USER        // Обычный пользователь рации
+}
+
+enum DeviceType {
+  IOS
+  ANDROID
+  WEB
+}

@@ -1,0 +1,66 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html, body, #root {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    background-color: #0A0C0A;
+    color: #C8D8C8;
+    font-family: 'Rajdhani', sans-serif;
+  }
+
+  /* Скроллбар в стиле проекта */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: #111411; }
+  ::-webkit-scrollbar-thumb { background: #1E2A1E; border-radius: 2px; }
+  ::-webkit-scrollbar-thumb:hover { background: #3DDC84; }
+
+  /* Запрещаем выделение текста на кнопках */
+  button { user-select: none; -webkit-user-select: none; }
+}
+
+@layer components {
+  .font-orbitron { font-family: 'Orbitron', monospace; }
+  .font-rajdhani { font-family: 'Rajdhani', sans-serif; }
+  .font-mono     { font-family: 'Share Tech Mono', monospace; }
+
+  /* Сканлайн эффект для дисплеев */
+  .scanlines {
+    background-image: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.15) 2px,
+      rgba(0,0,0,0.15) 4px
+    );
+    pointer-events: none;
+  }
+
+  /* Индикатор онлайн */
+  .online-dot {
+    @apply w-2 h-2 rounded-full bg-ptt-green;
+    box-shadow: 0 0 6px rgba(61, 220, 132, 0.8);
+  }
+
+  .offline-dot {
+    @apply w-2 h-2 rounded-full bg-gray-600;
+  }
+
+  /* Карточка в стиле рации */
+  .card {
+    @apply bg-ptt-card border border-ptt-border rounded-lg;
+  }
+
+  /* Текст позывного */
+  .callsign {
+    @apply font-mono text-ptt-green tracking-widest uppercase;
+  }
+}

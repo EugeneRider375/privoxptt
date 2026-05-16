@@ -1,0 +1,96 @@
+import { useEffect } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, Circle } from 'react-leaflet';
+import { divIcon } from 'leaflet';
+import { useStore } from '@/store/useStore';
+import { formatDistanceToNow } from 'date-fns';
+import { ru } from 'date-fns/locale';
+
+// Иконка маркера в стиле рации
+function makeIcon(callsign: string, isOnline: boolean) {
+  return divIcon({
+    html: `
+      <div style="
+        background: ${isOnline ? '#0A0C0A' : '#161C16'};
+        border: 2px solid ${isOnline ? '#3DDC84' : '#2A3A2A'};
+        border-radius: 4px;
+        padding: 2px 6px;
+        font-family: 'Share Tech Mono', monospace;
+        font-size: 11px;
+        color: ${isOnline ? '#3DDC84' : '#8BA888'};
+        white-space: nowrap;
+        box-shadow: ${isOnline ? '0 0 8px rgba(61,220,132,0.3)' : 'none'};
+      ">
+        ${callsign}
+      </div>
+    `,
+    className: '',
+    iconAnchor: [0, 0],
+  });
+}
+
+export function DispatcherMap() {
+  const locations = useStore((s) => s.locations);
+  const onlineUsers = useStore((s) => s.onlineUsers);
+
+  const locationList = Object.values(locations);
+
+  return (
+    <div className="h-full flex flex-col">
+      <div className="flex items-center justify-between px-4 py-2 bg-ptt-panel border-b border-ptt-border">
+        <span className="font-mono text-ptt-text text-xs tracking-widest">КАРТА АБОНЕНТОВ</span>
+        <span className="font-mono text-xs text-ptt-green">{locationList.length} меток</span>
+      </div>
+
+      <div className="flex-1 relative">
+        <MapContainer
+          center={[55.75, 37.62]}
+          zoom={10}
+          className="w-full h-full"
+          style={{ background: '#0A0C0A' }}
+        >
+          <TileLayer
+            url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+            attribution='&copy; <a href="https://carto.com/">CARTO</a>'
+          />
+
+          {locationList.map((loc) => {
+            const isOnline = !!onlineUsers[loc.userId];
+            return (
+              <Marker
+                key={loc.userId}
+                position={[loc.lat, loc.lng]}
+                icon={makeIcon(loc.callsign, isOnline)}
+              >
+                <Popup className="ptt-popup">
+                  <div className="font-mono text-xs space-y-1 bg-ptt-panel p-2 rounded border border-ptt-border">
+                    <p className="callsign">{loc.callsign}</p>
+                    <p className="text-ptt-text">
+                      {loc.lat.toFixed(5)}, {loc.lng.toFixed(5)}
+                    </p>
+                    {loc.speed != null && (
+                      <p className="text-ptt-text">
+                        Скорость: {(loc.speed * 3.6).toFixed(0)} км/ч
+                      </p>
+                    )}
+                    <p className="text-ptt-muted">
+                      {formatDistanceToNow(loc.timestamp, { addSuffix: true, locale: ru })}
+                    </p>
+                  </div>
+                </Popup>
+              </Marker>
+            );
+          })}
+        </MapContainer>
+
+        {locationList.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="text-center">
+              <p className="font-mono text-ptt-muted text-sm">НЕТ ДАННЫХ О МЕСТОПОЛОЖЕНИИ</p>
+              <p className="font-mono text-ptt-muted/50 text-xs mt-1">Абоненты не передают GPS</p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,81 @@
+version: '3.9'
+
+services:
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: privoxptt-server
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+      # MediaSoup UDP/TCP диапазон — ОБЯЗАТЕЛЬНО открыт на VPS фаерволе
+      - "10000-10100:10000-10100/udp"
+      - "10000-10100:10000-10100/tcp"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://privox:${POSTGRES_PASSWORD:-changeme}@db:5432/privoxptt
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET обязателен}
+      JWT_EXPIRES_IN: 7d
+      REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET:?REFRESH_TOKEN_SECRET обязателен}
+      REFRESH_TOKEN_EXPIRES_IN: 30d
+      MEDIASOUP_LISTEN_IP: 0.0.0.0
+      MEDIASOUP_ANNOUNCED_IP: ${SERVER_IP:?SERVER_IP обязателен}
+      MEDIASOUP_MIN_PORT: 10000
+      MEDIASOUP_MAX_PORT: 10100
+      MEDIASOUP_NUM_WORKERS: ${MEDIASOUP_WORKERS:-2}
+      CORS_ORIGINS: https://ptt.privox.tech,http://localhost:5173
+      SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL:-admin@privox.tech}
+      SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD:?SUPERADMIN_PASSWORD обязателен}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - privoxptt-net
+    volumes:
+      - server-logs:/app/logs
+
+  db:
+    image: postgres:16-alpine
+    container_name: privoxptt-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: privoxptt
+      POSTGRES_USER: privox
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - privoxptt-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U privox -d privoxptt"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: privoxptt-redis
+    restart: unless-stopped
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redisdata:/data
+    networks:
+      - privoxptt-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  privoxptt-net:
+    driver: bridge
+
+volumes:
+  pgdata:
+  redisdata:
+  server-logs:
