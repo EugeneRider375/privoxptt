@@ -10,6 +10,11 @@ export const organizationsRouter = Router();
 // Все маршруты требуют авторизации
 organizationsRouter.use(authenticate);
 
+function param(value: string | string[] | undefined, name: string): string {
+  if (typeof value !== 'string') throw new AppError(400, `Invalid ${name}`);
+  return value;
+}
+
 const createOrgSchema = z.object({
   name: z.string().min(2).max(100),
   slug: z
@@ -41,7 +46,7 @@ organizationsRouter.get('/', requireSuperAdmin, async (req: Request, res: Respon
 // GET /api/orgs/:id
 organizationsRouter.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
+    const id = param(req.params.id, 'organization id');
 
     // Обычный пользователь видит только свою организацию
     if (req.user!.role !== UserRole.SUPERADMIN && req.user!.organizationId !== id) {
@@ -76,7 +81,7 @@ organizationsRouter.post('/', requireSuperAdmin, async (req: Request, res: Respo
 // PUT /api/orgs/:id
 organizationsRouter.put('/:id', requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
+    const id = param(req.params.id, 'organization id');
 
     if (req.user!.role !== UserRole.SUPERADMIN && req.user!.organizationId !== id) {
       throw new AppError(403, 'Access denied');
@@ -93,7 +98,7 @@ organizationsRouter.put('/:id', requireAdmin, async (req: Request, res: Response
 // DELETE /api/orgs/:id — только суперадмин
 organizationsRouter.delete('/:id', requireSuperAdmin, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
+    const id = param(req.params.id, 'organization id');
     await prisma.organization.delete({ where: { id } });
     res.json({ message: 'Organization deleted' });
   } catch (err) {

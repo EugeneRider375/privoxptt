@@ -10,6 +10,13 @@ export const groupsRouter = Router();
 
 groupsRouter.use(authenticate);
 
+const privilegedRoles: UserRole[] = [UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.DISPATCHER];
+
+function param(value: string | string[] | undefined, name: string): string {
+  if (typeof value !== 'string') throw new AppError(400, `Invalid ${name}`);
+  return value;
+}
+
 const createGroupSchema = z.object({
   name: z.string().min(2).max(100),
   description: z.string().max(500).optional(),
@@ -38,7 +45,7 @@ groupsRouter.get('/', async (req: Request, res: Response, next: NextFunction) =>
 
     // Суперадмин и диспетчер видят все группы организации
     const groups =
-      [UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.DISPATCHER].includes(role)
+      privilegedRoles.includes(role)
         ? await prisma.group.findMany({
             where: role === UserRole.SUPERADMIN ? {} : { organizationId: orgId },
             include: {
@@ -80,7 +87,7 @@ groupsRouter.get('/', async (req: Request, res: Response, next: NextFunction) =>
 groupsRouter.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const group = await prisma.group.findUnique({
-      where: { id: req.params.id },
+      where: { id: param(req.params.id, 'group id') },
       include: {
         organization: { select: { id: true, name: true } },
         members: {
@@ -98,9 +105,7 @@ groupsRouter.get('/:id', async (req: Request, res: Response, next: NextFunction)
 
     if (!group) throw new AppError(404, 'Group not found');
 
-    const isAdmin = [UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.DISPATCHER].includes(
-      req.user!.role
-    );
+    const isAdmin = privilegedRoles.includes(req.user!.role);
     const isMember = group.members.some((m) => m.userId === req.user!.userId);
 
     if (!isAdmin && !isMember) throw new AppError(403, 'You are not a member of this group');
@@ -152,7 +157,7 @@ groupsRouter.post('/', requireAdmin, async (req: Request, res: Response, next: N
 // PUT /api/groups/:id
 groupsRouter.put('/:id', requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
+    const id = param(req.params.id, 'group id');
     const group = await prisma.group.findUnique({ where: { id } });
     if (!group) throw new AppError(404, 'Group not found');
 
@@ -174,7 +179,7 @@ groupsRouter.put('/:id', requireAdmin, async (req: Request, res: Response, next:
 // DELETE /api/groups/:id
 groupsRouter.delete('/:id', requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
+    const id = param(req.params.id, 'group id');
     const group = await prisma.group.findUnique({ where: { id } });
     if (!group) throw new AppError(404, 'Group not found');
 
@@ -195,7 +200,7 @@ groupsRouter.delete('/:id', requireAdmin, async (req: Request, res: Response, ne
 // POST /api/groups/:id/members — добавить участника
 groupsRouter.post('/:id/members', requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id: groupId } = req.params;
+    const groupId = param(req.params.id, 'group id');
     const { userId, canSpeak } = addMemberSchema.parse(req.body);
 
     const group = await prisma.group.findUnique({ where: { id: groupId } });
@@ -227,7 +232,8 @@ groupsRouter.post('/:id/members', requireAdmin, async (req: Request, res: Respon
 // DELETE /api/groups/:id/members/:userId — удалить участника
 groupsRouter.delete('/:id/members/:userId', requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id: groupId, userId } = req.params;
+    const groupId = param(req.params.id, 'group id');
+    const userId = param(req.params.userId, 'user id');
 
     const group = await prisma.group.findUnique({ where: { id: groupId } });
     if (!group) throw new AppError(404, 'Group not found');
@@ -249,7 +255,8 @@ groupsRouter.delete('/:id/members/:userId', requireAdmin, async (req: Request, r
 // PATCH /api/groups/:id/members/:userId — изменить права участника (canSpeak)
 groupsRouter.patch('/:id/members/:userId', requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id: groupId, userId } = req.params;
+    const groupId = param(req.params.id, 'group id');
+    const userId = param(req.params.userId, 'user id');
     const { canSpeak } = z.object({ canSpeak: z.boolean() }).parse(req.body);
 
     const member = await prisma.groupMember.findUnique({

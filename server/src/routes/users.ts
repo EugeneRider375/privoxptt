@@ -11,6 +11,13 @@ export const usersRouter = Router();
 
 usersRouter.use(authenticate);
 
+const adminRoles: UserRole[] = [UserRole.SUPERADMIN, UserRole.ADMIN];
+
+function param(value: string | string[] | undefined, name: string): string {
+  if (typeof value !== 'string') throw new AppError(400, `Invalid ${name}`);
+  return value;
+}
+
 const createUserSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8, 'Minimum 8 characters'),
@@ -105,7 +112,7 @@ usersRouter.get('/online', async (req: Request, res: Response, next: NextFunctio
 usersRouter.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const user = await prisma.user.findUnique({
-      where: { id: req.params.id },
+      where: { id: param(req.params.id, 'user id') },
       select: {
         id: true, email: true, callsign: true, displayName: true,
         role: true, isActive: true, lastSeen: true, createdAt: true,
@@ -180,7 +187,7 @@ usersRouter.post('/', requireAdmin, async (req: Request, res: Response, next: Ne
 // PUT /api/users/:id
 usersRouter.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
+    const id = param(req.params.id, 'user id');
 
     // Пользователь может менять только себя, админ — любого в своей организации
     const target = await prisma.user.findUnique({ where: { id } });
@@ -188,7 +195,7 @@ usersRouter.put('/:id', async (req: Request, res: Response, next: NextFunction) 
 
     const isOwnProfile = req.user!.userId === id;
     const isAdminOfOrg =
-      [UserRole.SUPERADMIN, UserRole.ADMIN].includes(req.user!.role) &&
+      adminRoles.includes(req.user!.role) &&
       (req.user!.role === UserRole.SUPERADMIN || target.organizationId === req.user!.organizationId);
 
     if (!isOwnProfile && !isAdminOfOrg) {
@@ -223,7 +230,7 @@ usersRouter.put('/:id', async (req: Request, res: Response, next: NextFunction) 
 // POST /api/users/:id/change-password
 usersRouter.post('/:id/change-password', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
+    const id = param(req.params.id, 'user id');
 
     if (req.user!.userId !== id) {
       throw new AppError(403, 'You can only change your own password');
@@ -251,7 +258,7 @@ usersRouter.post('/:id/change-password', async (req: Request, res: Response, nex
 // POST /api/users/:id/reset-password — только администратор
 usersRouter.post('/:id/reset-password', requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
+    const id = param(req.params.id, 'user id');
     const { newPassword } = resetPasswordSchema.parse(req.body);
 
     const target = await prisma.user.findUnique({ where: { id } });
@@ -281,7 +288,7 @@ usersRouter.post('/:id/reset-password', requireAdmin, async (req: Request, res: 
 // DELETE /api/users/:id
 usersRouter.delete('/:id', requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
+    const id = param(req.params.id, 'user id');
 
     const target = await prisma.user.findUnique({ where: { id } });
     if (!target) throw new AppError(404, 'User not found');

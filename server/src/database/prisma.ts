@@ -1,7 +1,7 @@
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { logger } from '../utils/logger';
 
-const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
+const globalForPrisma = globalThis as unknown as { prisma: PrismaClient<Prisma.PrismaClientOptions, 'query' | 'error' | 'warn'> };
 
 export const prisma =
   globalForPrisma.prisma ||
@@ -14,11 +14,11 @@ export const prisma =
   });
 
 prisma.$on('error', (e) => {
-  logger.error({ msg: 'Prisma error', ...e });
+  logger.error({ msg: 'Prisma error', target: e.target, message: e.message });
 });
 
 prisma.$on('warn', (e) => {
-  logger.warn({ msg: 'Prisma warn', ...e });
+  logger.warn({ msg: 'Prisma warn', target: e.target, message: e.message });
 });
 
 if (process.env.NODE_ENV !== 'production') {
