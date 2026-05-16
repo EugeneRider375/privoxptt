@@ -81,14 +81,14 @@ export function AdminGroups() {
       load();
       setModal(null);
     } catch (e: any) {
-      setError(e?.response?.data?.error ?? 'Ошибка');
+      setError(e?.response?.data?.error ?? 'Error');
     } finally {
       setLoading(false);
     }
   }
 
   async function handleDelete(g: Group) {
-    if (!confirm(`Удалить группу "${g.name}"?`)) return;
+    if (!confirm(`Delete group "${g.name}"?`)) return;
     await groupsApi.delete(g.id).catch(console.error);
     load();
   }
@@ -117,10 +117,10 @@ export function AdminGroups() {
   return (
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="font-orbitron text-white text-base tracking-wider">ГРУППЫ / КАНАЛЫ</h2>
+        <h2 className="font-orbitron text-white text-base tracking-wider">GROUPS / CHANNELS</h2>
         <button onClick={openCreate}
           className="flex items-center gap-2 bg-ptt-green text-ptt-dark font-orbitron text-xs px-3 py-1.5 rounded tracking-widest hover:bg-ptt-green/90">
-          <Plus className="w-3 h-3" /> СОЗДАТЬ
+          <Plus className="w-3 h-3" /> CREATE
         </button>
       </div>
 
@@ -136,14 +136,14 @@ export function AdminGroups() {
             </div>
 
             <div className="flex items-center gap-4 font-mono text-xs text-ptt-muted">
-              <span>{g._count?.members ?? 0} уч.</span>
+              <span>{g._count?.members ?? 0} members</span>
               <span>P:{g.priority}</span>
-              {g.isPrivate && <span className="text-ptt-warn">ЗАКРЫТАЯ</span>}
+              {g.isPrivate && <span className="text-ptt-warn">PRIVATE</span>}
             </div>
 
             <div className="flex items-center gap-2 pt-1 border-t border-ptt-border/50">
               <button onClick={() => openMembers(g)} className="flex items-center gap-1 text-ptt-blue hover:text-white transition-colors font-mono text-xs">
-                <Users className="w-3 h-3" /> Участники
+                <Users className="w-3 h-3" /> Members
               </button>
               <button onClick={() => openEdit(g)} className="ml-auto text-ptt-muted hover:text-white transition-colors">
                 <Pencil className="w-3.5 h-3.5" />
@@ -158,19 +158,19 @@ export function AdminGroups() {
 
       {/* Создать/Редактировать */}
       {(modal === 'create' || modal === 'edit') && (
-        <Modal title={modal === 'create' ? 'НОВАЯ ГРУППА' : 'РЕДАКТИРОВАТЬ'} onClose={() => setModal(null)}>
+        <Modal title={modal === 'create' ? 'NEW GROUP' : 'EDIT'} onClose={() => setModal(null)}>
           <div className="space-y-3">
-            <Field label="НАЗВАНИЕ">
+            <Field label="NAME">
               <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputCls} />
             </Field>
-            <Field label="ОПИСАНИЕ">
+            <Field label="DESCRIPTION">
               <input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className={inputCls} />
             </Field>
-            <Field label="ПРИОРИТЕТ (0-100)">
+            <Field label="PRIORITY (0-100)">
               <input type="number" min={0} max={100} value={form.priority}
                 onChange={(e) => setForm({ ...form, priority: +e.target.value })} className={inputCls} />
             </Field>
-            <Field label="ЦВЕТ">
+            <Field label="COLOR">
               <div className="flex gap-2 flex-wrap">
                 {COLORS.map((c) => (
                   <button
@@ -186,12 +186,12 @@ export function AdminGroups() {
               <input type="checkbox" checked={form.isPrivate}
                 onChange={(e) => setForm({ ...form, isPrivate: e.target.checked })}
                 className="accent-ptt-green" />
-              <span className="font-mono text-xs text-ptt-text">Закрытая группа</span>
+              <span className="font-mono text-xs text-ptt-text">Private group</span>
             </label>
             {error && <p className="font-mono text-ptt-danger text-xs">{error}</p>}
             <button onClick={handleSave} disabled={loading}
               className="w-full bg-ptt-green text-ptt-dark font-orbitron text-xs py-2 rounded tracking-widest disabled:opacity-50">
-              {loading ? 'СОХРАНЕНИЕ...' : 'СОХРАНИТЬ'}
+              {loading ? 'SAVING...' : 'SAVE'}
             </button>
           </div>
         </Modal>
@@ -199,12 +199,12 @@ export function AdminGroups() {
 
       {/* Участники */}
       {modal === 'members' && selected && (
-        <Modal title={`УЧАСТНИКИ · ${selected.name}`} onClose={() => setModal(null)}>
+        <Modal title={`MEMBERS · ${selected.name}`} onClose={() => setModal(null)}>
           <div className="space-y-3">
             {/* Добавить участника */}
             <div className="flex gap-2">
               <select value={addUserId} onChange={(e) => setAddUserId(e.target.value)} className={`${inputCls} flex-1`}>
-                <option value="">— выбрать пользователя —</option>
+                <option value="">- select user -</option>
                 {nonMembers.map((u) => (
                   <option key={u.id} value={u.id}>{u.callsign} — {u.displayName}</option>
                 ))}
@@ -223,7 +223,7 @@ export function AdminGroups() {
                   <span className="font-rajdhani text-xs text-ptt-muted flex-1">{m.user.displayName}</span>
                   <button onClick={() => handleToggleSpeak(m)}
                     className={`${m.canSpeak ? 'text-ptt-green' : 'text-ptt-muted'} hover:text-white transition-colors`}
-                    title={m.canSpeak ? 'Запретить говорить' : 'Разрешить говорить'}>
+                    title={m.canSpeak ? 'Disable speaking' : 'Allow speaking'}>
                     {m.canSpeak ? <Mic className="w-3.5 h-3.5" /> : <MicOff className="w-3.5 h-3.5" />}
                   </button>
                   <button onClick={() => handleRemoveMember(m.userId)}
@@ -233,7 +233,7 @@ export function AdminGroups() {
                 </div>
               ))}
               {members.length === 0 && (
-                <p className="font-mono text-ptt-muted text-xs text-center py-4">НЕТ УЧАСТНИКОВ</p>
+                <p className="font-mono text-ptt-muted text-xs text-center py-4">NO MEMBERS</p>
               )}
             </div>
           </div>

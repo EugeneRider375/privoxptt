@@ -13,12 +13,12 @@ usersRouter.use(authenticate);
 
 const createUserSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(8, 'Минимум 8 символов'),
+  password: z.string().min(8, 'Minimum 8 characters'),
   callsign: z
     .string()
     .min(2)
     .max(20)
-    .regex(/^[A-ZА-Я0-9-_ ]+$/i, 'Только буквы, цифры, дефис и пробел'),
+    .regex(/^[A-ZА-Я0-9-_ ]+$/i, 'Only letters, numbers, hyphen and space are allowed'),
   displayName: z.string().min(2).max(100),
   role: z.nativeEnum(UserRole).default(UserRole.USER),
   organizationId: z.string().uuid().optional(),
@@ -120,21 +120,21 @@ usersRouter.get('/:id', async (req: Request, res: Response, next: NextFunction) 
       },
     });
 
-    if (!user) throw new AppError(404, 'Пользователь не найден');
+    if (!user) throw new AppError(404, 'User not found');
 
     // Пользователь может смотреть только свой профиль или из своей организации
     if (
       req.user!.role === UserRole.USER &&
       user.id !== req.user!.userId
     ) {
-      throw new AppError(403, 'Доступ запрещён');
+      throw new AppError(403, 'Access denied');
     }
 
     if (
       req.user!.role !== UserRole.SUPERADMIN &&
       user.organizationId !== req.user!.organizationId
     ) {
-      throw new AppError(403, 'Доступ запрещён');
+      throw new AppError(403, 'Access denied');
     }
 
     res.json({ ...user, isOnline: await isUserOnline(user.id) });
@@ -150,7 +150,7 @@ usersRouter.post('/', requireAdmin, async (req: Request, res: Response, next: Ne
 
     // Суперадмин может создавать в любой организации, остальные — только в своей
     if (data.role === UserRole.SUPERADMIN && req.user!.role !== UserRole.SUPERADMIN) {
-      throw new AppError(403, 'Нельзя создать суперадмина');
+      throw new AppError(403, 'Cannot create a superadmin');
     }
 
     const orgId = resolveOrgId(req, data.organizationId);
@@ -184,7 +184,7 @@ usersRouter.put('/:id', async (req: Request, res: Response, next: NextFunction) 
 
     // Пользователь может менять только себя, админ — любого в своей организации
     const target = await prisma.user.findUnique({ where: { id } });
-    if (!target) throw new AppError(404, 'Пользователь не найден');
+    if (!target) throw new AppError(404, 'User not found');
 
     const isOwnProfile = req.user!.userId === id;
     const isAdminOfOrg =
@@ -192,14 +192,14 @@ usersRouter.put('/:id', async (req: Request, res: Response, next: NextFunction) 
       (req.user!.role === UserRole.SUPERADMIN || target.organizationId === req.user!.organizationId);
 
     if (!isOwnProfile && !isAdminOfOrg) {
-      throw new AppError(403, 'Доступ запрещён');
+      throw new AppError(403, 'Access denied');
     }
 
     const data = updateUserSchema.parse(req.body);
 
     // Только админ может менять роль
     if (data.role && !isAdminOfOrg) {
-      throw new AppError(403, 'Нельзя изменить роль');
+      throw new AppError(403, 'Cannot change role');
     }
 
     const updated = await prisma.user.update({
@@ -226,23 +226,23 @@ usersRouter.post('/:id/change-password', async (req: Request, res: Response, nex
     const { id } = req.params;
 
     if (req.user!.userId !== id) {
-      throw new AppError(403, 'Можно менять только свой пароль');
+      throw new AppError(403, 'You can only change your own password');
     }
 
     const { currentPassword, newPassword } = changePasswordSchema.parse(req.body);
 
     const user = await prisma.user.findUnique({ where: { id } });
-    if (!user) throw new AppError(404, 'Пользователь не найден');
+    if (!user) throw new AppError(404, 'User not found');
 
     const match = await bcrypt.compare(currentPassword, user.password);
-    if (!match) throw new AppError(401, 'Неверный текущий пароль');
+    if (!match) throw new AppError(401, 'Invalid current password');
 
     await prisma.user.update({
       where: { id },
       data: { password: await bcrypt.hash(newPassword, 12) },
     });
 
-    res.json({ message: 'Пароль изменён' });
+    res.json({ message: 'Password changed' });
   } catch (err) {
     next(err);
   }
@@ -255,13 +255,13 @@ usersRouter.post('/:id/reset-password', requireAdmin, async (req: Request, res: 
     const { newPassword } = resetPasswordSchema.parse(req.body);
 
     const target = await prisma.user.findUnique({ where: { id } });
-    if (!target) throw new AppError(404, 'Пользователь не найден');
+    if (!target) throw new AppError(404, 'User not found');
 
     if (
       req.user!.role !== UserRole.SUPERADMIN &&
       target.organizationId !== req.user!.organizationId
     ) {
-      throw new AppError(403, 'Доступ запрещён');
+      throw new AppError(403, 'Access denied');
     }
 
     await prisma.user.update({
@@ -272,7 +272,7 @@ usersRouter.post('/:id/reset-password', requireAdmin, async (req: Request, res: 
     // Инвалидируем все refresh токены пользователя
     await prisma.refreshToken.deleteMany({ where: { userId: id } });
 
-    res.json({ message: 'Пароль сброшен, все сессии завершены' });
+    res.json({ message: 'Password reset, all sessions ended' });
   } catch (err) {
     next(err);
   }
@@ -284,17 +284,17 @@ usersRouter.delete('/:id', requireAdmin, async (req: Request, res: Response, nex
     const { id } = req.params;
 
     const target = await prisma.user.findUnique({ where: { id } });
-    if (!target) throw new AppError(404, 'Пользователь не найден');
+    if (!target) throw new AppError(404, 'User not found');
 
     if (
       req.user!.role !== UserRole.SUPERADMIN &&
       target.organizationId !== req.user!.organizationId
     ) {
-      throw new AppError(403, 'Доступ запрещён');
+      throw new AppError(403, 'Access denied');
     }
 
     await prisma.user.delete({ where: { id } });
-    res.json({ message: 'Пользователь удалён' });
+    res.json({ message: 'User deleted' });
   } catch (err) {
     next(err);
   }

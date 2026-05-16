@@ -70,7 +70,7 @@ export function UserRadioPage() {
         </div>
         <div className="flex items-center gap-1">
           <Signal className="w-3 h-3 text-ptt-green" />
-          <span className="font-mono text-ptt-text text-xs">ОНЛАЙН</span>
+          <span className="font-mono text-ptt-text text-xs">ONLINE</span>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={handleLogout} className="text-ptt-muted hover:text-white transition-colors">
@@ -92,10 +92,10 @@ export function UserRadioPage() {
             />
             <div className="text-left">
               <p className="font-rajdhani font-bold text-white text-sm leading-none">
-                {activeGroup?.name ?? 'Выберите канал'}
+                {activeGroup?.name ?? 'Select channel'}
               </p>
               <p className="font-mono text-ptt-text text-xs mt-0.5">
-                {onlineCount} онлайн · {members.length} всего
+                {onlineCount} online · {members.length} total
               </p>
             </div>
           </div>
@@ -116,7 +116,7 @@ export function UserRadioPage() {
                 <div className="w-2 h-2 rounded-full" style={{ backgroundColor: g.color }} />
                 <div className="text-left flex-1">
                   <p className="font-rajdhani font-semibold text-sm text-white">{g.name}</p>
-                  <p className="font-mono text-xs text-ptt-text">{g._count?.members ?? 0} участников</p>
+                  <p className="font-mono text-xs text-ptt-text">{g._count?.members ?? 0} members</p>
                 </div>
                 {g.pttOwnerId && <span className="w-2 h-2 rounded-full bg-ptt-green animate-pulse" />}
               </button>
@@ -141,7 +141,7 @@ export function UserRadioPage() {
             </div>
           </div>
         ) : (
-          <p className="font-mono text-ptt-muted text-xs tracking-widest">КАНАЛ СВОБОДЕН</p>
+          <p className="font-mono text-ptt-muted text-xs tracking-widest">CHANNEL CLEAR</p>
         )}
       </div>
 
@@ -167,7 +167,7 @@ export function UserRadioPage() {
       <div className="border-t border-ptt-border bg-ptt-panel max-h-48 overflow-y-auto">
         <div className="flex items-center gap-2 px-4 py-2 border-b border-ptt-border/50">
           <Users className="w-3 h-3 text-ptt-muted" />
-          <span className="font-mono text-ptt-text text-xs tracking-widest">АБОНЕНТЫ</span>
+          <span className="font-mono text-ptt-text text-xs tracking-widest">SUBSCRIBERS</span>
           <span className="ml-auto font-mono text-xs text-ptt-green">{onlineCount} / {members.length}</span>
         </div>
 
@@ -181,7 +181,7 @@ export function UserRadioPage() {
                 {m.user.callsign}
               </span>
               {isTalking && <Radio className="w-3 h-3 text-ptt-green ml-auto animate-pulse" />}
-              {!m.canSpeak && <span className="ml-auto font-mono text-xs text-ptt-muted">СЛУШАТЕЛЬ</span>}
+              {!m.canSpeak && <span className="ml-auto font-mono text-xs text-ptt-muted">LISTENER</span>}
             </div>
           );
         })}

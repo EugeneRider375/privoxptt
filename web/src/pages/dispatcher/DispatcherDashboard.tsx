@@ -56,7 +56,7 @@ export function DispatcherDashboard() {
       {/* ── Левая панель: группы ───────────────────────────── */}
       <div className="bg-ptt-panel border-r border-ptt-border flex flex-col overflow-hidden">
         <div className="px-3 py-2 border-b border-ptt-border">
-          <p className="font-mono text-ptt-text text-xs tracking-widest">КАНАЛЫ</p>
+          <p className="font-mono text-ptt-text text-xs tracking-widest">CHANNELS</p>
         </div>
         <div className="flex-1 overflow-y-auto">
           {groups.map((g) => {
@@ -81,7 +81,7 @@ export function DispatcherDashboard() {
                   {busy && <Mic className="w-3 h-3 text-ptt-green" />}
                 </div>
                 <p className="font-mono text-xs text-ptt-muted mt-0.5 pl-4">
-                  {g._count?.members ?? 0} уч.
+                  {g._count?.members ?? 0} members
                 </p>
               </button>
             );
@@ -91,7 +91,7 @@ export function DispatcherDashboard() {
         <div className="px-3 py-2 border-t border-ptt-border bg-ptt-dark">
           <div className="flex items-center gap-2">
             <div className="online-dot" />
-            <span className="font-mono text-xs text-ptt-text">{onlineCount} онлайн</span>
+            <span className="font-mono text-xs text-ptt-text">{onlineCount} online</span>
           </div>
         </div>
       </div>
@@ -105,7 +105,7 @@ export function DispatcherDashboard() {
               <span className="font-rajdhani font-bold text-lg text-white">{activeGroup.name}</span>
               {activeGroup.pttOwnerId && (
                 <span className="font-mono text-xs text-ptt-green bg-ptt-green/10 px-2 py-0.5 rounded">
-                  ЗАНЯТ
+                  BUSY
                 </span>
               )}
             </>
@@ -129,11 +129,11 @@ export function DispatcherDashboard() {
                 />
               </div>
               <span className="font-mono text-xs text-ptt-text">
-                {pttStatus === 'transmitting' ? 'ПЕРЕДАЧА' : 'ПРИЁМ'}
+                {pttStatus === 'transmitting' ? 'TRANSMITTING' : 'RECEIVING'}
               </span>
             </>
           ) : (
-            <p className="font-mono text-ptt-muted text-sm tracking-widest">● КАНАЛ СВОБОДЕН</p>
+            <p className="font-mono text-ptt-muted text-sm tracking-widest">● CHANNEL CLEAR</p>
           )}
         </div>
 
@@ -146,7 +146,7 @@ export function DispatcherDashboard() {
               size="lg"
             />
             <p className="font-mono text-ptt-muted text-xs">
-              Диспетчер · {activeGroup?.name ?? '—'}
+              Dispatcher · {activeGroup?.name ?? '-'}
             </p>
           </div>
         </div>
@@ -155,7 +155,7 @@ export function DispatcherDashboard() {
       {/* ── Правая панель: абоненты ─────────────────────────── */}
       <div className="bg-ptt-panel border-l border-ptt-border flex flex-col overflow-hidden">
         <div className="px-3 py-2 border-b border-ptt-border flex items-center justify-between">
-          <p className="font-mono text-ptt-text text-xs tracking-widest">АБОНЕНТЫ</p>
+          <p className="font-mono text-ptt-text text-xs tracking-widest">SUBSCRIBERS</p>
           <span className="font-mono text-xs text-ptt-green">
             {members.filter((m) => onlineUsers[m.userId]).length}/{members.length}
           </span>
@@ -191,7 +191,7 @@ export function DispatcherDashboard() {
         </div>
 
         <div className="border-t border-ptt-border p-2">
-          <p className="font-mono text-ptt-muted text-xs tracking-widest mb-2">ВСЕ ОНЛАЙН</p>
+          <p className="font-mono text-ptt-muted text-xs tracking-widest mb-2">ALL ONLINE</p>
           <div className="space-y-1 max-h-32 overflow-y-auto">
             {Object.entries(onlineUsers).map(([uid, info]) => (
               <div key={uid} className="flex items-center gap-2 px-1">

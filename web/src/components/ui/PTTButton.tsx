@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { Mic, Lock } from 'lucide-react';
 import clsx from 'clsx';
 import type { PttStatus } from '@/types';
@@ -34,6 +34,19 @@ export function PTTButton({ status, onStart, onStop, size = 'lg', disabled }: PT
     onStop();
   };
 
+  useEffect(() => {
+    const stopFromWindow = () => stopPress();
+
+    window.addEventListener('pointerup', stopFromWindow);
+    window.addEventListener('mouseup', stopFromWindow);
+    window.addEventListener('touchend', stopFromWindow);
+    return () => {
+      window.removeEventListener('pointerup', stopFromWindow);
+      window.removeEventListener('mouseup', stopFromWindow);
+      window.removeEventListener('touchend', stopFromWindow);
+    };
+  }, [onStop]);
+
   const sizeClasses = {
     sm: 'w-24 h-24 text-2xl',
     md: 'w-32 h-32 text-3xl',
@@ -66,8 +79,8 @@ export function PTTButton({ status, onStart, onStop, size = 'lg', disabled }: PT
               stopPress();
             }
           }}
-          onPointerCancel={stopPress}
-          onLostPointerCapture={stopPress}
+          onPointerMove={(e) => e.preventDefault()}
+          onTouchCancel={(e) => e.preventDefault()}
           onContextMenu={(e) => e.preventDefault()}
           aria-disabled={isBlocked}
           className={clsx(
@@ -99,18 +112,17 @@ export function PTTButton({ status, onStart, onStop, size = 'lg', disabled }: PT
         </button>
       </div>
 
-      {/* Подпись */}
       <div className="font-mono text-xs tracking-widest text-center">
-        {isTransmitting && <span className="text-ptt-green animate-blink">● ПЕРЕДАЧА</span>}
-        {isReceiving && <span className="text-ptt-blue">● ПРИЁМ</span>}
-        {isLocked && <span className="text-ptt-muted">КАНАЛ ЗАНЯТ</span>}
+        {isTransmitting && <span className="text-ptt-green animate-blink">● TRANSMITTING</span>}
+        {isReceiving && <span className="text-ptt-blue">● RECEIVING</span>}
+        {isLocked && <span className="text-ptt-muted">CHANNEL BUSY</span>}
         {!isTransmitting && !isReceiving && !isLocked && (
-          <span className="text-ptt-text">УДЕРЖИ ДЛЯ ПЕРЕДАЧИ</span>
+          <span className="text-ptt-text">HOLD TO TALK</span>
         )}
       </div>
 
       {size === 'lg' && (
-        <p className="font-mono text-ptt-muted/60 text-xs">или [ПРОБЕЛ]</p>
+        <p className="font-mono text-ptt-muted/60 text-xs">or [SPACE]</p>
       )}
     </div>
   );

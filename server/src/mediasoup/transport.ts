@@ -107,17 +107,17 @@ export class PeerTransportManager {
   }
 
   async connectSendTransport(dtlsParameters: DtlsParameters): Promise<void> {
-    if (!this.sendTransport) throw new Error('Send transport не создан');
+    if (!this.sendTransport) throw new Error('Send transport was not created');
     await this.sendTransport.connect({ dtlsParameters });
   }
 
   async connectRecvTransport(dtlsParameters: DtlsParameters): Promise<void> {
-    if (!this.recvTransport) throw new Error('Recv transport не создан');
+    if (!this.recvTransport) throw new Error('Receive transport was not created');
     await this.recvTransport.connect({ dtlsParameters });
   }
 
   async produce(rtpParameters: RtpParameters): Promise<string> {
-    if (!this.sendTransport) throw new Error('Send transport не создан');
+    if (!this.sendTransport) throw new Error('Send transport was not created');
     if (this.producer && !this.producer.closed) {
       this.producer.close();
       this.producer = null;
@@ -132,10 +132,10 @@ export class PeerTransportManager {
     producerId: string,
     rtpCapabilities: RtpCapabilities
   ): Promise<{ consumerId: string; rtpParameters: RtpParameters }> {
-    if (!this.recvTransport) throw new Error('Recv transport не создан');
+    if (!this.recvTransport) throw new Error('Receive transport was not created');
 
     if (!this.router.canConsume({ producerId, rtpCapabilities })) {
-      throw new Error('Не может консьюмить этот producer');
+      throw new Error('Cannot consume this producer');
     }
 
     const consumer = await this.recvTransport.consume({
@@ -172,7 +172,7 @@ export class PeerTransportManager {
 
   async resumeConsumer(consumerId: string): Promise<void> {
     const consumer = this.consumers.get(consumerId);
-    if (!consumer) throw new Error(`Consumer не найден: ${consumerId}`);
+    if (!consumer) throw new Error(`Consumer not found: ${consumerId}`);
     if (!consumer.paused) return;
     await consumer.resume();
     logger.debug({ msg: 'Consumer resumed', peerId: this.peerId, consumerId });

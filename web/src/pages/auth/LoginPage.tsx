@@ -29,7 +29,7 @@ export function LoginPage() {
       else if (role === 'DISPATCHER') navigate('/dispatcher');
       else navigate('/admin');
     } catch (err: any) {
-      setError(err?.response?.data?.error || 'Ошибка входа. Проверьте данные.');
+      setError(err?.response?.data?.error || 'Login failed. Check your credentials.');
     } finally {
       setLoading(false);
     }
@@ -76,13 +76,13 @@ export function LoginPage() {
           <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-ptt-green" />
 
           <p className="font-mono text-ptt-text text-xs tracking-widest mb-6 text-center">
-            &gt; АВТОРИЗАЦИЯ СИСТЕМЫ
+            &gt; SYSTEM AUTHORIZATION
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="font-mono text-ptt-text text-xs tracking-widest block mb-1">
-                EMAIL / ЛОГИН
+                EMAIL / LOGIN
               </label>
               <input
                 type="email"
@@ -100,7 +100,7 @@ export function LoginPage() {
 
             <div>
               <label className="font-mono text-ptt-text text-xs tracking-widest block mb-1">
-                ПАРОЛЬ
+                PASSWORD
               </label>
               <input
                 type="password"
@@ -133,9 +133,9 @@ export function LoginPage() {
                          transition-all flex items-center justify-center gap-2"
             >
               {loading ? (
-                <><Loader2 className="w-4 h-4 animate-spin" /> ВХОД...</>
+                <><Loader2 className="w-4 h-4 animate-spin" /> SIGNING IN...</>
               ) : (
-                'ВОЙТИ В СИСТЕМУ'
+                'SIGN IN'
               )}
             </button>
           </form>

@@ -4,6 +4,28 @@ import { useSocket } from './useSocket';
 import { useWebRTC, unlockAudio } from './useWebRTC';
 
 const WEBRTC_TIMEOUT_MS = 8_000;
+const MIC_AUDIO_CONSTRAINTS: MediaStreamConstraints = {
+  audio: {
+    echoCancellation: true,
+    noiseSuppression: true,
+    autoGainControl: true,
+    channelCount: 1,
+    sampleRate: 48000,
+  },
+};
+
+function getPttErrorMessage(err: unknown): string {
+  if (err instanceof DOMException && err.name === 'NotAllowedError') {
+    return 'Microphone permission is blocked. Allow microphone access for this site and try again.';
+  }
+  if (err instanceof DOMException && err.name === 'NotFoundError') {
+    return 'No microphone was found on this device.';
+  }
+  if (err instanceof Error && /not allowed|permission|denied/i.test(err.message)) {
+    return 'Microphone permission is blocked. Allow microphone access for this site and try again.';
+  }
+  return `PTT error: ${err instanceof Error ? err.message : 'unknown error'}`;
+}
 
 export function usePTT(groupId: string | null) {
   const pttStatus = useStore((s) => s.pttStatus);
@@ -21,7 +43,7 @@ export function usePTT(groupId: string | null) {
     if (!navigator.mediaDevices?.getUserMedia) {
       useStore.getState().addAlert({
         type: 'error',
-        message: 'Микрофон недоступен. Откройте через HTTPS.',
+        message: 'Microphone is unavailable. Open the app over HTTPS.',
       });
       return;
     }
@@ -31,14 +53,33 @@ export function usePTT(groupId: string | null) {
 
     isPressing.current = true;
     const seq = ++pressSeq.current;
-    pttStart(groupId);
+
+    let micStream: MediaStream;
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia(MIC_AUDIO_CONSTRAINTS);
+    } catch (err) {
+      console.error('[PTT] Microphone permission failed:', err);
+      isPressing.current = false;
+      useStore.getState().addAlert({
+        type: 'warn',
+        message: getPttErrorMessage(err),
+      });
+      return;
+    }
+
+    if (!isPressing.current || pressSeq.current !== seq) {
+      micStream.getTracks().forEach((track) => track.stop());
+      return;
+    }
 
     const timeout = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error('WebRTC timeout')), WEBRTC_TIMEOUT_MS)
     );
 
+    pttStart(groupId);
+
     try {
-      await Promise.race([startTransmitting(), timeout]);
+      await Promise.race([startTransmitting(micStream), timeout]);
       if (!isPressing.current || pressSeq.current !== seq) {
         stopTransmitting();
         pttStop(groupId);
@@ -48,13 +89,13 @@ export function usePTT(groupId: string | null) {
       const { user, setPttStatus } = useStore.getState();
       setPttStatus('transmitting', groupId, user?.id, user?.callsign);
     } catch (err) {
-      console.error('[PTT] Ошибка запуска передачи:', err);
+      console.error('[PTT] Failed to start transmission:', err);
       stopTransmitting();
       pttStop(groupId);
       isPressing.current = false;
       useStore.getState().addAlert({
         type: 'warn',
-        message: `Ошибка PTT: ${err instanceof Error ? err.message : 'неизвестная ошибка'}`,
+        message: getPttErrorMessage(err),
       });
     }
   }, [groupId, pttStart, pttStop, startTransmitting]);
@@ -98,11 +139,9 @@ export function usePTT(groupId: string | null) {
       if (document.visibilityState === 'hidden') stopIfActive();
     };
 
-    window.addEventListener('blur', stopIfActive);
     window.addEventListener('pagehide', stopIfActive);
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => {
-      window.removeEventListener('blur', stopIfActive);
       window.removeEventListener('pagehide', stopIfActive);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };

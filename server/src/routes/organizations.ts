@@ -16,7 +16,7 @@ const createOrgSchema = z.object({
     .string()
     .min(2)
     .max(50)
-    .regex(/^[a-z0-9-]+$/, 'Только строчные буквы, цифры и дефис'),
+    .regex(/^[a-z0-9-]+$/, 'Only lowercase letters, numbers and hyphens are allowed'),
   description: z.string().max(500).optional(),
   logoUrl: z.string().url().optional(),
 });
@@ -45,7 +45,7 @@ organizationsRouter.get('/:id', async (req: Request, res: Response, next: NextFu
 
     // Обычный пользователь видит только свою организацию
     if (req.user!.role !== UserRole.SUPERADMIN && req.user!.organizationId !== id) {
-      throw new AppError(403, 'Доступ запрещён');
+      throw new AppError(403, 'Access denied');
     }
 
     const org = await prisma.organization.findUnique({
@@ -55,7 +55,7 @@ organizationsRouter.get('/:id', async (req: Request, res: Response, next: NextFu
       },
     });
 
-    if (!org) throw new AppError(404, 'Организация не найдена');
+    if (!org) throw new AppError(404, 'Organization not found');
     res.json(org);
   } catch (err) {
     next(err);
@@ -79,7 +79,7 @@ organizationsRouter.put('/:id', requireAdmin, async (req: Request, res: Response
     const { id } = req.params;
 
     if (req.user!.role !== UserRole.SUPERADMIN && req.user!.organizationId !== id) {
-      throw new AppError(403, 'Доступ запрещён');
+      throw new AppError(403, 'Access denied');
     }
 
     const data = updateOrgSchema.parse(req.body);
@@ -95,7 +95,7 @@ organizationsRouter.delete('/:id', requireSuperAdmin, async (req: Request, res: 
   try {
     const { id } = req.params;
     await prisma.organization.delete({ where: { id } });
-    res.json({ message: 'Организация удалена' });
+    res.json({ message: 'Organization deleted' });
   } catch (err) {
     next(err);
   }

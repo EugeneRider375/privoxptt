@@ -46,7 +46,7 @@ export function setupMediasoupSocket(io: Server, socket: AuthenticatedSocket): v
         callback({ rtpCapabilities: capabilities });
       } catch (err) {
         logger.error({ msg: 'Ошибка get-rtp-capabilities', err, groupId, userId });
-        callback({ error: 'Ошибка получения RTP capabilities' });
+        callback({ error: 'Failed to get RTP capabilities' });
       }
     }
   );
@@ -69,7 +69,7 @@ export function setupMediasoupSocket(io: Server, socket: AuthenticatedSocket): v
         callback({ transportInfo });
       } catch (err) {
         logger.error({ msg: 'Ошибка create-send-transport', err, userId, groupId });
-        callback({ error: 'Ошибка создания транспорта' });
+        callback({ error: 'Failed to create transport' });
       }
     }
   );
@@ -92,7 +92,7 @@ export function setupMediasoupSocket(io: Server, socket: AuthenticatedSocket): v
         callback({ transportInfo });
       } catch (err) {
         logger.error({ msg: 'Ошибка create-recv-transport', err, userId, groupId });
-        callback({ error: 'Ошибка создания recv транспорта' });
+        callback({ error: 'Failed to create receive transport' });
       }
     }
   );
@@ -106,12 +106,12 @@ export function setupMediasoupSocket(io: Server, socket: AuthenticatedSocket): v
     ) => {
       try {
         const manager = groupPeers.get(groupId)?.get(socketId);
-        if (!manager) throw new Error('Transport manager не найден');
+        if (!manager) throw new Error('Transport manager not found');
         await manager.connectSendTransport(dtlsParameters);
         callback({ connected: true });
       } catch (err) {
         logger.error({ msg: 'Ошибка connect-send-transport', err });
-        callback({ error: 'Ошибка подключения транспорта' });
+        callback({ error: 'Failed to connect transport' });
       }
     }
   );
@@ -126,12 +126,12 @@ export function setupMediasoupSocket(io: Server, socket: AuthenticatedSocket): v
       try {
         logger.debug({ msg: 'ms:connect-recv-transport', userId, groupId });
         const manager = groupPeers.get(groupId)?.get(socketId);
-        if (!manager) throw new Error('Transport manager не найден');
+        if (!manager) throw new Error('Transport manager not found');
         await manager.connectRecvTransport(dtlsParameters);
         callback({ connected: true });
       } catch (err) {
         logger.error({ msg: 'Ошибка connect-recv-transport', err });
-        callback({ error: 'Ошибка подключения recv транспорта' });
+        callback({ error: 'Failed to connect receive transport' });
       }
     }
   );
@@ -145,7 +145,7 @@ export function setupMediasoupSocket(io: Server, socket: AuthenticatedSocket): v
     ) => {
       try {
         const manager = groupPeers.get(groupId)?.get(socketId);
-        if (!manager) throw new Error('Transport manager не найден');
+        if (!manager) throw new Error('Transport manager not found');
 
         // Закрываем старые продюсеры этого пользователя от других сокетов
         // (дублирующие вкладки, ghost-соединения) — один пользователь = один продюсер
@@ -192,13 +192,13 @@ export function setupMediasoupSocket(io: Server, socket: AuthenticatedSocket): v
     ) => {
       try {
         const manager = groupPeers.get(groupId)?.get(socketId);
-        if (!manager) throw new Error('Transport manager не найден');
+        if (!manager) throw new Error('Transport manager not found');
 
         const { consumerId, rtpParameters } = await manager.consume(producerId, rtpCapabilities);
         callback({ consumerId, rtpParameters, producerId });
       } catch (err) {
         logger.error({ msg: 'Ошибка consume', err, userId, groupId });
-        callback({ error: 'Ошибка создания consumer' });
+        callback({ error: 'Failed to create consumer' });
       }
     }
   );
@@ -220,7 +220,7 @@ export function setupMediasoupSocket(io: Server, socket: AuthenticatedSocket): v
         callback({ ok: true });
       } catch (err) {
         logger.error({ msg: 'Ошибка close-producer', err, userId, groupId });
-        callback({ error: 'Ошибка закрытия producer' });
+        callback({ error: 'Failed to close producer' });
       }
     }
   );
@@ -234,12 +234,12 @@ export function setupMediasoupSocket(io: Server, socket: AuthenticatedSocket): v
     ) => {
       try {
         const manager = groupPeers.get(groupId)?.get(socketId);
-        if (!manager) throw new Error('Transport manager не найден');
+        if (!manager) throw new Error('Transport manager not found');
         await manager.resumeConsumer(consumerId);
         callback({ resumed: true });
       } catch (err) {
         logger.error({ msg: 'Ошибка resume-consumer', err, userId, groupId, consumerId });
-        callback({ error: 'Ошибка resume consumer' });
+        callback({ error: 'Failed to resume consumer' });
       }
     }
   );
@@ -270,7 +270,7 @@ export function setupMediasoupSocket(io: Server, socket: AuthenticatedSocket): v
         callback({ producers });
       } catch (err) {
         logger.error({ msg: 'Ошибка get-producers', err });
-        callback({ error: 'Ошибка получения producers' });
+        callback({ error: 'Failed to get producers' });
       }
     }
   );

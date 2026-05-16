@@ -17,11 +17,11 @@ export function DispatcherSettings() {
     setMsg(null);
     try {
       await usersApi.changePassword(user.id, currentPassword, newPassword);
-      setMsg({ type: 'ok', text: 'Пароль успешно изменён' });
+      setMsg({ type: 'ok', text: 'Password changed successfully' });
       setCurrentPassword('');
       setNewPassword('');
     } catch (err: any) {
-      setMsg({ type: 'err', text: err?.response?.data?.error ?? 'Ошибка' });
+      setMsg({ type: 'err', text: err?.response?.data?.error ?? 'Error' });
     } finally {
       setLoading(false);
     }
@@ -29,14 +29,14 @@ export function DispatcherSettings() {
 
   return (
     <div className="p-6 max-w-md">
-      <h2 className="font-orbitron text-white text-lg mb-6">НАСТРОЙКИ</h2>
+      <h2 className="font-orbitron text-white text-lg mb-6">SETTINGS</h2>
 
       <div className="card p-4 space-y-4">
         <p className="font-mono text-ptt-text text-xs tracking-widest border-b border-ptt-border pb-2">
-          ПРОФИЛЬ
+          PROFILE
         </p>
         <div className="space-y-1">
-          <p className="font-mono text-xs text-ptt-muted">ПОЗЫВНОЙ</p>
+          <p className="font-mono text-xs text-ptt-muted">CALLSIGN</p>
           <p className="callsign">{user?.callsign}</p>
         </div>
         <div className="space-y-1">
@@ -44,18 +44,18 @@ export function DispatcherSettings() {
           <p className="font-mono text-sm text-white">{user?.email}</p>
         </div>
         <div className="space-y-1">
-          <p className="font-mono text-xs text-ptt-muted">РОЛЬ</p>
+          <p className="font-mono text-xs text-ptt-muted">ROLE</p>
           <p className="font-mono text-sm text-ptt-green">{user?.role}</p>
         </div>
       </div>
 
       <div className="card p-4 mt-4 space-y-4">
         <p className="font-mono text-ptt-text text-xs tracking-widest border-b border-ptt-border pb-2">
-          СМЕНА ПАРОЛЯ
+          CHANGE PASSWORD
         </p>
         <form onSubmit={handleChangePassword} className="space-y-3">
           <div>
-            <label className="font-mono text-xs text-ptt-muted block mb-1">ТЕКУЩИЙ ПАРОЛЬ</label>
+            <label className="font-mono text-xs text-ptt-muted block mb-1">CURRENT PASSWORD</label>
             <input
               type="password"
               value={currentPassword}
@@ -65,7 +65,7 @@ export function DispatcherSettings() {
             />
           </div>
           <div>
-            <label className="font-mono text-xs text-ptt-muted block mb-1">НОВЫЙ ПАРОЛЬ</label>
+            <label className="font-mono text-xs text-ptt-muted block mb-1">NEW PASSWORD</label>
             <input
               type="password"
               value={newPassword}
@@ -86,7 +86,7 @@ export function DispatcherSettings() {
             disabled={loading}
             className="w-full bg-ptt-green text-ptt-dark font-orbitron text-xs py-2 rounded tracking-widest disabled:opacity-50"
           >
-            {loading ? 'СОХРАНЕНИЕ...' : 'СОХРАНИТЬ'}
+            {loading ? 'SAVING...' : 'SAVE'}
           </button>
         </form>
       </div>

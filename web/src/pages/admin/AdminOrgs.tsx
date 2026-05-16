@@ -38,14 +38,14 @@ export function AdminOrgs() {
       load();
       setModal(null);
     } catch (e: any) {
-      setError(e?.response?.data?.error ?? 'Ошибка');
+      setError(e?.response?.data?.error ?? 'Error');
     } finally {
       setLoading(false);
     }
   }
 
   async function handleDelete(o: Organization) {
-    if (!confirm(`Удалить организацию "${o.name}"? Это удалит всех пользователей и группы!`)) return;
+    if (!confirm(`Delete organization "${o.name}"? This will delete all users and groups!`)) return;
     await orgsApi.delete(o.id).catch(console.error);
     load();
   }
@@ -53,10 +53,10 @@ export function AdminOrgs() {
   return (
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="font-orbitron text-white text-base tracking-wider">ОРГАНИЗАЦИИ</h2>
+        <h2 className="font-orbitron text-white text-base tracking-wider">ORGANIZATIONS</h2>
         <button onClick={openCreate}
           className="flex items-center gap-2 bg-ptt-green text-ptt-dark font-orbitron text-xs px-3 py-1.5 rounded tracking-widest">
-          <Plus className="w-3 h-3" /> СОЗДАТЬ
+          <Plus className="w-3 h-3" /> CREATE
         </button>
       </div>
 
@@ -71,8 +71,8 @@ export function AdminOrgs() {
               </div>
             </div>
             <div className="flex gap-4 font-mono text-xs text-ptt-muted border-t border-ptt-border/50 pt-2">
-              <span>{o._count?.users ?? 0} польз.</span>
-              <span>{o._count?.groups ?? 0} групп</span>
+              <span>{o._count?.users ?? 0} users</span>
+              <span>{o._count?.groups ?? 0} groups</span>
             </div>
             <div className="flex gap-2 justify-end">
               <button onClick={() => openEdit(o)} className="text-ptt-muted hover:text-white">
@@ -91,7 +91,7 @@ export function AdminOrgs() {
           <div className="card w-full max-w-sm p-4">
             <div className="flex items-center justify-between mb-4">
               <p className="font-orbitron text-white text-sm">
-                {modal === 'create' ? 'НОВАЯ ОРГАНИЗАЦИЯ' : 'РЕДАКТИРОВАТЬ'}
+                {modal === 'create' ? 'NEW ORGANIZATION' : 'EDIT'}
               </p>
               <button onClick={() => setModal(null)} className="text-ptt-muted hover:text-white">
                 <X className="w-4 h-4" />
@@ -99,21 +99,21 @@ export function AdminOrgs() {
             </div>
             <div className="space-y-3">
               <div>
-                <label className="font-mono text-ptt-muted text-xs block mb-1">НАЗВАНИЕ</label>
+                <label className="font-mono text-ptt-muted text-xs block mb-1">NAME</label>
                 <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputCls} />
               </div>
               <div>
-                <label className="font-mono text-ptt-muted text-xs block mb-1">SLUG (только a-z, 0-9, -)</label>
+                <label className="font-mono text-ptt-muted text-xs block mb-1">SLUG (a-z, 0-9, - only)</label>
                 <input value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value.toLowerCase() })} className={inputCls} />
               </div>
               <div>
-                <label className="font-mono text-ptt-muted text-xs block mb-1">ОПИСАНИЕ</label>
+                <label className="font-mono text-ptt-muted text-xs block mb-1">DESCRIPTION</label>
                 <input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className={inputCls} />
               </div>
               {error && <p className="font-mono text-ptt-danger text-xs">{error}</p>}
               <button onClick={handleSave} disabled={loading}
                 className="w-full bg-ptt-green text-ptt-dark font-orbitron text-xs py-2 rounded tracking-widest disabled:opacity-50">
-                {loading ? 'СОХРАНЕНИЕ...' : 'СОХРАНИТЬ'}
+                {loading ? 'SAVING...' : 'SAVE'}
               </button>
             </div>
           </div>

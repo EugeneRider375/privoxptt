@@ -43,7 +43,7 @@ export function useWebRTC(groupId: string | null) {
   const emit = useCallback(<T>(event: string, data: object): Promise<T> => {
     return new Promise((resolve, reject) => {
       const socket = getPrivoxSocket() ?? (window as any).__privoxSocket;
-      if (!socket) { reject(new Error('Socket не подключён')); return; }
+      if (!socket) { reject(new Error('Socket is not connected')); return; }
       socket.emit(event, data, (resp: T & { error?: string }) => {
         if (resp?.error) reject(new Error(resp.error));
         else resolve(resp);
@@ -67,7 +67,7 @@ export function useWebRTC(groupId: string | null) {
   }, [groupId, emit]);
 
   const createSendTransport = useCallback(async () => {
-    if (!deviceRef.current || !groupId) throw new Error('Device не инициализирован');
+    if (!deviceRef.current || !groupId) throw new Error('Device is not initialized');
 
     const { transportInfo } = await emit<{ transportInfo: mediasoupClient.types.TransportOptions }>(
       'ms:create-send-transport', { groupId }
@@ -116,7 +116,7 @@ export function useWebRTC(groupId: string | null) {
   }, [groupId, emit]);
 
   const createRecvTransport = useCallback(async () => {
-    if (!deviceRef.current || !groupId) throw new Error('Device не инициализирован');
+    if (!deviceRef.current || !groupId) throw new Error('Device is not initialized');
 
     const { transportInfo } = await emit<{ transportInfo: mediasoupClient.types.TransportOptions }>(
       'ms:create-recv-transport', { groupId }
@@ -144,19 +144,22 @@ export function useWebRTC(groupId: string | null) {
     return transport;
   }, [groupId, emit]);
 
-  const startTransmitting = useCallback(async () => {
+  const startTransmitting = useCallback(async (preGrantedStream?: MediaStream) => {
     if (isStartingRef.current) {
       console.log('[WebRTC] startTransmitting уже выполняется — пропускаем');
       return;
     }
     isStartingRef.current = true;
+    if (preGrantedStream) {
+      streamRef.current = preGrantedStream;
+    }
     try {
       console.log('[WebRTC] startTransmitting: шаг 1 — initDevice');
       await initDevice();
       console.log('[WebRTC] startTransmitting: шаг 2 — getUserMedia');
       await unlockAudio();
 
-      const stream = await navigator.mediaDevices.getUserMedia({
+      const stream = preGrantedStream ?? await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
           noiseSuppression: true,

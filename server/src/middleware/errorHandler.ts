@@ -24,7 +24,7 @@ export function errorHandler(
   // Zod ошибки валидации
   if (err instanceof ZodError) {
     res.status(400).json({
-      error: 'Ошибка валидации',
+      error: 'Validation error',
       details: err.flatten().fieldErrors,
     });
     return;
@@ -35,13 +35,13 @@ export function errorHandler(
     if (err.code === 'P2002') {
       const fields = (err.meta?.target as string[]) ?? [];
       res.status(409).json({
-        error: `Запись уже существует (${fields.join(', ')})`,
+        error: `Record already exists (${fields.join(', ')})`,
         code: 'DUPLICATE',
       });
       return;
     }
     if (err.code === 'P2025') {
-      res.status(404).json({ error: 'Запись не найдена', code: 'NOT_FOUND' });
+      res.status(404).json({ error: 'Record not found', code: 'NOT_FOUND' });
       return;
     }
   }
@@ -57,9 +57,9 @@ export function errorHandler(
 
   // Неожиданная ошибка
   logger.error({ msg: 'Необработанная ошибка', err, path: req.path });
-  res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+  res.status(500).json({ error: 'Internal server error' });
 }
 
 export function notFound(req: Request, res: Response): void {
-  res.status(404).json({ error: `Маршрут не найден: ${req.method} ${req.path}` });
+  res.status(404).json({ error: `Route not found: ${req.method} ${req.path}` });
 }

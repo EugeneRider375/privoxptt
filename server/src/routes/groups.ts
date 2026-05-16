@@ -17,7 +17,7 @@ const createGroupSchema = z.object({
   priority: z.number().int().min(0).max(100).default(0),
   color: z
     .string()
-    .regex(/^#[0-9A-Fa-f]{6}$/, 'Формат цвета: #RRGGBB')
+    .regex(/^#[0-9A-Fa-f]{6}$/, 'Color format: #RRGGBB')
     .default('#3DDC84'),
   organizationId: z.string().uuid().optional(),
 });
@@ -96,14 +96,14 @@ groupsRouter.get('/:id', async (req: Request, res: Response, next: NextFunction)
       },
     });
 
-    if (!group) throw new AppError(404, 'Группа не найдена');
+    if (!group) throw new AppError(404, 'Group not found');
 
     const isAdmin = [UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.DISPATCHER].includes(
       req.user!.role
     );
     const isMember = group.members.some((m) => m.userId === req.user!.userId);
 
-    if (!isAdmin && !isMember) throw new AppError(403, 'Вы не состоите в этой группе');
+    if (!isAdmin && !isMember) throw new AppError(403, 'You are not a member of this group');
 
     // Онлайн статусы участников
     const membersWithOnline = await Promise.all(
@@ -154,13 +154,13 @@ groupsRouter.put('/:id', requireAdmin, async (req: Request, res: Response, next:
   try {
     const { id } = req.params;
     const group = await prisma.group.findUnique({ where: { id } });
-    if (!group) throw new AppError(404, 'Группа не найдена');
+    if (!group) throw new AppError(404, 'Group not found');
 
     if (
       req.user!.role !== UserRole.SUPERADMIN &&
       group.organizationId !== req.user!.organizationId
     ) {
-      throw new AppError(403, 'Доступ запрещён');
+      throw new AppError(403, 'Access denied');
     }
 
     const data = updateGroupSchema.parse(req.body);
@@ -176,17 +176,17 @@ groupsRouter.delete('/:id', requireAdmin, async (req: Request, res: Response, ne
   try {
     const { id } = req.params;
     const group = await prisma.group.findUnique({ where: { id } });
-    if (!group) throw new AppError(404, 'Группа не найдена');
+    if (!group) throw new AppError(404, 'Group not found');
 
     if (
       req.user!.role !== UserRole.SUPERADMIN &&
       group.organizationId !== req.user!.organizationId
     ) {
-      throw new AppError(403, 'Доступ запрещён');
+      throw new AppError(403, 'Access denied');
     }
 
     await prisma.group.delete({ where: { id } });
-    res.json({ message: 'Группа удалена' });
+    res.json({ message: 'Group deleted' });
   } catch (err) {
     next(err);
   }
@@ -199,16 +199,16 @@ groupsRouter.post('/:id/members', requireAdmin, async (req: Request, res: Respon
     const { userId, canSpeak } = addMemberSchema.parse(req.body);
 
     const group = await prisma.group.findUnique({ where: { id: groupId } });
-    if (!group) throw new AppError(404, 'Группа не найдена');
+    if (!group) throw new AppError(404, 'Group not found');
 
     const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new AppError(404, 'Пользователь не найден');
+    if (!user) throw new AppError(404, 'User not found');
 
     if (
       req.user!.role !== UserRole.SUPERADMIN &&
       group.organizationId !== req.user!.organizationId
     ) {
-      throw new AppError(403, 'Доступ запрещён');
+      throw new AppError(403, 'Access denied');
     }
 
     const member = await prisma.groupMember.create({
@@ -230,17 +230,17 @@ groupsRouter.delete('/:id/members/:userId', requireAdmin, async (req: Request, r
     const { id: groupId, userId } = req.params;
 
     const group = await prisma.group.findUnique({ where: { id: groupId } });
-    if (!group) throw new AppError(404, 'Группа не найдена');
+    if (!group) throw new AppError(404, 'Group not found');
 
     if (
       req.user!.role !== UserRole.SUPERADMIN &&
       group.organizationId !== req.user!.organizationId
     ) {
-      throw new AppError(403, 'Доступ запрещён');
+      throw new AppError(403, 'Access denied');
     }
 
     await prisma.groupMember.deleteMany({ where: { groupId, userId } });
-    res.json({ message: 'Участник удалён из группы' });
+    res.json({ message: 'Member removed from group' });
   } catch (err) {
     next(err);
   }
@@ -255,7 +255,7 @@ groupsRouter.patch('/:id/members/:userId', requireAdmin, async (req: Request, re
     const member = await prisma.groupMember.findUnique({
       where: { userId_groupId: { userId, groupId } },
     });
-    if (!member) throw new AppError(404, 'Участник не найден');
+    if (!member) throw new AppError(404, 'Member not found');
 
     const updated = await prisma.groupMember.update({
       where: { userId_groupId: { userId, groupId } },

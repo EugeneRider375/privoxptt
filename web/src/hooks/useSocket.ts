@@ -44,13 +44,13 @@ export function useSocket() {
     publishSocket(socket);
 
     socket.on('connect', () => {
-      console.log('[Socket] Подключён:', socket.id);
+      console.log('[Socket] Connected:', socket.id);
       const heartbeat = setInterval(() => socket.emit('heartbeat'), 30_000);
       socket.on('disconnect', () => clearInterval(heartbeat));
     });
 
     socket.on('connect_error', (err) => {
-      console.error('[Socket] Ошибка подключения:', err.message);
+      console.error('[Socket] Connection error:', err.message);
     });
 
     // Используем getState() вместо useStore() — не создаём лишние React-подписки
@@ -86,7 +86,7 @@ export function useSocket() {
       useStore.getState().addAlert({
         type: 'info',
         callsign: fromCallsign,
-        message: `Личный вызов от ${fromCallsign} (${fromDisplayName})`,
+        message: `Private call from ${fromCallsign} (${fromDisplayName})`,
       });
     });
 
@@ -95,7 +95,7 @@ export function useSocket() {
     });
 
     socket.on('sos-alert', ({ userId, callsign, message }) => {
-      useStore.getState().addAlert({ type: 'sos', userId, callsign, message: `SOS: ${callsign} — ${message}` });
+      useStore.getState().addAlert({ type: 'sos', userId, callsign, message: `SOS: ${callsign} - ${message}` });
     });
 
     return () => {

@@ -38,7 +38,7 @@ export function setupSocketIO(httpServer: HttpServer): Server {
       (socket.handshake.headers.authorization?.replace('Bearer ', '') ?? '');
 
     if (!token) {
-      return next(new Error('Токен не предоставлен'));
+      return next(new Error('Token was not provided'));
     }
 
     try {
@@ -62,7 +62,7 @@ export function setupSocketIO(httpServer: HttpServer): Server {
       });
 
       if (!user || !user.isActive) {
-        return next(new Error('Пользователь не найден или деактивирован'));
+        return next(new Error('User not found or deactivated'));
       }
 
       // Сохраняем данные пользователя в socket.data
@@ -76,7 +76,7 @@ export function setupSocketIO(httpServer: HttpServer): Server {
 
       next();
     } catch {
-      next(new Error('Недействительный токен'));
+      next(new Error('Invalid token'));
     }
   });
 

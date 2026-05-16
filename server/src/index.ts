@@ -39,14 +39,14 @@ async function bootstrap() {
     max: 200,
     standardHeaders: true,
     legacyHeaders: false,
-    message: { error: 'Слишком много запросов, подождите минуту' },
+    message: { error: 'Too many requests, please wait a minute' },
   }));
 
   // Жёсткий rate limit для auth — 10 попыток в минуту
   const authLimiter = rateLimit({
     windowMs: 60_000,
     max: 10,
-    message: { error: 'Слишком много попыток авторизации' },
+    message: { error: 'Too many login attempts' },
   });
 
   // ─── Парсинг тела запроса ─────────────────────────────────

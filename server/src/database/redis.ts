@@ -48,6 +48,17 @@ export async function releasePttLock(
   return true;
 }
 
+export async function refreshPttLock(
+  groupId: string,
+  userId: string
+): Promise<boolean> {
+  const key = `${PTT_LOCK_PREFIX}${groupId}`;
+  const current = await redis.get(key);
+  if (current !== userId) return false;
+  await redis.expire(key, PTT_LOCK_TTL);
+  return true;
+}
+
 export async function getPttLockOwner(
   groupId: string
 ): Promise<string | null> {

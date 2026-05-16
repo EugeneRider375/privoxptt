@@ -78,7 +78,7 @@ export function AdminUsers() {
       load();
       setModal(null);
     } catch (e: any) {
-      setError(e?.response?.data?.error ?? 'Ошибка');
+      setError(e?.response?.data?.error ?? 'Error');
     } finally {
       setLoading(false);
     }
@@ -97,7 +97,7 @@ export function AdminUsers() {
       load();
       setModal(null);
     } catch (e: any) {
-      setError(e?.response?.data?.error ?? 'Ошибка');
+      setError(e?.response?.data?.error ?? 'Error');
     } finally {
       setLoading(false);
     }
@@ -110,14 +110,14 @@ export function AdminUsers() {
       await usersApi.resetPassword(selected.id, newPass);
       setModal(null);
     } catch (e: any) {
-      setError(e?.response?.data?.error ?? 'Ошибка');
+      setError(e?.response?.data?.error ?? 'Error');
     } finally {
       setLoading(false);
     }
   }
 
   async function handleDelete(u: User) {
-    if (!confirm(`Удалить ${u.callsign}?`)) return;
+    if (!confirm(`Delete ${u.callsign}?`)) return;
     await usersApi.delete(u.id).catch(console.error);
     load();
   }
@@ -126,12 +126,12 @@ export function AdminUsers() {
     <div className="p-4 space-y-4">
       {/* Шапка */}
       <div className="flex items-center justify-between">
-        <h2 className="font-orbitron text-white text-base tracking-wider">ПОЛЬЗОВАТЕЛИ</h2>
+        <h2 className="font-orbitron text-white text-base tracking-wider">USERS</h2>
         <button
           onClick={openCreate}
           className="flex items-center gap-2 bg-ptt-green text-ptt-dark font-orbitron text-xs px-3 py-1.5 rounded tracking-widest hover:bg-ptt-green/90 transition-colors"
         >
-          <Plus className="w-3 h-3" /> ДОБАВИТЬ
+          <Plus className="w-3 h-3" /> ADD
         </button>
       </div>
 
@@ -141,7 +141,7 @@ export function AdminUsers() {
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Поиск по позывному, email..."
+          placeholder="Search by callsign or email..."
           className="w-full bg-ptt-card border border-ptt-border rounded pl-9 pr-4 py-2 font-mono text-sm text-white placeholder-ptt-muted focus:outline-none focus:border-ptt-green"
         />
       </div>
@@ -152,11 +152,11 @@ export function AdminUsers() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-ptt-border">
-                <th className="text-left font-mono text-ptt-muted text-xs px-3 py-2 tracking-widest">ПОЗЫВНОЙ</th>
-                <th className="text-left font-mono text-ptt-muted text-xs px-3 py-2 tracking-widest">ИМЯ</th>
+                <th className="text-left font-mono text-ptt-muted text-xs px-3 py-2 tracking-widest">CALLSIGN</th>
+                <th className="text-left font-mono text-ptt-muted text-xs px-3 py-2 tracking-widest">NAME</th>
                 <th className="text-left font-mono text-ptt-muted text-xs px-3 py-2 tracking-widest">EMAIL</th>
-                <th className="text-left font-mono text-ptt-muted text-xs px-3 py-2 tracking-widest">РОЛЬ</th>
-                <th className="text-left font-mono text-ptt-muted text-xs px-3 py-2 tracking-widest">СТАТУС</th>
+                <th className="text-left font-mono text-ptt-muted text-xs px-3 py-2 tracking-widest">ROLE</th>
+                <th className="text-left font-mono text-ptt-muted text-xs px-3 py-2 tracking-widest">STATUS</th>
                 <th className="px-3 py-2" />
               </tr>
             </thead>
@@ -173,7 +173,7 @@ export function AdminUsers() {
                     <div className="flex items-center gap-1.5">
                       <div className={(u.isOnline ?? false) ? 'online-dot' : 'offline-dot'} />
                       <span className="font-mono text-xs text-ptt-muted">
-                        {(u.isOnline ?? false) ? 'онлайн' : 'офлайн'}
+                        {(u.isOnline ?? false) ? 'online' : 'offline'}
                       </span>
                     </div>
                   </td>
@@ -198,13 +198,13 @@ export function AdminUsers() {
           </table>
         </div>
         {filtered.length === 0 && (
-          <p className="text-center font-mono text-ptt-muted text-xs py-8">НЕТ ПОЛЬЗОВАТЕЛЕЙ</p>
+          <p className="text-center font-mono text-ptt-muted text-xs py-8">NO USERS</p>
         )}
       </div>
 
       {/* Модалки */}
       {(modal === 'create' || modal === 'edit') && (
-        <Modal title={modal === 'create' ? 'НОВЫЙ ПОЛЬЗОВАТЕЛЬ' : 'РЕДАКТИРОВАТЬ'} onClose={() => setModal(null)}>
+        <Modal title={modal === 'create' ? 'NEW USER' : 'EDIT'} onClose={() => setModal(null)}>
           <div className="space-y-3">
             {modal === 'create' && (
               <Field label="EMAIL">
@@ -213,20 +213,20 @@ export function AdminUsers() {
               </Field>
             )}
             {modal === 'create' && (
-              <Field label="ПАРОЛЬ">
+              <Field label="PASSWORD">
                 <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })}
                   className={inputCls} minLength={8} required />
               </Field>
             )}
-            <Field label="ПОЗЫВНОЙ">
+            <Field label="CALLSIGN">
               <input value={form.callsign} onChange={(e) => setForm({ ...form, callsign: e.target.value })}
                 className={inputCls} placeholder="ALPHA-1" required />
             </Field>
-            <Field label="ИМЯ">
+            <Field label="NAME">
               <input value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })}
                 className={inputCls} required />
             </Field>
-            <Field label="РОЛЬ">
+            <Field label="ROLE">
               <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as UserRole })}
                 className={inputCls}>
                 {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
@@ -238,16 +238,16 @@ export function AdminUsers() {
               disabled={loading}
               className="w-full bg-ptt-green text-ptt-dark font-orbitron text-xs py-2 rounded tracking-widest disabled:opacity-50"
             >
-              {loading ? 'СОХРАНЕНИЕ...' : 'СОХРАНИТЬ'}
+              {loading ? 'SAVING...' : 'SAVE'}
             </button>
           </div>
         </Modal>
       )}
 
       {modal === 'reset' && (
-        <Modal title="СБРОС ПАРОЛЯ" onClose={() => setModal(null)}>
+        <Modal title="RESET PASSWORD" onClose={() => setModal(null)}>
           <p className="callsign text-sm mb-3">{selected?.callsign}</p>
-          <Field label="НОВЫЙ ПАРОЛЬ">
+          <Field label="NEW PASSWORD">
             <input type="password" value={newPass} onChange={(e) => setNewPass(e.target.value)}
               className={inputCls} minLength={8} />
           </Field>
@@ -257,7 +257,7 @@ export function AdminUsers() {
             disabled={loading || !newPass}
             className="w-full mt-3 bg-ptt-warn text-ptt-dark font-orbitron text-xs py-2 rounded tracking-widest disabled:opacity-50"
           >
-            СБРОСИТЬ ПАРОЛЬ
+            RESET PASSWORD
           </button>
         </Modal>
       )}

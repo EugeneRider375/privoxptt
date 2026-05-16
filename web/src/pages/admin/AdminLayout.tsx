@@ -11,10 +11,10 @@ import { useSocket } from '@/hooks/useSocket';
 import clsx from 'clsx';
 
 const NAV = [
-  { to: '/admin',          icon: Radio,      label: 'Пульт',          roles: ['SUPERADMIN','ADMIN','DISPATCHER'] },
-  { to: '/admin/users',    icon: Users,       label: 'Пользователи',   roles: ['SUPERADMIN','ADMIN'] },
-  { to: '/admin/groups',   icon: Layers,      label: 'Группы',         roles: ['SUPERADMIN','ADMIN'] },
-  { to: '/admin/orgs',     icon: Building2,   label: 'Организации',    roles: ['SUPERADMIN'] },
+  { to: '/admin',          icon: Radio,      label: 'Console',       roles: ['SUPERADMIN','ADMIN','DISPATCHER'] },
+  { to: '/admin/users',    icon: Users,       label: 'Users',         roles: ['SUPERADMIN','ADMIN'] },
+  { to: '/admin/groups',   icon: Layers,      label: 'Groups',        roles: ['SUPERADMIN','ADMIN'] },
+  { to: '/admin/orgs',     icon: Building2,   label: 'Organizations', roles: ['SUPERADMIN'] },
 ];
 
 export function AdminLayout() {
@@ -81,7 +81,7 @@ export function AdminLayout() {
           )}
           <button onClick={handleLogout} className="flex items-center gap-2 text-ptt-muted hover:text-ptt-danger transition-colors">
             <LogOut className="w-4 h-4 shrink-0" />
-            {sidebarOpen && <span className="font-mono text-xs">ВЫХОД</span>}
+            {sidebarOpen && <span className="font-mono text-xs">LOG OUT</span>}
           </button>
         </div>
 
@@ -95,7 +95,7 @@ export function AdminLayout() {
 
       <main className="flex-1 overflow-hidden">
         <header className="flex items-center px-4 h-10 bg-ptt-panel border-b border-ptt-border">
-          <span className="font-mono text-ptt-text text-xs tracking-widest">ПАНЕЛЬ УПРАВЛЕНИЯ · {user?.organization?.name}</span>
+          <span className="font-mono text-ptt-text text-xs tracking-widest">CONTROL PANEL · {user?.organization?.name}</span>
         </header>
         <div className="h-[calc(100%-40px)] overflow-auto">
           <Routes>

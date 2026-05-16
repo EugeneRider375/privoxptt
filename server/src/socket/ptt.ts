@@ -3,6 +3,7 @@ import { prisma } from '../database/prisma';
 import {
   acquirePttLock,
   releasePttLock,
+  refreshPttLock,
   getPttLockOwner,
   redis,
   PTT_LOCK_PREFIX,
@@ -12,6 +13,16 @@ import type { AuthenticatedSocket } from './index';
 
 export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
   const { userId, callsign, displayName, organizationId, role } = socket.data;
+  const heldPttGroups = new Set<string>();
+  const refreshHeldLocks = async () => {
+    for (const groupId of heldPttGroups) {
+      const refreshed = await refreshPttLock(groupId, userId);
+      if (!refreshed) heldPttGroups.delete(groupId);
+    }
+  };
+  const pttRefreshTimer = setInterval(() => {
+    refreshHeldLocks().catch((err) => logger.error({ msg: 'PTT lock refresh failed', err, userId }));
+  }, 3_000);
 
   // ─── Присоединиться к группе ──────────────────────────────
   socket.on('join-group', async ({ groupId }: { groupId: string }) => {
@@ -27,7 +38,7 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
 
       if (!isPrivileged) {
         if (!member) {
-          socket.emit('error', { code: 'NOT_MEMBER', message: 'Вы не состоите в этой группе' });
+          socket.emit('error', { code: 'NOT_MEMBER', message: 'You are not a member of this group' });
           return;
         }
       } else {
@@ -36,7 +47,7 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
           where: { id: groupId, organizationId },
         });
         if (!group && role !== 'SUPERADMIN') {
-          socket.emit('error', { code: 'FORBIDDEN', message: 'Доступ запрещён' });
+          socket.emit('error', { code: 'FORBIDDEN', message: 'Access denied' });
           return;
         }
       }
@@ -69,6 +80,7 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
   socket.on('leave-group', async ({ groupId }: { groupId: string }) => {
     // Если этот пользователь держал PTT — освобождаем
     await releasePttLock(groupId, userId);
+    heldPttGroups.delete(groupId);
     socket.leave(groupId);
     logger.debug({ msg: 'Покинул группу', userId, callsign, groupId });
   });
@@ -86,7 +98,7 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
         socket.emit('channel-locked', {
           groupId,
           reason: 'no_speak_permission',
-          message: 'Вам запрещено говорить в этой группе',
+          message: 'You are not allowed to speak in this group',
         });
         return;
       }
@@ -107,10 +119,12 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
           lockedBy: lockOwner,
           lockedByCallsign: owner?.callsign ?? '???',
           reason: 'channel_busy',
-          message: 'Канал занят',
+          message: 'Channel busy',
         });
         return;
       }
+
+      heldPttGroups.add(groupId);
 
       // Канал захвачен — уведомляем всех в группе
       io.to(groupId).emit('channel-busy', {
@@ -130,6 +144,7 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
   socket.on('ptt-stop', async ({ groupId }: { groupId: string }) => {
     try {
       const released = await releasePttLock(groupId, userId);
+      heldPttGroups.delete(groupId);
 
       if (released) {
         io.to(groupId).emit('channel-free', { groupId });
@@ -149,7 +164,7 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
       });
 
       if (!target) {
-        socket.emit('error', { code: 'NOT_FOUND', message: 'Пользователь не найден' });
+        socket.emit('error', { code: 'NOT_FOUND', message: 'User not found' });
         return;
       }
 
@@ -209,10 +224,12 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
 
   // ─── Очистка при дисконнекте ──────────────────────────────
   socket.on('disconnect', async () => {
+    clearInterval(pttRefreshTimer);
     // Освобождаем все PTT блокировки этого пользователя
     const rooms = Array.from(socket.rooms).filter((r) => r !== socket.id);
     for (const groupId of rooms) {
       const released = await releasePttLock(groupId, userId);
+      heldPttGroups.delete(groupId);
       if (released) {
         io.to(groupId).emit('channel-free', { groupId });
       }

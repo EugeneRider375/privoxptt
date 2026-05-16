@@ -15,8 +15,8 @@ import { AppError } from '../middleware/errorHandler';
 export const authRouter = Router();
 
 const loginSchema = z.object({
-  email: z.string().email('Некорректный email'),
-  password: z.string().min(1, 'Пароль обязателен'),
+  email: z.string().email('Invalid email'),
+  password: z.string().min(1, 'Password is required'),
 });
 
 const refreshSchema = z.object({
@@ -34,12 +34,12 @@ authRouter.post('/login', async (req: Request, res: Response, next: NextFunction
     });
 
     if (!user || !user.isActive) {
-      throw new AppError(401, 'Неверный email или пароль');
+      throw new AppError(401, 'Invalid email or password');
     }
 
     const passwordMatch = await bcrypt.compare(password, user.password);
     if (!passwordMatch) {
-      throw new AppError(401, 'Неверный email или пароль');
+      throw new AppError(401, 'Invalid email or password');
     }
 
     const payload: JwtPayload = {
@@ -94,11 +94,11 @@ authRouter.post('/refresh', async (req: Request, res: Response, next: NextFuncti
     });
 
     if (!storedToken || storedToken.expiresAt < new Date()) {
-      throw new AppError(401, 'Refresh токен недействителен или истёк');
+      throw new AppError(401, 'Refresh token is invalid or expired');
     }
 
     if (!storedToken.user.isActive) {
-      throw new AppError(401, 'Пользователь деактивирован');
+      throw new AppError(401, 'User is deactivated');
     }
 
     // Верифицируем подпись JWT
@@ -150,7 +150,7 @@ authRouter.post('/logout', authenticate, async (req: Request, res: Response, nex
     // Удаляем онлайн статус из Redis
     await redis.del(`online:user:${req.user!.userId}`);
 
-    res.json({ message: 'Выход выполнен' });
+    res.json({ message: 'Logged out' });
   } catch (err) {
     next(err);
   }
@@ -181,7 +181,7 @@ authRouter.get('/me', authenticate, async (req: Request, res: Response, next: Ne
     });
 
     if (!user) {
-      throw new AppError(404, 'Пользователь не найден');
+      throw new AppError(404, 'User not found');
     }
 
     res.json(user);

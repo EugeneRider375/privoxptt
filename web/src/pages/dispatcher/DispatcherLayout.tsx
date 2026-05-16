@@ -14,9 +14,9 @@ import { useSocket } from '@/hooks/useSocket';
 import clsx from 'clsx';
 
 const NAV = [
-  { to: '/dispatcher',         icon: LayoutDashboard, label: 'Пульт'    },
-  { to: '/dispatcher/map',     icon: Map,              label: 'Карта'    },
-  { to: '/dispatcher/settings',icon: Settings,         label: 'Настройки'},
+  { to: '/dispatcher',         icon: LayoutDashboard, label: 'Console' },
+  { to: '/dispatcher/map',     icon: Map,              label: 'Map' },
+  { to: '/dispatcher/settings',icon: Settings,         label: 'Settings' },
 ];
 
 export function DispatcherLayout() {
@@ -91,7 +91,7 @@ export function DispatcherLayout() {
             className="flex items-center gap-2 text-ptt-muted hover:text-ptt-danger transition-colors w-full"
           >
             <LogOut className="w-4 h-4 shrink-0" />
-            {sidebarOpen && <span className="font-mono text-xs">ВЫХОД</span>}
+            {sidebarOpen && <span className="font-mono text-xs">LOG OUT</span>}
           </button>
         </div>
 
@@ -109,7 +109,7 @@ export function DispatcherLayout() {
         {/* Топ бар */}
         <header className="flex items-center justify-between px-4 h-10 bg-ptt-panel border-b border-ptt-border">
           <div className="flex items-center gap-2">
-            <span className="font-mono text-ptt-text text-xs tracking-widest">ДИСПЕТЧЕРСКИЙ ПУЛЬТ</span>
+            <span className="font-mono text-ptt-text text-xs tracking-widest">DISPATCH CONSOLE</span>
           </div>
           <div className="flex items-center gap-3">
             {alerts.length > 0 && (

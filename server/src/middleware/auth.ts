@@ -23,7 +23,7 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
   const authHeader = req.headers.authorization;
 
   if (!authHeader?.startsWith('Bearer ')) {
-    res.status(401).json({ error: 'Требуется авторизация' });
+    res.status(401).json({ error: 'Authorization required' });
     return;
   }
 
@@ -34,7 +34,7 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
     req.user = payload;
     next();
   } catch {
-    res.status(401).json({ error: 'Токен недействителен или истёк' });
+    res.status(401).json({ error: 'Token is invalid or expired' });
   }
 }
 
@@ -42,11 +42,11 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
 export function requireRole(...roles: UserRole[]) {
   return (req: Request, res: Response, next: NextFunction): void => {
     if (!req.user) {
-      res.status(401).json({ error: 'Требуется авторизация' });
+      res.status(401).json({ error: 'Authorization required' });
       return;
     }
     if (!roles.includes(req.user.role)) {
-      res.status(403).json({ error: 'Недостаточно прав' });
+      res.status(403).json({ error: 'Insufficient permissions' });
       return;
     }
     next();
@@ -73,7 +73,7 @@ export async function sameOrganization(
   next: NextFunction
 ): Promise<void> {
   if (!req.user) {
-    res.status(401).json({ error: 'Требуется авторизация' });
+    res.status(401).json({ error: 'Authorization required' });
     return;
   }
   // Суперадмин видит все организации
@@ -83,7 +83,7 @@ export async function sameOrganization(
   }
   const orgId = req.params.orgId || req.body.organizationId;
   if (orgId && orgId !== req.user.organizationId) {
-    res.status(403).json({ error: 'Доступ только к своей организации' });
+    res.status(403).json({ error: 'Access is limited to your organization' });
     return;
   }
   next();

@@ -3,7 +3,6 @@ import { MapContainer, TileLayer, Marker, Popup, Circle } from 'react-leaflet';
 import { divIcon } from 'leaflet';
 import { useStore } from '@/store/useStore';
 import { formatDistanceToNow } from 'date-fns';
-import { ru } from 'date-fns/locale';
 
 // Иконка маркера в стиле рации
 function makeIcon(callsign: string, isOnline: boolean) {
@@ -37,8 +36,8 @@ export function DispatcherMap() {
   return (
     <div className="h-full flex flex-col">
       <div className="flex items-center justify-between px-4 py-2 bg-ptt-panel border-b border-ptt-border">
-        <span className="font-mono text-ptt-text text-xs tracking-widest">КАРТА АБОНЕНТОВ</span>
-        <span className="font-mono text-xs text-ptt-green">{locationList.length} меток</span>
+        <span className="font-mono text-ptt-text text-xs tracking-widest">SUBSCRIBER MAP</span>
+        <span className="font-mono text-xs text-ptt-green">{locationList.length} markers</span>
       </div>
 
       <div className="flex-1 relative">
@@ -69,11 +68,11 @@ export function DispatcherMap() {
                     </p>
                     {loc.speed != null && (
                       <p className="text-ptt-text">
-                        Скорость: {(loc.speed * 3.6).toFixed(0)} км/ч
+                        Speed: {(loc.speed * 3.6).toFixed(0)} km/h
                       </p>
                     )}
                     <p className="text-ptt-muted">
-                      {formatDistanceToNow(loc.timestamp, { addSuffix: true, locale: ru })}
+                      {formatDistanceToNow(loc.timestamp, { addSuffix: true })}
                     </p>
                   </div>
                 </Popup>
@@ -85,8 +84,8 @@ export function DispatcherMap() {
         {locationList.length === 0 && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="text-center">
-              <p className="font-mono text-ptt-muted text-sm">НЕТ ДАННЫХ О МЕСТОПОЛОЖЕНИИ</p>
-              <p className="font-mono text-ptt-muted/50 text-xs mt-1">Абоненты не передают GPS</p>
+              <p className="font-mono text-ptt-muted text-sm">NO LOCATION DATA</p>
+              <p className="font-mono text-ptt-muted/50 text-xs mt-1">Subscribers are not sending GPS</p>
             </div>
           </div>
         )}
