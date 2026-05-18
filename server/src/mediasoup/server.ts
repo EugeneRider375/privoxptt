@@ -101,6 +101,10 @@ class MediasoupManager {
     return promise;
   }
 
+  getWorkerCount(): number {
+    return this.workers.length;
+  }
+
   getGroupRouter(groupId: string): Router | undefined {
     return this.groupRouters.get(groupId);
   }

@@ -24,7 +24,7 @@ RUN npm run build
 FROM node:20-slim AS production
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 python3-pip make g++ pkg-config \
+    python3 python3-pip make g++ pkg-config ninja-build \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -32,10 +32,8 @@ WORKDIR /app
 COPY package*.json ./
 COPY prisma ./prisma/
 
-RUN npm ci --only=production --ignore-scripts
-
-# Пересобираем нативные модули (mediasoup)
-RUN npm rebuild
+# Без --ignore-scripts: mediasoup должен запустить postinstall и собрать воркер
+RUN npm ci --only=production
 
 RUN npx prisma generate
 

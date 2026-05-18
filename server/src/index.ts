@@ -55,11 +55,13 @@ async function bootstrap() {
 
   // ─── Healthcheck ──────────────────────────────────────────
   app.get('/health', (_req, res) => {
+    const msWorkers = mediasoupManager.getWorkerCount();
     res.json({
       status: 'ok',
       service: 'PrivoxPTT',
       version: '1.0.0',
       timestamp: new Date().toISOString(),
+      mediasoup: { workers: msWorkers, ok: msWorkers > 0 },
     });
   });
 

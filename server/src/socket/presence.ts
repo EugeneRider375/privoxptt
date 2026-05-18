@@ -1,6 +1,6 @@
 import { Server, Socket } from 'socket.io';
 import { prisma } from '../database/prisma';
-import { setUserOnline, setUserOffline, refreshUserOnline } from '../database/redis';
+import { setUserOnline, setUserOffline, refreshUserOnline, getOnlineUserIds } from '../database/redis';
 import { logger } from '../utils/logger';
 import type { AuthenticatedSocket } from './index';
 
@@ -18,12 +18,28 @@ export function setupPresence(io: Server, socket: AuthenticatedSocket): void {
       data: { lastSeen: new Date() },
     });
 
-    // Уведомляем всех в организации
+    // Уведомляем всех остальных в организации
     socket.to(`org:${organizationId}`).emit('user-online', {
       userId,
       callsign,
       displayName,
     });
+
+    // Отправляем новому сокету снапшот — кто уже онлайн
+    const onlineIds = await getOnlineUserIds();
+    if (onlineIds.length > 0) {
+      const onlineUsers = await prisma.user.findMany({
+        where: { id: { in: onlineIds }, organizationId },
+        select: { id: true, callsign: true, displayName: true },
+      });
+      socket.emit('presence-snapshot', {
+        users: onlineUsers.map((u) => ({
+          userId: u.id,
+          callsign: u.callsign,
+          displayName: u.displayName,
+        })),
+      });
+    }
 
     logger.debug({ msg: 'Пользователь онлайн', userId, callsign });
   }

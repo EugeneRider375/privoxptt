@@ -54,6 +54,11 @@ export function useSocket() {
     });
 
     // Используем getState() вместо useStore() — не создаём лишние React-подписки
+    socket.on('presence-snapshot', ({ users }: { users: Array<{ userId: string; callsign: string; displayName: string }> }) => {
+      const state = useStore.getState();
+      users.forEach((u) => state.setUserOnline(u.userId, u.callsign, u.displayName));
+    });
+
     socket.on('user-online', ({ userId, callsign, displayName }) => {
       useStore.getState().setUserOnline(userId, callsign, displayName);
     });

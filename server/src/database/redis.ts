@@ -85,3 +85,8 @@ export async function isUserOnline(userId: string): Promise<boolean> {
 export async function refreshUserOnline(userId: string): Promise<void> {
   await redis.expire(`${ONLINE_PREFIX}${userId}`, ONLINE_TTL);
 }
+
+export async function getOnlineUserIds(): Promise<string[]> {
+  const keys = await redis.keys(`${ONLINE_PREFIX}*`);
+  return keys.map((k) => k.replace(ONLINE_PREFIX, ''));
+}
