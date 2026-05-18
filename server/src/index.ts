@@ -61,6 +61,7 @@ async function bootstrap() {
       service: 'PrivoxPTT',
       version: '1.0.0',
       timestamp: new Date().toISOString(),
+      arch: process.arch,
       mediasoup: { workers: msWorkers, ok: msWorkers > 0, error: mediasoupManager.initError },
     });
   });

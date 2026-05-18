@@ -32,7 +32,12 @@ COPY prisma ./prisma/
 
 RUN npm ci --only=production --ignore-scripts
 
-RUN npm rebuild
+# Пересобираем mediasoup worker из исходников (не скачиваем prebuilt бинарник)
+# Это работает на любой архитектуре (x64 и arm64)
+ENV MEDIASOUP_SKIP_WORKER_PREBUILT_DOWNLOAD=1
+RUN npm rebuild mediasoup --update-binary 2>&1 || \
+    (cd node_modules/mediasoup && node npm_scripts/postinstall.js 2>&1) || \
+    npm rebuild 2>&1
 
 RUN npx prisma generate
 
