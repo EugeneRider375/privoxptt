@@ -75,8 +75,6 @@ services:
       dockerfile: Dockerfile
     container_name: privoxptt-web
     restart: unless-stopped
-    ports:
-      - "80:80"
     depends_on:
       - server
     networks:
