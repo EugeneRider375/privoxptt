@@ -76,9 +76,15 @@ export function usePTT(groupId: string | null) {
       setTimeout(() => reject(new Error('WebRTC timeout')), WEBRTC_TIMEOUT_MS)
     );
 
-    pttStart(groupId);
-
     try {
+      await pttStart(groupId);
+      if (!isPressing.current || pressSeq.current !== seq) {
+        micStream.getTracks().forEach((track) => track.stop());
+        pttStop(groupId);
+        useStore.getState().setPttStatus('idle');
+        return;
+      }
+
       await Promise.race([startTransmitting(micStream), timeout]);
       if (!isPressing.current || pressSeq.current !== seq) {
         stopTransmitting();
@@ -90,6 +96,7 @@ export function usePTT(groupId: string | null) {
       setPttStatus('transmitting', groupId, user?.id, user?.callsign);
     } catch (err) {
       console.error('[PTT] Failed to start transmission:', err);
+      micStream.getTracks().forEach((track) => track.stop());
       stopTransmitting();
       pttStop(groupId);
       isPressing.current = false;

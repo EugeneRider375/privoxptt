@@ -86,7 +86,10 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
   });
 
   // ─── PTT нажата ───────────────────────────────────────────
-  socket.on('ptt-start', async ({ groupId }: { groupId: string }) => {
+  socket.on('ptt-start', async (
+    { groupId }: { groupId: string },
+    callback?: (data: { ok: boolean; error?: string; message?: string }) => void
+  ) => {
     try {
       // Проверяем canSpeak
       const member = await prisma.groupMember.findUnique({
@@ -95,6 +98,7 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
 
       const isPrivileged = ['SUPERADMIN', 'ADMIN', 'DISPATCHER'].includes(role);
       if (!isPrivileged && member && !member.canSpeak) {
+        callback?.({ ok: false, error: 'no_speak_permission', message: 'You are not allowed to speak in this group' });
         socket.emit('channel-locked', {
           groupId,
           reason: 'no_speak_permission',
@@ -121,6 +125,7 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
           reason: 'channel_busy',
           message: 'Channel busy',
         });
+        callback?.({ ok: false, error: 'channel_busy', message: 'Channel busy' });
         return;
       }
 
@@ -134,9 +139,11 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
         displayName,
       });
 
+      callback?.({ ok: true });
       logger.info({ msg: 'PTT start', userId, callsign, groupId });
     } catch (err) {
       logger.error({ msg: 'Ошибка ptt-start', err, userId, groupId });
+      callback?.({ ok: false, error: 'server_error', message: 'Failed to acquire PTT channel' });
     }
   });
 

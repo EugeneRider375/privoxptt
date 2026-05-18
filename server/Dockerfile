@@ -30,14 +30,15 @@ WORKDIR /app
 COPY package*.json ./
 COPY prisma ./prisma/
 
-RUN npm ci --only=production --ignore-scripts
-
 # Пересобираем mediasoup worker из исходников (не скачиваем prebuilt бинарник)
 # Это работает на любой архитектуре (x64 и arm64)
 ENV MEDIASOUP_SKIP_WORKER_PREBUILT_DOWNLOAD=1
-RUN npm rebuild mediasoup --update-binary 2>&1 || \
-    (cd node_modules/mediasoup && node npm_scripts/postinstall.js 2>&1) || \
-    npm rebuild 2>&1
+
+# Не используем --ignore-scripts в production: bcrypt и mediasoup создают native
+# бинарники во время install/postinstall. Без них контейнер падает на старте.
+RUN npm ci --omit=dev
+
+RUN npm rebuild bcrypt mediasoup
 
 RUN npx prisma generate
 

@@ -117,7 +117,21 @@ export function useSocket() {
   }, []);
 
   const pttStart = useCallback((groupId: string) => {
-    socketRef.current?.emit('ptt-start', { groupId });
+    return new Promise<void>((resolve, reject) => {
+      const socket = socketRef.current;
+      if (!socket) {
+        reject(new Error('Socket is not connected'));
+        return;
+      }
+
+      socket.emit('ptt-start', { groupId }, (resp?: { ok: boolean; error?: string; message?: string }) => {
+        if (resp?.ok) {
+          resolve();
+        } else {
+          reject(new Error(resp?.message ?? resp?.error ?? 'PTT channel is unavailable'));
+        }
+      });
+    });
   }, []);
 
   const pttStop = useCallback((groupId: string) => {
