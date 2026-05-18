@@ -1,8 +1,11 @@
 import { useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Circle } from 'react-leaflet';
-import { divIcon } from 'leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { divIcon, latLngBounds } from 'leaflet';
 import { useStore } from '@/store/useStore';
 import { formatDistanceToNow } from 'date-fns';
+
+const EUROPE_CENTER: [number, number] = [46.6, 2.4];
+const EUROPE_ZOOM = 6;
 
 // Иконка маркера в стиле рации
 function makeIcon(callsign: string, isOnline: boolean) {
@@ -27,6 +30,35 @@ function makeIcon(callsign: string, isOnline: boolean) {
   });
 }
 
+function MapAutoCenter({ locations }: { locations: Array<{ lat: number; lng: number }> }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (locations.length > 0) {
+      const bounds = latLngBounds(locations.map((loc) => [loc.lat, loc.lng]));
+      map.fitBounds(bounds.pad(0.28), { maxZoom: 12, animate: false });
+      return;
+    }
+
+    if (!navigator.geolocation) {
+      map.setView(EUROPE_CENTER, EUROPE_ZOOM, { animate: false });
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        map.setView([pos.coords.latitude, pos.coords.longitude], 10, { animate: false });
+      },
+      () => {
+        map.setView(EUROPE_CENTER, EUROPE_ZOOM, { animate: false });
+      },
+      { enableHighAccuracy: false, maximumAge: 60_000, timeout: 4_000 }
+    );
+  }, [locations, map]);
+
+  return null;
+}
+
 export function DispatcherMap() {
   const locations = useStore((s) => s.locations);
   const onlineUsers = useStore((s) => s.onlineUsers);
@@ -42,13 +74,14 @@ export function DispatcherMap() {
 
       <div className="flex-1 relative">
         <MapContainer
-          center={[55.75, 37.62]}
-          zoom={10}
-          className="w-full h-full"
-          style={{ background: '#0A0C0A' }}
+          center={EUROPE_CENTER}
+          zoom={EUROPE_ZOOM}
+          className="dispatcher-map w-full h-full"
+          style={{ background: '#101610' }}
         >
+          <MapAutoCenter locations={locationList} />
           <TileLayer
-            url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
             attribution='&copy; <a href="https://carto.com/">CARTO</a>'
           />
 
@@ -85,7 +118,7 @@ export function DispatcherMap() {
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="text-center">
               <p className="font-mono text-ptt-muted text-sm">NO LOCATION DATA</p>
-              <p className="font-mono text-ptt-muted/50 text-xs mt-1">Subscribers are not sending GPS</p>
+              <p className="font-mono text-ptt-text text-xs mt-1">Subscribers are not sending GPS</p>
             </div>
           </div>
         )}

@@ -63,4 +63,26 @@
   .callsign {
     @apply font-mono text-ptt-green tracking-widest uppercase;
   }
+
+  .dispatcher-map .leaflet-tile {
+    filter: brightness(0.68) contrast(1.08) saturate(0.72);
+  }
+
+  .dispatcher-map .leaflet-control-zoom a {
+    background: #f5f7f2;
+    color: #0A0C0A;
+    border-color: #AFC4AF;
+  }
+
+  .dispatcher-map .leaflet-control-zoom a:hover {
+    background: #ffffff;
+    color: #0A0C0A;
+  }
+
+  .dispatcher-map .leaflet-popup-content-wrapper,
+  .dispatcher-map .leaflet-popup-tip {
+    background: #111411;
+    color: #C8D8C8;
+    border: 1px solid #284028;
+  }
 }

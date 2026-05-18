@@ -80,7 +80,7 @@ export function DispatcherDashboard() {
                   </span>
                   {busy && <Mic className="w-3 h-3 text-ptt-green" />}
                 </div>
-                <p className="font-mono text-xs text-ptt-muted mt-0.5 pl-4">
+                <p className="font-mono text-xs text-ptt-text mt-0.5 pl-4">
                   {g._count?.members ?? 0} members
                 </p>
               </button>
@@ -133,7 +133,7 @@ export function DispatcherDashboard() {
               </span>
             </>
           ) : (
-            <p className="font-mono text-ptt-muted text-sm tracking-widest">● CHANNEL CLEAR</p>
+            <p className="font-mono text-ptt-text text-sm tracking-widest">● CHANNEL CLEAR</p>
           )}
         </div>
 
@@ -145,7 +145,7 @@ export function DispatcherDashboard() {
               onStop={stopPtt}
               size="lg"
             />
-            <p className="font-mono text-ptt-muted text-xs">
+            <p className="font-mono text-ptt-text text-xs">
               Dispatcher · {activeGroup?.name ?? '-'}
             </p>
           </div>
@@ -177,11 +177,11 @@ export function DispatcherDashboard() {
                 <div className="flex-1 min-w-0">
                   <p className={clsx(
                     'callsign text-xs truncate',
-                    !online && 'text-ptt-muted opacity-50'
+                    !online && 'text-ptt-muted'
                   )}>
                     {m.user.callsign}
                   </p>
-                  <p className="font-mono text-ptt-muted text-xs truncate">{m.user.displayName}</p>
+                  <p className="font-mono text-ptt-text text-xs truncate">{m.user.displayName}</p>
                 </div>
                 {talking && <Radio className="w-3 h-3 text-ptt-green shrink-0 animate-pulse" />}
                 {!m.canSpeak && !talking && <MicOff className="w-3 h-3 text-ptt-muted shrink-0" />}

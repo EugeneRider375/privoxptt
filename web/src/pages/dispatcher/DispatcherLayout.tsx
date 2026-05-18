@@ -83,7 +83,7 @@ export function DispatcherLayout() {
           {sidebarOpen && (
             <div className="overflow-hidden">
               <p className="callsign text-xs truncate">{user?.callsign}</p>
-              <p className="font-mono text-ptt-muted text-xs truncate">{user?.role}</p>
+              <p className="font-mono text-ptt-text text-xs truncate">{user?.role}</p>
             </div>
           )}
           <button
