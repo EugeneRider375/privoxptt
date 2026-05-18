@@ -31,6 +31,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    security_opt:
+      - seccomp:unconfined
     networks:
       - privoxptt-net
     volumes:
