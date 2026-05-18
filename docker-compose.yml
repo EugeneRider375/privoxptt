@@ -79,10 +79,13 @@ services:
       - server
     networks:
       - privoxptt-net
+      - coolify
 
 networks:
   privoxptt-net:
     driver: bridge
+  coolify:
+    external: true
 
 volumes:
   pgdata:
