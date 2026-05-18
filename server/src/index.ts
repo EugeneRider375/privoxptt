@@ -61,7 +61,7 @@ async function bootstrap() {
       service: 'PrivoxPTT',
       version: '1.0.0',
       timestamp: new Date().toISOString(),
-      mediasoup: { workers: msWorkers, ok: msWorkers > 0 },
+      mediasoup: { workers: msWorkers, ok: msWorkers > 0, error: mediasoupManager.initError },
     });
   });
 
@@ -89,7 +89,9 @@ async function bootstrap() {
   try {
     await mediasoupManager.init();
   } catch (err) {
-    logger.warn({ msg: '⚠️  MediaSoup не запустился — аудио недоступно, сигналинг работает', err });
+    const errMsg = err instanceof Error ? `${err.message}\n${err.stack}` : String(err);
+    mediasoupManager.initError = errMsg;
+    logger.warn({ msg: '⚠️  MediaSoup не запустился — аудио недоступно, сигналинг работает', err: errMsg });
   }
 
   // ─── Запуск ───────────────────────────────────────────────

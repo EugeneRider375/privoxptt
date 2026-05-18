@@ -32,6 +32,7 @@ export const MEDIA_CODECS: mediasoup.types.RtpCodecCapability[] = [
 class MediasoupManager {
   private workers: Worker[] = [];
   private workerIndex = 0;
+  public initError: string | null = null;
 
   // Роутеры по группам: groupId → Router
   private groupRouters = new Map<string, Router>();
@@ -46,8 +47,8 @@ class MediasoupManager {
       const worker = await mediasoup.createWorker(WORKER_SETTINGS);
 
       worker.on('died', (err) => {
-        logger.error({ msg: `MediaSoup worker #${i} упал`, err });
-        // Пересоздаём воркер
+        logger.error({ msg: `MediaSoup worker #${i} упал`, err: String(err) });
+        this.initError = `worker died: ${String(err)}`;
         this.replaceWorker(i);
       });
 
