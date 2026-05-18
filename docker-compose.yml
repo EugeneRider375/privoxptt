@@ -71,6 +71,19 @@ services:
       timeout: 5s
       retries: 5
 
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: privoxptt-web
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - server
+    networks:
+      - privoxptt-net
+
 networks:
   privoxptt-net:
     driver: bridge
