@@ -1,8 +1,7 @@
 FROM node:20-slim AS builder
 
-# Все build tools нужны для сборки mediasoup worker (C++ binary)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 python3-pip make g++ pkg-config ninja-build \
+    python3 python3-pip make g++ pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -10,10 +9,8 @@ WORKDIR /app
 COPY package*.json ./
 COPY prisma ./prisma/
 
-# Собираем ВСЕ зависимости включая mediasoup worker binary
-RUN npm ci
+RUN npm ci --ignore-scripts
 
-# Генерируем Prisma client
 RUN npx prisma generate
 
 COPY tsconfig.json ./
@@ -24,16 +21,18 @@ RUN npm run build
 # ─── Production образ ─────────────────────────────────────
 FROM node:20-slim AS production
 
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 python3-pip make g++ pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 COPY package*.json ./
 COPY prisma ./prisma/
 
-# Только prod-зависимости без скриптов (быстро)
 RUN npm ci --only=production --ignore-scripts
 
-# Берём уже собранный mediasoup worker binary из builder-stage
-COPY --from=builder /app/node_modules/mediasoup/worker/out /app/node_modules/mediasoup/worker/out
+RUN npm rebuild
 
 RUN npx prisma generate
 
