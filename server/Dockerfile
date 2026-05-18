@@ -1,7 +1,7 @@
 FROM node:20-alpine AS builder
 
 # MediaSoup требует Python и make для сборки нативных модулей
-RUN apk add --no-cache python3 make g++ linux-headers
+RUN apk add --no-cache python3 py3-pip make g++ linux-headers
 
 WORKDIR /app
 
@@ -21,7 +21,7 @@ RUN npm run build
 # ─── Production образ ─────────────────────────────────────
 FROM node:20-alpine AS production
 
-RUN apk add --no-cache python3 make g++ linux-headers
+RUN apk add --no-cache python3 py3-pip make g++ linux-headers
 
 WORKDIR /app
 
