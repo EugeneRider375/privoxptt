@@ -33,6 +33,7 @@ COPY prisma ./prisma/
 # Пересобираем mediasoup worker из исходников (не скачиваем prebuilt бинарник)
 # Это работает на любой архитектуре (x64 и arm64)
 ENV MEDIASOUP_SKIP_WORKER_PREBUILT_DOWNLOAD=1
+ENV MESON_ARGS="-Dms_disable_liburing=true"
 
 # Не используем --ignore-scripts в production: bcrypt и mediasoup создают native
 # бинарники во время install/postinstall. Без них контейнер падает на старте.
