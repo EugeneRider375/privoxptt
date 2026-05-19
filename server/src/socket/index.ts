@@ -83,16 +83,13 @@ export function setupSocketIO(httpServer: HttpServer): Server {
   // ─── Обработка подключений ────────────────────────────────
   io.on('connection', (socket) => {
     const s = socket as AuthenticatedSocket;
-    const { userId, callsign, organizationId, role } = s.data;
+    const { userId, callsign, organizationId } = s.data;
 
     logger.info({ msg: 'Socket подключён', userId, callsign, socketId: socket.id });
 
     // Каждый пользователь входит в персональную комнату и комнату организации
     socket.join(`user:${userId}`);
     socket.join(`org:${organizationId}`);
-    if (['SUPERADMIN', 'ADMIN', 'DISPATCHER'].includes(role)) {
-      socket.join(`org:${organizationId}:dispatchers`);
-    }
 
     setupPresence(io, s);
     setupPtt(io, s);

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { LogOut, ChevronDown, Users, Radio, Signal, AlertTriangle, PhoneCall } from 'lucide-react';
+import { LogOut, Settings, ChevronDown, Users, Radio, Signal, AlertTriangle } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { PRIVOX_DATA_CHANGED_EVENT, useSocket } from '@/hooks/useSocket';
 import { usePTT } from '@/hooks/usePTT';
@@ -21,13 +21,12 @@ export function UserRadioPage() {
   const clearAuth = useStore((s) => s.clearAuth);
   const onlineUsers = useStore((s) => s.onlineUsers);
 
-  const { joinGroup, leaveGroup, sendSos, callDispatcher } = useSocket();
+  const { joinGroup, leaveGroup, sendSos } = useSocket();
   const { startPtt, stopPtt } = usePTT(activeGroupId);
   useGeolocation(true);
 
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [showGroups, setShowGroups] = useState(false);
-  const [callingDispatcher, setCallingDispatcher] = useState(false);
 
   const activeGroup = groups.find((g) => g.id === activeGroupId);
 
@@ -94,21 +93,6 @@ export function UserRadioPage() {
     window.location.href = '/login';
   }
 
-  async function handleCallDispatcher() {
-    if (!activeGroupId || callingDispatcher) return;
-    setCallingDispatcher(true);
-    try {
-      await callDispatcher(activeGroupId);
-    } catch (err) {
-      useStore.getState().addAlert({
-        type: 'warn',
-        message: err instanceof Error ? err.message : 'Failed to call dispatcher',
-      });
-    } finally {
-      setCallingDispatcher(false);
-    }
-  }
-
   const onlineCount = members.filter((m) => onlineUsers[m.userId]).length;
   const isBusy = activeGroup?.pttOwnerId != null;
 
@@ -127,14 +111,6 @@ export function UserRadioPage() {
           <span className="font-mono text-ptt-text text-xs">ONLINE</span>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleCallDispatcher}
-            disabled={!activeGroupId || callingDispatcher}
-            title="Call dispatcher"
-            className="text-ptt-blue hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <PhoneCall className="w-4 h-4" />
-          </button>
           <button onClick={handleLogout} className="text-ptt-muted hover:text-white transition-colors">
             <LogOut className="w-4 h-4" />
           </button>
@@ -216,24 +192,13 @@ export function UserRadioPage() {
           size="lg"
         />
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleCallDispatcher}
-            disabled={!activeGroupId || callingDispatcher}
-            className="flex items-center gap-2 px-4 py-2 border border-ptt-blue/50 rounded text-ptt-blue font-mono text-xs tracking-widest hover:bg-ptt-blue/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <PhoneCall className="w-3 h-3" />
-            {callingDispatcher ? 'CALLING' : 'DISPATCH'}
-          </button>
-
-          <button
-            onClick={() => activeGroupId && sendSos(activeGroupId)}
-            className="flex items-center gap-2 px-4 py-2 border border-ptt-danger/50 rounded text-ptt-danger font-mono text-xs tracking-widest hover:bg-ptt-danger/10 transition-colors"
-          >
-            <AlertTriangle className="w-3 h-3" />
-            SOS
-          </button>
-        </div>
+        <button
+          onClick={() => activeGroupId && sendSos(activeGroupId)}
+          className="flex items-center gap-2 px-4 py-2 border border-ptt-danger/50 rounded text-ptt-danger font-mono text-xs tracking-widest hover:bg-ptt-danger/10 transition-colors"
+        >
+          <AlertTriangle className="w-3 h-3" />
+          SOS
+        </button>
       </div>
 
       {/* Список участников */}
