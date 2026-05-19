@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useStore } from '@/store/useStore';
+import type { DispatcherCall } from '@/types';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || '';
 export const PRIVOX_SOCKET_READY_EVENT = 'privox-socket-ready';
@@ -104,6 +105,51 @@ export function useSocket() {
       useStore.getState().addAlert({ type: 'sos', userId, callsign, message: `SOS: ${callsign} - ${message}` });
     });
 
+    socket.on('dispatcher-call-incoming', (call: Omit<DispatcherCall, 'status'>) => {
+      const state = useStore.getState();
+      state.addDispatcherCall({ ...call, status: 'pending' });
+      state.addAlert({
+        type: 'info',
+        userId: call.fromUserId,
+        callsign: call.callsign,
+        message: `Dispatcher call from ${call.groupName}`,
+      });
+    });
+
+    socket.on('dispatcher-call-sent', ({ groupName }: { groupName: string }) => {
+      useStore.getState().addAlert({
+        type: 'info',
+        message: `Dispatcher call sent: ${groupName}`,
+      });
+    });
+
+    socket.on('dispatcher-call-status', (event: {
+      callId: string;
+      groupId: string;
+      fromUserId: string;
+      status: DispatcherCall['status'];
+      dispatcherId?: string;
+      dispatcherCallsign?: string;
+      answeredAt?: number;
+    }) => {
+      const state = useStore.getState();
+      state.updateDispatcherCall(event.callId, event);
+      if (event.status === 'answered') {
+        const isCaller = state.user?.id === event.fromUserId;
+        state.addAlert({
+          type: 'info',
+          callsign: event.dispatcherCallsign,
+          message: isCaller
+            ? `Dispatcher accepted your call`
+            : `Call answered by ${event.dispatcherCallsign ?? 'dispatcher'}`,
+        });
+      }
+    });
+
+    socket.on('dispatcher-call-error', ({ message }) => {
+      useStore.getState().addAlert({ type: 'warn', message });
+    });
+
     socket.on('org-data-changed', (event) => {
       window.dispatchEvent(new CustomEvent(PRIVOX_DATA_CHANGED_EVENT, { detail: event }));
     });
@@ -151,5 +197,55 @@ export function useSocket() {
     socketRef.current?.emit('sos', { groupId, message });
   }, []);
 
-  return { socket: socketRef.current, joinGroup, leaveGroup, pttStart, pttStop, sendLocation, sendSos };
+  const callDispatcher = useCallback((groupId: string, message = 'Dispatcher requested') => {
+    return new Promise<string>((resolve, reject) => {
+      const socket = socketRef.current;
+      if (!socket) {
+        reject(new Error('Socket is not connected'));
+        return;
+      }
+
+      socket.emit('dispatcher-call-request', { groupId, message }, (resp?: { ok: boolean; callId?: string; error?: string; message?: string }) => {
+        if (resp?.ok && resp.callId) {
+          resolve(resp.callId);
+        } else {
+          reject(new Error(resp?.message ?? resp?.error ?? 'Failed to call dispatcher'));
+        }
+      });
+    });
+  }, []);
+
+  const acceptDispatcherCall = useCallback((call: DispatcherCall) => {
+    return new Promise<void>((resolve, reject) => {
+      const socket = socketRef.current;
+      if (!socket) {
+        reject(new Error('Socket is not connected'));
+        return;
+      }
+
+      socket.emit('dispatcher-call-accept', {
+        callId: call.callId,
+        groupId: call.groupId,
+        fromUserId: call.fromUserId,
+      }, (resp?: { ok: boolean; error?: string; message?: string }) => {
+        if (resp?.ok) {
+          resolve();
+        } else {
+          reject(new Error(resp?.message ?? resp?.error ?? 'Failed to accept dispatcher call'));
+        }
+      });
+    });
+  }, []);
+
+  return {
+    socket: socketRef.current,
+    joinGroup,
+    leaveGroup,
+    pttStart,
+    pttStop,
+    sendLocation,
+    sendSos,
+    callDispatcher,
+    acceptDispatcherCall,
+  };
 }
