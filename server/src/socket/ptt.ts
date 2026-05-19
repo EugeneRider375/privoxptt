@@ -1,4 +1,5 @@
 import { Server } from 'socket.io';
+import { randomUUID } from 'crypto';
 import { prisma } from '../database/prisma';
 import {
   acquirePttLock,
@@ -14,6 +15,28 @@ import type { AuthenticatedSocket } from './index';
 export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
   const { userId, callsign, displayName, organizationId, role } = socket.data;
   const heldPttGroups = new Set<string>();
+  const isPrivileged = ['SUPERADMIN', 'ADMIN', 'DISPATCHER'].includes(role);
+
+  const canAccessGroup = async (groupId: string) => {
+    const member = await prisma.groupMember.findUnique({
+      where: { userId_groupId: { userId, groupId } },
+      include: { group: { select: { id: true, name: true, organizationId: true } } },
+    });
+
+    if (member && member.group.organizationId === organizationId) {
+      return { ok: true, group: member.group };
+    }
+
+    if (isPrivileged) {
+      const group = await prisma.group.findFirst({
+        where: { id: groupId, organizationId },
+        select: { id: true, name: true, organizationId: true },
+      });
+      if (group) return { ok: true, group };
+    }
+
+    return { ok: false, group: null };
+  };
   const refreshHeldLocks = async () => {
     for (const groupId of heldPttGroups) {
       const refreshed = await refreshPttLock(groupId, userId);
@@ -227,6 +250,76 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
     // Рассылаем всем в группе и в организации
     io.to(groupId).emit('sos-alert', { userId, callsign, groupId, message });
     socket.to(`org:${organizationId}`).emit('sos-alert', { userId, callsign, groupId, message });
+  });
+
+  // ─── Вызов диспетчера ─────────────────────────────────────
+  socket.on('dispatcher-call-request', async (
+    { groupId, message }: { groupId: string; message?: string },
+    callback?: (data: { ok: boolean; callId?: string; error?: string; message?: string }) => void
+  ) => {
+    try {
+      const access = await canAccessGroup(groupId);
+      if (!access.ok || !access.group) {
+        callback?.({ ok: false, error: 'forbidden', message: 'Access denied' });
+        return;
+      }
+
+      const payload = {
+        callId: randomUUID(),
+        groupId,
+        groupName: access.group.name,
+        fromUserId: userId,
+        callsign,
+        displayName,
+        message: message?.trim() || 'Dispatcher requested',
+        priority: 'normal' as const,
+        createdAt: Date.now(),
+      };
+
+      io.to(`org:${organizationId}:dispatchers`).emit('dispatcher-call-incoming', payload);
+      socket.emit('dispatcher-call-sent', payload);
+      callback?.({ ok: true, callId: payload.callId });
+      logger.info({ msg: 'Dispatcher call requested', userId, callsign, groupId, callId: payload.callId });
+    } catch (err) {
+      logger.error({ msg: 'Ошибка dispatcher-call-request', err, userId, groupId });
+      callback?.({ ok: false, error: 'server_error', message: 'Failed to call dispatcher' });
+    }
+  });
+
+  socket.on('dispatcher-call-accept', async (
+    { callId, groupId, fromUserId }: { callId: string; groupId: string; fromUserId: string },
+    callback?: (data: { ok: boolean; error?: string; message?: string }) => void
+  ) => {
+    try {
+      if (!isPrivileged) {
+        callback?.({ ok: false, error: 'forbidden', message: 'Only dispatchers can accept calls' });
+        return;
+      }
+
+      const access = await canAccessGroup(groupId);
+      if (!access.ok) {
+        callback?.({ ok: false, error: 'forbidden', message: 'Access denied' });
+        return;
+      }
+
+      const payload = {
+        callId,
+        groupId,
+        fromUserId,
+        status: 'answered' as const,
+        dispatcherId: userId,
+        dispatcherCallsign: callsign,
+        answeredAt: Date.now(),
+      };
+
+      io.to(`org:${organizationId}:dispatchers`).emit('dispatcher-call-status', payload);
+      io.to(`user:${fromUserId}`).emit('dispatcher-call-status', payload);
+      callback?.({ ok: true });
+      logger.info({ msg: 'Dispatcher call accepted', callId, groupId, fromUserId, dispatcherId: userId });
+    } catch (err) {
+      logger.error({ msg: 'Ошибка dispatcher-call-accept', err, userId, groupId, callId });
+      callback?.({ ok: false, error: 'server_error', message: 'Failed to accept dispatcher call' });
+    }
   });
 
   // ─── Очистка при дисконнекте ──────────────────────────────

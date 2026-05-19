@@ -98,6 +98,25 @@ export interface IncomingCallEvent {
   fromDisplayName: string;
 }
 
+export type DispatcherCallStatus = 'pending' | 'answered' | 'cancelled' | 'missed' | 'expired';
+export type DispatcherCallPriority = 'normal' | 'urgent' | 'sos';
+
+export interface DispatcherCall {
+  callId: string;
+  groupId: string;
+  groupName: string;
+  fromUserId: string;
+  callsign: string;
+  displayName: string;
+  message: string;
+  priority: DispatcherCallPriority;
+  status: DispatcherCallStatus;
+  createdAt: number;
+  dispatcherId?: string;
+  dispatcherCallsign?: string;
+  answeredAt?: number;
+}
+
 export type PttStatus = 'idle' | 'transmitting' | 'receiving' | 'locked';
 
 export interface Alert {
