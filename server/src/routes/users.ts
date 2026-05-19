@@ -6,6 +6,7 @@ import { authenticate, requireAdmin } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
 import { UserRole } from '@prisma/client';
 import { isUserOnline } from '../database/redis';
+import { emitOrgDataChanged } from '../utils/realtime';
 
 export const usersRouter = Router();
 
@@ -178,6 +179,7 @@ usersRouter.post('/', requireAdmin, async (req: Request, res: Response, next: Ne
       },
     });
 
+    emitOrgDataChanged(req, orgId, 'users', { userId: user.id, action: 'created' });
     res.status(201).json(user);
   } catch (err) {
     next(err);
@@ -221,6 +223,7 @@ usersRouter.put('/:id', async (req: Request, res: Response, next: NextFunction) 
       },
     });
 
+    emitOrgDataChanged(req, target.organizationId, 'users', { userId: id, action: 'updated' });
     res.json(updated);
   } catch (err) {
     next(err);
@@ -301,6 +304,7 @@ usersRouter.delete('/:id', requireAdmin, async (req: Request, res: Response, nex
     }
 
     await prisma.user.delete({ where: { id } });
+    emitOrgDataChanged(req, target.organizationId, 'users', { userId: id, action: 'deleted' });
     res.json({ message: 'User deleted' });
   } catch (err) {
     next(err);

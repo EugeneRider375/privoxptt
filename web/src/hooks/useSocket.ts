@@ -4,6 +4,7 @@ import { useStore } from '@/store/useStore';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || '';
 export const PRIVOX_SOCKET_READY_EVENT = 'privox-socket-ready';
+export const PRIVOX_DATA_CHANGED_EVENT = 'privox-data-changed';
 
 let globalSocket: Socket | null = null;
 
@@ -101,6 +102,10 @@ export function useSocket() {
 
     socket.on('sos-alert', ({ userId, callsign, message }) => {
       useStore.getState().addAlert({ type: 'sos', userId, callsign, message: `SOS: ${callsign} - ${message}` });
+    });
+
+    socket.on('org-data-changed', (event) => {
+      window.dispatchEvent(new CustomEvent(PRIVOX_DATA_CHANGED_EVENT, { detail: event }));
     });
 
     return () => {

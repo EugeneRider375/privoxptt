@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Radio, Mic, MicOff } from 'lucide-react';
 import { useStore } from '@/store/useStore';
-import { useSocket } from '@/hooks/useSocket';
+import { PRIVOX_DATA_CHANGED_EVENT, useSocket } from '@/hooks/useSocket';
 import { usePTT } from '@/hooks/usePTT';
-import { groupsApi, usersApi } from '@/api/client';
+import { groupsApi } from '@/api/client';
 import { PTTButton } from '@/components/ui/PTTButton';
 import { Waveform } from '@/components/ui/Waveform';
-import type { GroupMember, User } from '@/types';
+import type { Group, GroupMember } from '@/types';
 import clsx from 'clsx';
 
 export function DispatcherDashboard() {
@@ -22,31 +22,66 @@ export function DispatcherDashboard() {
   const { startPtt, stopPtt } = usePTT(activeGroupId);
 
   const [members, setMembers] = useState<GroupMember[]>([]);
-  const [allUsers, setAllUsers] = useState<User[]>([]);
 
   const activeGroup = groups.find((g) => g.id === activeGroupId);
 
-  // Загружаем группы и сразу выбираем первую если не выбрано
-  useEffect(() => {
-    groupsApi.list().then((g) => {
+  const refreshGroups = useCallback(async () => {
+    try {
+      const g = await groupsApi.list();
       setGroups(g);
       if (!activeGroupId && g.length > 0) {
         setActiveGroup(g[0].id);
       }
-    }).catch(console.error);
+      if (activeGroupId && !g.some((group: Group) => group.id === activeGroupId)) {
+        setActiveGroup(g[0]?.id ?? '');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }, [activeGroupId, setActiveGroup, setGroups]);
 
-    usersApi.list().then(setAllUsers).catch(console.error);
-  }, []);
+  const refreshActiveGroup = useCallback(async () => {
+    if (!activeGroupId) {
+      setMembers([]);
+      return;
+    }
+
+    try {
+      const g = await groupsApi.get(activeGroupId);
+      setMembers(g.members ?? []);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [activeGroupId]);
+
+  // Загружаем группы и сразу выбираем первую если не выбрано
+  useEffect(() => {
+    refreshGroups();
+  }, [refreshGroups]);
 
   // Join/leave при смене активной группы
   useEffect(() => {
     if (!activeGroupId) return;
 
     joinGroup(activeGroupId);
-    groupsApi.get(activeGroupId).then((g) => setMembers(g.members ?? [])).catch(console.error);
+    refreshActiveGroup();
 
     return () => { leaveGroup(activeGroupId); };
-  }, [activeGroupId]);
+  }, [activeGroupId, joinGroup, leaveGroup, refreshActiveGroup]);
+
+  useEffect(() => {
+    const refresh = () => {
+      refreshGroups();
+      refreshActiveGroup();
+    };
+
+    window.addEventListener(PRIVOX_DATA_CHANGED_EVENT, refresh);
+    const timer = window.setInterval(refresh, 30_000);
+    return () => {
+      window.removeEventListener(PRIVOX_DATA_CHANGED_EVENT, refresh);
+      window.clearInterval(timer);
+    };
+  }, [refreshActiveGroup, refreshGroups]);
 
   const onlineCount = Object.keys(onlineUsers).length;
 

@@ -5,6 +5,7 @@ import { authenticate, requireAdmin } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
 import { UserRole } from '@prisma/client';
 import { getPttLockOwner, isUserOnline } from '../database/redis';
+import { emitOrgDataChanged } from '../utils/realtime';
 
 export const groupsRouter = Router();
 
@@ -148,6 +149,7 @@ groupsRouter.post('/', requireAdmin, async (req: Request, res: Response, next: N
       },
     });
 
+    emitOrgDataChanged(req, orgId, 'groups', { groupId: group.id, action: 'created' });
     res.status(201).json(group);
   } catch (err) {
     next(err);
@@ -170,6 +172,7 @@ groupsRouter.put('/:id', requireAdmin, async (req: Request, res: Response, next:
 
     const data = updateGroupSchema.parse(req.body);
     const updated = await prisma.group.update({ where: { id }, data });
+    emitOrgDataChanged(req, group.organizationId, 'groups', { groupId: id, action: 'updated' });
     res.json(updated);
   } catch (err) {
     next(err);
@@ -191,6 +194,7 @@ groupsRouter.delete('/:id', requireAdmin, async (req: Request, res: Response, ne
     }
 
     await prisma.group.delete({ where: { id } });
+    emitOrgDataChanged(req, group.organizationId, 'groups', { groupId: id, action: 'deleted' });
     res.json({ message: 'Group deleted' });
   } catch (err) {
     next(err);
@@ -223,6 +227,7 @@ groupsRouter.post('/:id/members', requireAdmin, async (req: Request, res: Respon
       },
     });
 
+    emitOrgDataChanged(req, group.organizationId, 'members', { groupId, userId, action: 'member_added' });
     res.status(201).json(member);
   } catch (err) {
     next(err);
@@ -246,6 +251,7 @@ groupsRouter.delete('/:id/members/:userId', requireAdmin, async (req: Request, r
     }
 
     await prisma.groupMember.deleteMany({ where: { groupId, userId } });
+    emitOrgDataChanged(req, group.organizationId, 'members', { groupId, userId, action: 'member_removed' });
     res.json({ message: 'Member removed from group' });
   } catch (err) {
     next(err);
@@ -261,14 +267,23 @@ groupsRouter.patch('/:id/members/:userId', requireAdmin, async (req: Request, re
 
     const member = await prisma.groupMember.findUnique({
       where: { userId_groupId: { userId, groupId } },
+      include: { group: { select: { organizationId: true } } },
     });
     if (!member) throw new AppError(404, 'Member not found');
+
+    if (
+      req.user!.role !== UserRole.SUPERADMIN &&
+      member.group.organizationId !== req.user!.organizationId
+    ) {
+      throw new AppError(403, 'Access denied');
+    }
 
     const updated = await prisma.groupMember.update({
       where: { userId_groupId: { userId, groupId } },
       data: { canSpeak },
     });
 
+    emitOrgDataChanged(req, member.group.organizationId, 'members', { groupId, userId, action: 'member_updated' });
     res.json(updated);
   } catch (err) {
     next(err);

@@ -80,7 +80,8 @@ async function bootstrap() {
   const httpServer = http.createServer(app);
 
   // ─── Socket.io ────────────────────────────────────────────
-  setupSocketIO(httpServer);
+  const io = setupSocketIO(httpServer);
+  app.set('io', io);
 
   // ─── Инициализация сервисов ───────────────────────────────
   await connectDatabase();
