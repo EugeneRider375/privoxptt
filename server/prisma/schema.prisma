@@ -18,6 +18,7 @@ model Organization {
 
   users  User[]
   groups Group[]
+  activityLogs ActivityLog[]
 }
 
 model User {
@@ -34,6 +35,7 @@ model User {
 
   groupMembers GroupMember[]
   refreshTokens RefreshToken[]
+  activityLogs ActivityLog[]
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -44,6 +46,22 @@ model User {
   deviceType  DeviceType?
 
   @@index([organizationId])
+}
+
+model ActivityLog {
+  id             String          @id @default(uuid())
+  type           ActivityLogType
+  organizationId String
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String?
+  user           User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  callsign       String
+  displayName    String
+  createdAt      DateTime        @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([userId, createdAt])
+  @@index([type, createdAt])
 }
 
 model RefreshToken {
@@ -100,4 +118,9 @@ enum DeviceType {
   IOS
   ANDROID
   WEB
+}
+
+enum ActivityLogType {
+  USER_ONLINE
+  USER_OFFLINE
 }

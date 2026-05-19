@@ -1,17 +1,19 @@
 import { Routes, Route, NavLink, useNavigate } from 'react-router-dom';
-import { Radio, Users, Layers, Building2, LogOut, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Radio, Users, Layers, Building2, LogOut, ChevronLeft, ChevronRight, ClipboardList } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { authApi } from '@/api/client';
 import { AlertPanel } from '@/components/ui/AlertPanel';
 import { AdminUsers } from './AdminUsers';
 import { AdminGroups } from './AdminGroups';
 import { AdminOrgs } from './AdminOrgs';
+import { ActivityLogPage } from '../activity/ActivityLogPage';
 import { DispatcherDashboard } from '../dispatcher/DispatcherDashboard';
 import { useSocket } from '@/hooks/useSocket';
 import clsx from 'clsx';
 
 const NAV = [
   { to: '/admin',          icon: Radio,      label: 'Console',       roles: ['SUPERADMIN','ADMIN','DISPATCHER'] },
+  { to: '/admin/activity', icon: ClipboardList, label: 'Log',        roles: ['SUPERADMIN','ADMIN','DISPATCHER'] },
   { to: '/admin/users',    icon: Users,       label: 'Users',         roles: ['SUPERADMIN','ADMIN'] },
   { to: '/admin/groups',   icon: Layers,      label: 'Groups',        roles: ['SUPERADMIN','ADMIN'] },
   { to: '/admin/orgs',     icon: Building2,   label: 'Organizations', roles: ['SUPERADMIN'] },
@@ -100,6 +102,7 @@ export function AdminLayout() {
         <div className="h-[calc(100%-40px)] overflow-auto">
           <Routes>
             <Route index element={<DispatcherDashboard />} />
+            <Route path="activity" element={<ActivityLogPage />} />
             <Route path="users" element={<AdminUsers />} />
             <Route path="groups" element={<AdminGroups />} />
             <Route path="orgs" element={<AdminOrgs />} />

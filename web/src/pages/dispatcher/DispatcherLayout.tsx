@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Routes, Route, NavLink, useNavigate } from 'react-router-dom';
 import {
   Radio, Users, Map, Bell, Settings, LogOut,
-  ChevronLeft, ChevronRight, LayoutDashboard,
+  ChevronLeft, ChevronRight, LayoutDashboard, ClipboardList,
 } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { groupsApi, authApi } from '@/api/client';
@@ -10,11 +10,13 @@ import { AlertPanel } from '@/components/ui/AlertPanel';
 import { DispatcherDashboard } from './DispatcherDashboard';
 import { DispatcherMap } from './DispatcherMap';
 import { DispatcherSettings } from './DispatcherSettings';
+import { ActivityLogPage } from '../activity/ActivityLogPage';
 import { useSocket } from '@/hooks/useSocket';
 import clsx from 'clsx';
 
 const NAV = [
   { to: '/dispatcher',         icon: LayoutDashboard, label: 'Console' },
+  { to: '/dispatcher/activity',icon: ClipboardList,    label: 'Log' },
   { to: '/dispatcher/map',     icon: Map,              label: 'Map' },
   { to: '/dispatcher/settings',icon: Settings,         label: 'Settings' },
 ];
@@ -126,6 +128,7 @@ export function DispatcherLayout() {
         <div className="h-[calc(100%-40px)] overflow-auto">
           <Routes>
             <Route index element={<DispatcherDashboard />} />
+            <Route path="activity" element={<ActivityLogPage />} />
             <Route path="map" element={<DispatcherMap />} />
             <Route path="settings" element={<DispatcherSettings />} />
           </Routes>

@@ -73,8 +73,14 @@ export async function setUserOnline(userId: string, socketId: string): Promise<v
   await redis.set(`${ONLINE_PREFIX}${userId}`, socketId, 'EX', ONLINE_TTL);
 }
 
-export async function setUserOffline(userId: string): Promise<void> {
-  await redis.del(`${ONLINE_PREFIX}${userId}`);
+export async function setUserOffline(userId: string, socketId?: string): Promise<boolean> {
+  const key = `${ONLINE_PREFIX}${userId}`;
+  if (socketId) {
+    const current = await redis.get(key);
+    if (current !== socketId) return false;
+  }
+  const deleted = await redis.del(key);
+  return deleted === 1;
 }
 
 export async function isUserOnline(userId: string): Promise<boolean> {

@@ -1,4 +1,5 @@
 export type UserRole = 'SUPERADMIN' | 'ADMIN' | 'DISPATCHER' | 'USER';
+export type ActivityLogType = 'USER_ONLINE' | 'USER_OFFLINE';
 
 export interface User {
   id: string;
@@ -127,4 +128,14 @@ export interface Alert {
   message: string;
   timestamp: number;
   read: boolean;
+}
+
+export interface ActivityLogEntry {
+  id: string;
+  type: ActivityLogType;
+  userId?: string | null;
+  callsign: string;
+  displayName: string;
+  createdAt: string;
+  organization?: Pick<Organization, 'name' | 'slug'>;
 }

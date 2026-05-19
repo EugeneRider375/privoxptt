@@ -111,3 +111,9 @@ export const orgsApi = {
   update: (id: string, data: object) => api.put(`/orgs/${id}`, data).then((r) => r.data),
   delete: (id: string) => api.delete(`/orgs/${id}`),
 };
+
+// ─── Activity log ─────────────────────────────────────────
+export const activityApi = {
+  list: (params?: { limit?: number; type?: string }) =>
+    api.get('/activity', { params }).then((r) => r.data),
+};

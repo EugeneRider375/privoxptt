@@ -1,6 +1,7 @@
 import { Server, Socket } from 'socket.io';
+import { ActivityLogType } from '@prisma/client';
 import { prisma } from '../database/prisma';
-import { setUserOnline, setUserOffline, refreshUserOnline, getOnlineUserIds } from '../database/redis';
+import { setUserOnline, setUserOffline, refreshUserOnline, getOnlineUserIds, isUserOnline } from '../database/redis';
 import { logger } from '../utils/logger';
 import type { AuthenticatedSocket } from './index';
 
@@ -10,13 +11,34 @@ const HEARTBEAT_INTERVAL = 30_000;
 export function setupPresence(io: Server, socket: AuthenticatedSocket): void {
   const { userId, callsign, displayName, organizationId } = socket.data;
 
+  async function writePresenceLog(type: ActivityLogType) {
+    try {
+      await prisma.activityLog.create({
+        data: {
+          type,
+          organizationId,
+          userId,
+          callsign,
+          displayName,
+        },
+      });
+    } catch (err) {
+      logger.error({ msg: 'Ошибка записи журнала присутствия', err, userId, type });
+    }
+  }
+
   // Пользователь онлайн
   async function handleOnline() {
+    const wasOnline = await isUserOnline(userId);
     await setUserOnline(userId, socket.id);
     await prisma.user.update({
       where: { id: userId },
       data: { lastSeen: new Date() },
     });
+
+    if (!wasOnline) {
+      await writePresenceLog(ActivityLogType.USER_ONLINE);
+    }
 
     // Уведомляем всех остальных в организации
     socket.to(`org:${organizationId}`).emit('user-online', {
@@ -46,11 +68,15 @@ export function setupPresence(io: Server, socket: AuthenticatedSocket): void {
 
   // Пользователь офлайн
   async function handleOffline() {
-    await setUserOffline(userId);
+    const wentOffline = await setUserOffline(userId, socket.id);
+    if (!wentOffline) return;
+
     await prisma.user.update({
       where: { id: userId },
       data: { lastSeen: new Date() },
     });
+
+    await writePresenceLog(ActivityLogType.USER_OFFLINE);
 
     socket.to(`org:${organizationId}`).emit('user-offline', {
       userId,
