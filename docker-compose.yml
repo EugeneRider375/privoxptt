@@ -6,7 +6,6 @@ services:
     container_name: privoxptt-server
     restart: unless-stopped
     ports:
-      - "3000:3000"
       # MediaSoup UDP/TCP диапазон — ОБЯЗАТЕЛЬНО открыт на VPS фаерволе
       - "10000-10100:10000-10100/udp"
       - "10000-10100:10000-10100/tcp"
