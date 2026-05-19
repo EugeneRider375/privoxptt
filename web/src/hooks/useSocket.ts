@@ -8,7 +8,6 @@ export const PRIVOX_SOCKET_READY_EVENT = 'privox-socket-ready';
 export const PRIVOX_DATA_CHANGED_EVENT = 'privox-data-changed';
 
 let globalSocket: Socket | null = null;
-let notificationAudioCtx: AudioContext | null = null;
 
 export function getPrivoxSocket(): Socket | null {
   return globalSocket;
@@ -17,50 +16,6 @@ export function getPrivoxSocket(): Socket | null {
 function publishSocket(socket: Socket): void {
   (window as any).__privoxSocket = socket;
   window.dispatchEvent(new CustomEvent(PRIVOX_SOCKET_READY_EVENT, { detail: socket }));
-}
-
-function getNotificationAudioContext(): AudioContext | null {
-  const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
-  if (!AudioContextCtor) return null;
-  if (!notificationAudioCtx || notificationAudioCtx.state === 'closed') {
-    notificationAudioCtx = new AudioContextCtor();
-  }
-  return notificationAudioCtx;
-}
-
-function unlockNotificationAudio(): void {
-  const ctx = getNotificationAudioContext();
-  if (ctx?.state === 'suspended') {
-    ctx.resume().catch(() => {});
-  }
-}
-
-function playDispatcherCallTone(): void {
-  const ctx = getNotificationAudioContext();
-  if (!ctx) return;
-
-  ctx.resume().catch(() => {});
-
-  const playBeep = (startOffset: number, frequency: number) => {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    const start = ctx.currentTime + startOffset;
-    const end = start + 0.16;
-
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(frequency, start);
-    gain.gain.setValueAtTime(0.0001, start);
-    gain.gain.exponentialRampToValueAtTime(0.18, start + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, end);
-
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start(start);
-    osc.stop(end + 0.02);
-  };
-
-  playBeep(0, 880);
-  playBeep(0.24, 1175);
 }
 
 export function useSocket() {
@@ -89,9 +44,6 @@ export function useSocket() {
     globalSocket = socket;
     socketRef.current = socket;
     publishSocket(socket);
-
-    document.addEventListener('click', unlockNotificationAudio);
-    document.addEventListener('touchstart', unlockNotificationAudio);
 
     socket.on('connect', () => {
       console.log('[Socket] Connected:', socket.id);
@@ -162,7 +114,6 @@ export function useSocket() {
         callsign: call.callsign,
         message: `Dispatcher call from ${call.groupName}`,
       });
-      playDispatcherCallTone();
     });
 
     socket.on('dispatcher-call-sent', ({ groupName }: { groupName: string }) => {
@@ -205,8 +156,6 @@ export function useSocket() {
 
     return () => {
       // Сокет глобальный — не отключаем
-      document.removeEventListener('click', unlockNotificationAudio);
-      document.removeEventListener('touchstart', unlockNotificationAudio);
     };
   }, [token]);
 
