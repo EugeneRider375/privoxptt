@@ -39,8 +39,6 @@ ENV MESON_ARGS="-Dms_disable_liburing=true"
 # бинарники во время install/postinstall. Без них контейнер падает на старте.
 RUN npm ci --omit=dev
 
-RUN npm rebuild bcrypt mediasoup
-
 RUN npx prisma generate
 
 COPY --from=builder /app/dist ./dist
