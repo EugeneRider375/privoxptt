@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { User, Group, UserLocation, Alert, PttStatus, DispatcherCall, DispatcherCallStatus } from '@/types';
+import type { User, Group, UserLocation, Alert, PttStatus } from '@/types';
 
 interface AppStore {
   // ─── Auth ──────────────────────────────────────────────
@@ -38,11 +38,6 @@ interface AppStore {
   addAlert: (alert: Omit<Alert, 'id' | 'timestamp' | 'read'>) => void;
   markAlertRead: (id: string) => void;
   clearAlerts: () => void;
-
-  // ─── Вызовы диспетчера ──────────────────────────────────
-  dispatcherCalls: DispatcherCall[];
-  addDispatcherCall: (call: Omit<DispatcherCall, 'status'> & { status?: DispatcherCallStatus }) => void;
-  updateDispatcherCall: (callId: string, patch: Partial<DispatcherCall>) => void;
 
   // ─── UI ────────────────────────────────────────────────
   sidebarOpen: boolean;
@@ -115,34 +110,6 @@ export const useStore = create<AppStore>()(
       markAlertRead: (id) =>
         set((s) => ({ alerts: s.alerts.map((a) => (a.id === id ? { ...a, read: true } : a)) })),
       clearAlerts: () => set({ alerts: [] }),
-
-      // Вызовы диспетчера
-      dispatcherCalls: [],
-      addDispatcherCall: (call) =>
-        set((s) => {
-          const nextCall: DispatcherCall = { ...call, status: call.status ?? 'pending' };
-          const existing = s.dispatcherCalls.some((c) => c.callId === nextCall.callId);
-          const calls = existing
-            ? s.dispatcherCalls.map((c) => (c.callId === nextCall.callId ? { ...c, ...nextCall } : c))
-            : [nextCall, ...s.dispatcherCalls];
-
-          return {
-            dispatcherCalls: calls
-              .slice()
-              .sort((a, b) => {
-                const priorityOrder = { sos: 0, urgent: 1, normal: 2 };
-                const priorityDelta = priorityOrder[a.priority] - priorityOrder[b.priority];
-                return priorityDelta || a.createdAt - b.createdAt;
-              })
-              .slice(0, 25),
-          };
-        }),
-      updateDispatcherCall: (callId, patch) =>
-        set((s) => ({
-          dispatcherCalls: s.dispatcherCalls.map((c) =>
-            c.callId === callId ? { ...c, ...patch } : c
-          ),
-        })),
 
       // UI
       sidebarOpen: true,

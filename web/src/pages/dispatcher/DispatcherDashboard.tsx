@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Radio, Mic, MicOff, PhoneCall, Check, Clock } from 'lucide-react';
+import { Radio, Mic, MicOff } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { PRIVOX_DATA_CHANGED_EVENT, useSocket } from '@/hooks/useSocket';
 import { usePTT } from '@/hooks/usePTT';
@@ -17,13 +17,11 @@ export function DispatcherDashboard() {
   const pttStatus = useStore((s) => s.pttStatus);
   const pttCallsign = useStore((s) => s.pttCallsign);
   const onlineUsers = useStore((s) => s.onlineUsers);
-  const dispatcherCalls = useStore((s) => s.dispatcherCalls);
 
-  const { joinGroup, leaveGroup, acceptDispatcherCall } = useSocket();
+  const { joinGroup, leaveGroup } = useSocket();
   const { startPtt, stopPtt } = usePTT(activeGroupId);
 
   const [members, setMembers] = useState<GroupMember[]>([]);
-  const [now, setNow] = useState(Date.now());
 
   const activeGroup = groups.find((g) => g.id === activeGroupId);
 
@@ -85,28 +83,6 @@ export function DispatcherDashboard() {
     };
   }, [refreshActiveGroup, refreshGroups]);
 
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  const pendingCalls = dispatcherCalls.filter((call) => call.status === 'pending');
-
-  async function handleAcceptCall(callId: string) {
-    const call = dispatcherCalls.find((item) => item.callId === callId);
-    if (!call) return;
-
-    setActiveGroup(call.groupId);
-    try {
-      await acceptDispatcherCall(call);
-    } catch (err) {
-      useStore.getState().addAlert({
-        type: 'warn',
-        message: err instanceof Error ? err.message : 'Failed to accept dispatcher call',
-      });
-    }
-  }
-
   const onlineCount = Object.keys(onlineUsers).length;
 
   return (
@@ -117,39 +93,6 @@ export function DispatcherDashboard() {
         <div className="px-3 py-2 border-b border-ptt-border">
           <p className="font-mono text-ptt-text text-xs tracking-widest">CHANNELS</p>
         </div>
-        {pendingCalls.length > 0 && (
-          <div className="border-b border-ptt-border bg-ptt-dark">
-            <div className="px-3 py-2 flex items-center gap-2">
-              <PhoneCall className="w-3 h-3 text-ptt-blue animate-pulse" />
-              <p className="font-mono text-ptt-blue text-xs tracking-widest">CALLS</p>
-              <span className="ml-auto font-mono text-xs text-ptt-blue">{pendingCalls.length}</span>
-            </div>
-            <div className="max-h-44 overflow-y-auto">
-              {pendingCalls.map((call) => {
-                const waitSec = Math.max(0, Math.floor((now - call.createdAt) / 1000));
-                return (
-                  <div key={call.callId} className="px-3 py-2 border-t border-ptt-border/40">
-                    <div className="flex items-center gap-2">
-                      <span className="callsign text-xs truncate flex-1">{call.callsign}</span>
-                      <span className="font-mono text-[10px] text-ptt-text flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {waitSec}s
-                      </span>
-                    </div>
-                    <p className="font-rajdhani text-xs text-white truncate mt-0.5">{call.groupName}</p>
-                    <button
-                      onClick={() => handleAcceptCall(call.callId)}
-                      className="mt-2 w-full flex items-center justify-center gap-1 border border-ptt-green/50 text-ptt-green hover:bg-ptt-green/10 rounded py-1 font-mono text-xs tracking-widest transition-colors"
-                    >
-                      <Check className="w-3 h-3" />
-                      ACCEPT
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
         <div className="flex-1 overflow-y-auto">
           {groups.map((g) => {
             const busy = g.pttOwnerId != null;
