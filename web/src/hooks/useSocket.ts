@@ -123,9 +123,11 @@ export function useSocket() {
     }) => {
       useStore.getState().addAlert({
         type: 'info',
+        variant: 'user-call',
         userId: fromUserId,
         callsign: fromCallsign,
-        message: `Call from ${fromCallsign} in ${groupName}`,
+        groupName,
+        message: `${fromCallsign} calls you in ${groupName}`,
       });
     });
 

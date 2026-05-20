@@ -123,9 +123,11 @@ export type PttStatus = 'idle' | 'transmitting' | 'receiving' | 'locked';
 export interface Alert {
   id: string;
   type: 'sos' | 'info' | 'warn' | 'error';
+  variant?: 'toast' | 'user-call';
   userId?: string;
   callsign?: string;
   message: string;
+  groupName?: string;
   timestamp: number;
   read: boolean;
 }
