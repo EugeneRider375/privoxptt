@@ -3,17 +3,21 @@
 Date: 2026-05-19
 Status: production server, API, Socket.io, login, and MediaSoup health are working after Coolify deployment recovery.
 
+Update 2026-05-20: production recovered and verified after a successful deploy of `2929039`.
+The app briefly returned `Gateway Timeout` even though the app containers were healthy. No code change
+was needed; restarting `coolify-proxy` restored public access.
+
 ## Production State
 
 - Production site: `https://ptt.privox.tech`
-- Healthcheck verified on 2026-05-19 after deploy recovery:
+- Healthcheck verified again on 2026-05-20 after proxy recovery:
 
 ```json
 {
   "status": "ok",
   "service": "PrivoxPTT",
   "version": "1.0.0",
-  "timestamp": "2026-05-19T19:04:23.209Z",
+  "timestamp": "2026-05-20T08:41:04.778Z",
   "arch": "x64",
   "mediasoup": {
     "workers": 2,
@@ -28,13 +32,14 @@ Status: production server, API, Socket.io, login, and MediaSoup health are worki
 - PostgreSQL and Redis containers are healthy in Coolify.
 - MediaSoup workers start successfully in Docker with `MESON_ARGS="-Dms_disable_liburing=true"`.
 - WebRTC media ports remain `10000-10100` UDP/TCP.
-- Current known-good deployed code is `d8e1007` plus deployment fixes through `bced5fe`.
+- Current known-good deployed code is `2929039`.
 
 ## What Works Now
 
 - Login and role-based routing work in production.
 - Admin, dispatcher, and user accounts can use PTT in production.
-- Current stable version does not include dispatcher call queue/call button.
+- Dispatcher visual call queue/call button is present.
+- Activity log for user online/offline events is present.
 - Dispatcher/admin audio has been manually tested across two browsers.
 - Mobile user audio to dispatcher/admin has been manually tested.
 - PTT channel locking now waits for server approval before starting WebRTC.
@@ -56,10 +61,21 @@ Status: production server, API, Socket.io, login, and MediaSoup health are worki
 - Removed external publication of backend API port `3000`; nginx/web reaches backend through Docker network as `http://server:3000`.
 - Removed duplicate `npm rebuild bcrypt mediasoup` from production Docker build; native modules are built during `npm ci --omit=dev`.
 - Recovered Coolify deployment after port/network/build issues. If Stop is used, the app network may need to exist before redeploy.
+- Recovered a post-deploy `Gateway Timeout` without code changes by restarting only `coolify-proxy`.
+  Backend and web were healthy internally:
+  - `docker exec server-... node -e "fetch('http://localhost:3000/health').then(r=>r.text()).then(console.log).catch(console.error)"`
+  - `docker exec web-... wget -qO- http://server:3000/health`
+  - `docker exec web-... wget -qO- http://127.0.0.1/health`
+  Public access recovered after:
+  - `docker restart coolify-proxy`
 
 ## Recent Commits
 
 ```text
+2929039 Allow dispatchers into organization groups
+f640edf Improve presence activity accuracy
+3ec2198 Add online activity log
+05d328b Restore dispatcher visual calls without audio tone
 d8e1007 Revert dispatcher call UI; stable version without dispatcher calls
 bced5fe Avoid duplicate native dependency rebuild
 d728b37 Avoid publishing backend API port
@@ -147,6 +163,18 @@ mediasoup.workers = 2
 mediasoup.ok = true
 ```
 
+If public `/health` hangs or returns `Gateway Timeout` after a deploy, do not assume the app is down.
+Check in this order:
+
+```bash
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep x7qkjpjf1vrdn954ibnnghmq
+docker exec server-<id> node -e "fetch('http://localhost:3000/health').then(r=>r.text()).then(console.log).catch(console.error)"
+docker exec web-<id> wget -qO- http://server:3000/health
+docker exec web-<id> wget -qO- http://127.0.0.1/health
+docker restart coolify-proxy
+curl -i https://ptt.privox.tech/health
+```
+
 ## Known Risks
 
 - PWA/service worker can cache old frontend bundles; use hard refresh or close/reopen installed PWA after deploy.
@@ -154,8 +182,8 @@ mediasoup.ok = true
 - Native mobile apps are not implemented yet; current mobile path is browser/PWA.
 - Private one-to-one voice calling is not implemented as a full audio feature; current stable audio model is group PTT.
 - Dispatcher/admin currently listen to the active selected group, not all groups at once.
-- Dispatcher call queue was tested visually but is not part of the current stable deploy. Reintroduce only on a branch/staging path and avoid audio notification changes until the base queue is proven stable again.
 - Coolify Stop can remove/recreate app networks and clear Docker build cache. If redeploy fails with missing network, recreate the named network; if build seems slow, check for `meson`/`ninja` compiling MediaSoup.
+- Coolify/Traefik proxy can lose the route after deploy while app containers are healthy. Restarting only `coolify-proxy` fixed this on 2026-05-20.
 
 ## Future Plans
 
