@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useStore } from '@/store/useStore';
 import type { DispatcherCall } from '@/types';
+import { playUserCallTone } from '@/utils/callTone';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || '';
 const SOCKET_ACK_TIMEOUT_MS = 6_000;
@@ -128,6 +129,9 @@ export function useSocket() {
         callsign: fromCallsign,
         groupName,
         message: `${fromCallsign} calls you in ${groupName}`,
+      });
+      playUserCallTone().catch((err) => {
+        console.warn('[Socket] User call tone blocked:', err);
       });
     });
 
