@@ -11,6 +11,10 @@ Update 2026-05-20: visual user-to-user call notification is working in productio
 phone icon next to an online group member; the target receives a large centered incoming-call alert.
 The regular top-right alert remains as lightweight call history for now.
 
+Update 2026-05-20: user-to-user call sound is working after `d490283`. Android plays the call tone,
+but it is still quiet on the tested device. iPhone now plays the call tone and is louder than Android.
+This is the current working checkpoint.
+
 ## Production State
 
 - Production site: `https://ptt.privox.tech`
@@ -36,7 +40,7 @@ The regular top-right alert remains as lightweight call history for now.
 - PostgreSQL and Redis containers are healthy in Coolify.
 - MediaSoup workers start successfully in Docker with `MESON_ARGS="-Dms_disable_liburing=true"`.
 - WebRTC media ports remain `10000-10100` UDP/TCP.
-- Current known-good deployed code is `9f8fdff`.
+- Current known-good deployed code is `d490283`.
 
 ## What Works Now
 
@@ -48,7 +52,8 @@ The regular top-right alert remains as lightweight call history for now.
   - caller taps the phone icon beside an online member in the active group;
   - recipient sees a centered incoming-call alert;
   - top-right alert remains visible as history;
-  - no sound, auto-switch, or "go to group" action yet.
+  - call tone plays; Android is quiet, iPhone is louder in the latest manual test;
+  - no auto-switch or "go to group" action yet.
 - Dispatcher/admin audio has been manually tested across two browsers.
 - Mobile user audio to dispatcher/admin has been manually tested.
 - PTT channel locking now waits for server approval before starting WebRTC.
@@ -81,6 +86,10 @@ The regular top-right alert remains as lightweight call history for now.
 ## Recent Commits
 
 ```text
+d490283 Increase user call tone reliability
+3107549 Fix user call tone audio unlock
+076f59b Add user call tone
+c351ee1 Record user call checkpoint
 9f8fdff Show user calls as centered alert
 5f31e6f Add visual user call alerts
 5f4fb65 Document production proxy recovery
@@ -194,15 +203,15 @@ curl -i https://ptt.privox.tech/health
 - Native mobile apps are not implemented yet; current mobile path is browser/PWA.
 - Private one-to-one voice calling is not implemented as a full audio feature; current stable audio model is group PTT.
 - Dispatcher/admin currently listen to the active selected group, not all groups at once.
-- User-to-user call alerts are visual only. Sound should be added as a separate small step because
-  mobile browsers/PWA audio policies may require prior user interaction.
+- User-to-user call sound works, but Android call tone volume is still lower than desired on the tested device.
+  iPhone requires prior screen interaction/audio unlock, then plays the tone.
 - Coolify Stop can remove/recreate app networks and clear Docker build cache. If redeploy fails with missing network, recreate the named network; if build seems slow, check for `meson`/`ninja` compiling MediaSoup.
 - Coolify/Traefik proxy can lose the route after deploy while app containers are healthy. Restarting only `coolify-proxy` fixed this on 2026-05-20.
 
 ## Future Plans
 
 - Add text messaging later, not during the current production stabilization pass.
-- Add sound to user-to-user call alerts after the visual flow remains stable.
+- Improve Android call tone audibility later with a longer/repeating loud mode if needed.
 - Later add a "go to group" action to the centered user-call alert.
 - Later decide whether top-right user-call history should stay or move into a dedicated missed-calls log.
 - Start with group chat per channel/group using PostgreSQL history plus Socket.io real-time delivery.
