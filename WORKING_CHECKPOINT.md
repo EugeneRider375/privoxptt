@@ -7,6 +7,10 @@ Update 2026-05-20: production recovered and verified after a successful deploy o
 The app briefly returned `Gateway Timeout` even though the app containers were healthy. No code change
 was needed; restarting `coolify-proxy` restored public access.
 
+Update 2026-05-20: visual user-to-user call notification is working in production. The caller taps a
+phone icon next to an online group member; the target receives a large centered incoming-call alert.
+The regular top-right alert remains as lightweight call history for now.
+
 ## Production State
 
 - Production site: `https://ptt.privox.tech`
@@ -32,7 +36,7 @@ was needed; restarting `coolify-proxy` restored public access.
 - PostgreSQL and Redis containers are healthy in Coolify.
 - MediaSoup workers start successfully in Docker with `MESON_ARGS="-Dms_disable_liburing=true"`.
 - WebRTC media ports remain `10000-10100` UDP/TCP.
-- Current known-good deployed code is `2929039`.
+- Current known-good deployed code is `9f8fdff`.
 
 ## What Works Now
 
@@ -40,6 +44,11 @@ was needed; restarting `coolify-proxy` restored public access.
 - Admin, dispatcher, and user accounts can use PTT in production.
 - Dispatcher visual call queue/call button is present.
 - Activity log for user online/offline events is present.
+- Visual user-to-user call alerts are present:
+  - caller taps the phone icon beside an online member in the active group;
+  - recipient sees a centered incoming-call alert;
+  - top-right alert remains visible as history;
+  - no sound, auto-switch, or "go to group" action yet.
 - Dispatcher/admin audio has been manually tested across two browsers.
 - Mobile user audio to dispatcher/admin has been manually tested.
 - PTT channel locking now waits for server approval before starting WebRTC.
@@ -72,6 +81,9 @@ was needed; restarting `coolify-proxy` restored public access.
 ## Recent Commits
 
 ```text
+9f8fdff Show user calls as centered alert
+5f31e6f Add visual user call alerts
+5f4fb65 Document production proxy recovery
 2929039 Allow dispatchers into organization groups
 f640edf Improve presence activity accuracy
 3ec2198 Add online activity log
@@ -182,12 +194,17 @@ curl -i https://ptt.privox.tech/health
 - Native mobile apps are not implemented yet; current mobile path is browser/PWA.
 - Private one-to-one voice calling is not implemented as a full audio feature; current stable audio model is group PTT.
 - Dispatcher/admin currently listen to the active selected group, not all groups at once.
+- User-to-user call alerts are visual only. Sound should be added as a separate small step because
+  mobile browsers/PWA audio policies may require prior user interaction.
 - Coolify Stop can remove/recreate app networks and clear Docker build cache. If redeploy fails with missing network, recreate the named network; if build seems slow, check for `meson`/`ninja` compiling MediaSoup.
 - Coolify/Traefik proxy can lose the route after deploy while app containers are healthy. Restarting only `coolify-proxy` fixed this on 2026-05-20.
 
 ## Future Plans
 
 - Add text messaging later, not during the current production stabilization pass.
+- Add sound to user-to-user call alerts after the visual flow remains stable.
+- Later add a "go to group" action to the centered user-call alert.
+- Later decide whether top-right user-call history should stay or move into a dedicated missed-calls log.
 - Start with group chat per channel/group using PostgreSQL history plus Socket.io real-time delivery.
 - Consider direct messages, dispatcher private messages, attachments, and a system event timeline in later versions.
 - Evaluate open Android PoC radios as dedicated devices; they must not be locked to a vendor server/cloud.
