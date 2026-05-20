@@ -2,21 +2,9 @@ import { useRef, useCallback, useEffect } from 'react';
 import * as mediasoupClient from 'mediasoup-client';
 import type { Device, Transport, Producer, Consumer } from 'mediasoup-client/types';
 import { getPrivoxSocket, PRIVOX_SOCKET_READY_EVENT } from './useSocket';
+import { getAudioContext, unlockAudio } from '@/utils/audio';
 
-// Единый AudioContext на всю вкладку — разблокируется при первом user-gesture
-let sharedAudioCtx: AudioContext | null = null;
-
-function getAudioContext(): AudioContext {
-  if (!sharedAudioCtx || sharedAudioCtx.state === 'closed') {
-    sharedAudioCtx = new AudioContext();
-  }
-  return sharedAudioCtx;
-}
-
-export async function unlockAudio() {
-  const ctx = getAudioContext();
-  if (ctx.state === 'suspended') await ctx.resume();
-}
+export { unlockAudio };
 
 // ProducerCodecOptions для Opus — FEC и DTX снижают нагрузку PTT
 const OPUS_CODEC_OPTIONS = {

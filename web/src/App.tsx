@@ -6,7 +6,6 @@ import { UserRadioPage } from '@/pages/user/UserRadioPage';
 import { DispatcherLayout } from '@/pages/dispatcher/DispatcherLayout';
 import { AdminLayout } from '@/pages/admin/AdminLayout';
 import { unlockAudio } from '@/hooks/useWebRTC';
-import { unlockCallToneAudio } from '@/utils/callTone';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null };
@@ -53,7 +52,6 @@ export default function App() {
   useEffect(() => {
     const unlock = () => {
       unlockAudio().catch(() => {});
-      unlockCallToneAudio().catch(() => {});
     };
     document.addEventListener('click', unlock);
     document.addEventListener('touchstart', unlock);

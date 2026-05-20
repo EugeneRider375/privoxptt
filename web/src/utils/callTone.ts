@@ -1,20 +1,16 @@
-let callToneAudioCtx: AudioContext | null = null;
-
-function getCallToneAudioContext(): AudioContext {
-  if (!callToneAudioCtx || callToneAudioCtx.state === 'closed') {
-    callToneAudioCtx = new AudioContext();
-  }
-  return callToneAudioCtx;
-}
-
-export async function unlockCallToneAudio() {
-  const ctx = getCallToneAudioContext();
-  if (ctx.state === 'suspended') await ctx.resume();
-}
+import { getAudioContext, unlockAudio } from './audio';
 
 export async function playUserCallTone() {
-  const ctx = getCallToneAudioContext();
-  if (ctx.state === 'suspended') await ctx.resume();
+  await unlockAudio();
+  const ctx = getAudioContext();
+
+  if ('vibrate' in navigator) {
+    try {
+      navigator.vibrate([180, 80, 180]);
+    } catch {
+      // Some browsers expose vibrate but block it in the current context.
+    }
+  }
 
   const now = ctx.currentTime;
   const masterGain = ctx.createGain();
