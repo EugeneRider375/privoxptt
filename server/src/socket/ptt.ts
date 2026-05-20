@@ -29,7 +29,7 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
 
     if (isPrivileged) {
       const group = await prisma.group.findFirst({
-        where: { id: groupId, organizationId },
+        where: role === 'SUPERADMIN' ? { id: groupId } : { id: groupId, organizationId },
         select: { id: true, name: true, organizationId: true },
       });
       if (group) return { ok: true, group };
@@ -50,29 +50,10 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
   // ─── Присоединиться к группе ──────────────────────────────
   socket.on('join-group', async ({ groupId }: { groupId: string }) => {
     try {
-      // Проверяем что пользователь состоит в группе
-      const member = await prisma.groupMember.findUnique({
-        where: { userId_groupId: { userId, groupId } },
-        include: { group: { select: { organizationId: true } } },
-      });
-
-      // Диспетчер и admin могут входить в любую группу своей организации
-      const isPrivileged = ['SUPERADMIN', 'ADMIN', 'DISPATCHER'].includes(role);
-
-      if (!isPrivileged) {
-        if (!member) {
-          socket.emit('error', { code: 'NOT_MEMBER', message: 'You are not a member of this group' });
-          return;
-        }
-      } else {
-        // Проверяем что группа принадлежит организации
-        const group = await prisma.group.findFirst({
-          where: { id: groupId, organizationId },
-        });
-        if (!group && role !== 'SUPERADMIN') {
-          socket.emit('error', { code: 'FORBIDDEN', message: 'Access denied' });
-          return;
-        }
+      const access = await canAccessGroup(groupId);
+      if (!access.ok) {
+        socket.emit('error', { code: 'FORBIDDEN', message: 'Access denied' });
+        return;
       }
 
       socket.join(groupId);
@@ -114,12 +95,21 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
     callback?: (data: { ok: boolean; error?: string; message?: string }) => void
   ) => {
     try {
-      // Проверяем canSpeak
+      const access = await canAccessGroup(groupId);
+      if (!access.ok) {
+        callback?.({ ok: false, error: 'forbidden', message: 'Access denied' });
+        socket.emit('channel-locked', {
+          groupId,
+          reason: 'no_speak_permission',
+          message: 'Access denied',
+        });
+        return;
+      }
+
       const member = await prisma.groupMember.findUnique({
         where: { userId_groupId: { userId, groupId } },
       });
 
-      const isPrivileged = ['SUPERADMIN', 'ADMIN', 'DISPATCHER'].includes(role);
       if (!isPrivileged && member && !member.canSpeak) {
         callback?.({ ok: false, error: 'no_speak_permission', message: 'You are not allowed to speak in this group' });
         socket.emit('channel-locked', {
