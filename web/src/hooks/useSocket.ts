@@ -109,6 +109,26 @@ export function useSocket() {
       });
     });
 
+    socket.on('user-call-incoming', ({
+      fromUserId,
+      fromCallsign,
+      groupName,
+    }: {
+      fromUserId: string;
+      fromCallsign: string;
+      fromDisplayName: string;
+      groupId: string;
+      groupName: string;
+      createdAt: number;
+    }) => {
+      useStore.getState().addAlert({
+        type: 'info',
+        userId: fromUserId,
+        callsign: fromCallsign,
+        message: `Call from ${fromCallsign} in ${groupName}`,
+      });
+    });
+
     socket.on('user-location', (loc) => {
       useStore.getState().updateLocation(loc);
     });
@@ -205,6 +225,29 @@ export function useSocket() {
     socketRef.current?.emit('sos', { groupId, message });
   }, []);
 
+  const callUser = useCallback((targetUserId: string, groupId: string) => {
+    return new Promise<void>((resolve, reject) => {
+      const socket = socketRef.current;
+      if (!socket) {
+        reject(new Error('Socket is not connected'));
+        return;
+      }
+
+      const timeout = window.setTimeout(() => {
+        reject(new Error('User call timed out'));
+      }, SOCKET_ACK_TIMEOUT_MS);
+
+      socket.emit('user-call-request', { targetUserId, groupId }, (resp?: { ok: boolean; error?: string; message?: string }) => {
+        window.clearTimeout(timeout);
+        if (resp?.ok) {
+          resolve();
+        } else {
+          reject(new Error(resp?.message ?? resp?.error ?? 'Failed to call user'));
+        }
+      });
+    });
+  }, []);
+
   const callDispatcher = useCallback((groupId: string, message = 'Dispatcher requested') => {
     return new Promise<string>((resolve, reject) => {
       const socket = socketRef.current;
@@ -263,6 +306,7 @@ export function useSocket() {
     pttStop,
     sendLocation,
     sendSos,
+    callUser,
     callDispatcher,
     acceptDispatcherCall,
   };

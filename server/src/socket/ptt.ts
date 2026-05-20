@@ -6,6 +6,7 @@ import {
   releasePttLock,
   refreshPttLock,
   getPttLockOwner,
+  isUserOnline,
   redis,
   PTT_LOCK_PREFIX,
 } from '../database/redis';
@@ -202,6 +203,70 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
 
   socket.on('private-call-end', async ({ targetUserId }: { targetUserId: string }) => {
     io.to(`user:${targetUserId}`).emit('call-ended', { fromId: userId });
+  });
+
+  // ─── Визуальный вызов участника в группу ──────────────────
+  socket.on('user-call-request', async (
+    { targetUserId, groupId }: { targetUserId: string; groupId: string },
+    callback?: (data: { ok: boolean; error?: string; message?: string }) => void
+  ) => {
+    try {
+      if (targetUserId === userId) {
+        callback?.({ ok: false, error: 'self_call', message: 'You cannot call yourself' });
+        return;
+      }
+
+      const access = await canAccessGroup(groupId);
+      if (!access.ok || !access.group) {
+        callback?.({ ok: false, error: 'forbidden', message: 'Access denied' });
+        return;
+      }
+
+      const targetMember = await prisma.groupMember.findUnique({
+        where: { userId_groupId: { userId: targetUserId, groupId } },
+        include: {
+          user: {
+            select: {
+              id: true,
+              callsign: true,
+              displayName: true,
+              isActive: true,
+              organizationId: true,
+            },
+          },
+        },
+      });
+
+      if (
+        !targetMember ||
+        !targetMember.user.isActive ||
+        targetMember.user.organizationId !== access.group.organizationId
+      ) {
+        callback?.({ ok: false, error: 'not_member', message: 'User is not a member of this group' });
+        return;
+      }
+
+      const targetOnline = await isUserOnline(targetUserId);
+      if (!targetOnline) {
+        callback?.({ ok: false, error: 'offline', message: 'User is offline' });
+        return;
+      }
+
+      io.to(`user:${targetUserId}`).emit('user-call-incoming', {
+        fromUserId: userId,
+        fromCallsign: callsign,
+        fromDisplayName: displayName,
+        groupId,
+        groupName: access.group.name,
+        createdAt: Date.now(),
+      });
+
+      logger.info({ msg: 'User call requested', from: userId, to: targetUserId, groupId });
+      callback?.({ ok: true });
+    } catch (err) {
+      logger.error({ msg: 'Ошибка user-call-request', err, userId, targetUserId, groupId });
+      callback?.({ ok: false, error: 'server_error', message: 'Failed to call user' });
+    }
   });
 
   // ─── WebRTC сигналинг ─────────────────────────────────────

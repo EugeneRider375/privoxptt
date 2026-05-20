@@ -21,13 +21,14 @@ export function UserRadioPage() {
   const clearAuth = useStore((s) => s.clearAuth);
   const onlineUsers = useStore((s) => s.onlineUsers);
 
-  const { joinGroup, leaveGroup, sendSos, callDispatcher } = useSocket();
+  const { joinGroup, leaveGroup, sendSos, callUser, callDispatcher } = useSocket();
   const { startPtt, stopPtt } = usePTT(activeGroupId);
   useGeolocation(true);
 
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [showGroups, setShowGroups] = useState(false);
   const [callingDispatcher, setCallingDispatcher] = useState(false);
+  const [callingUserId, setCallingUserId] = useState<string | null>(null);
 
   const activeGroup = groups.find((g) => g.id === activeGroupId);
 
@@ -107,6 +108,27 @@ export function UserRadioPage() {
       });
     } finally {
       setCallingDispatcher(false);
+    }
+  }
+
+  async function handleCallUser(targetUserId: string) {
+    if (!activeGroupId || callingUserId) return;
+    setCallingUserId(targetUserId);
+    try {
+      await callUser(targetUserId, activeGroupId);
+      const target = members.find((m) => m.userId === targetUserId);
+      useStore.getState().addAlert({
+        type: 'info',
+        callsign: target?.user.callsign,
+        message: `Call sent to ${target?.user.callsign ?? 'user'}`,
+      });
+    } catch (err) {
+      useStore.getState().addAlert({
+        type: 'warn',
+        message: err instanceof Error ? err.message : 'Failed to call user',
+      });
+    } finally {
+      setCallingUserId(null);
     }
   }
 
@@ -248,14 +270,28 @@ export function UserRadioPage() {
         {members.map((m) => {
           const isOnline = !!onlineUsers[m.userId];
           const isTalking = activeGroup?.pttOwnerId === m.userId;
+          const isSelf = m.userId === user?.id;
+          const isCalling = callingUserId === m.userId;
           return (
             <div key={m.id} className="flex items-center gap-3 px-4 py-2 border-b border-ptt-border/30 last:border-0">
               <div className={isTalking ? 'online-dot animate-pulse' : isOnline ? 'online-dot' : 'offline-dot'} />
               <span className={`callsign text-sm ${isTalking ? 'text-ptt-green' : isOnline ? 'text-white' : 'text-ptt-muted'}`}>
                 {m.user.callsign}
               </span>
-              {isTalking && <Radio className="w-3 h-3 text-ptt-green ml-auto animate-pulse" />}
-              {!m.canSpeak && <span className="ml-auto font-mono text-xs text-ptt-muted">LISTENER</span>}
+              <div className="ml-auto flex items-center gap-2">
+                {isTalking && <Radio className="w-3 h-3 text-ptt-green animate-pulse" />}
+                {!m.canSpeak && <span className="font-mono text-xs text-ptt-muted">LISTENER</span>}
+                {!isTalking && !isSelf && (
+                  <button
+                    onClick={() => handleCallUser(m.userId)}
+                    disabled={!isOnline || !!callingUserId}
+                    className="text-ptt-blue hover:text-white disabled:text-ptt-muted disabled:opacity-40 transition-colors"
+                    title={isOnline ? `Call ${m.user.callsign}` : `${m.user.callsign} is offline`}
+                  >
+                    <PhoneCall className={`w-3.5 h-3.5 ${isCalling ? 'animate-pulse' : ''}`} />
+                  </button>
+                )}
+              </div>
             </div>
           );
         })}
