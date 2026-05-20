@@ -14,31 +14,55 @@ export async function playUserCallTone() {
 
   const now = ctx.currentTime;
   const masterGain = ctx.createGain();
-  masterGain.gain.setValueAtTime(0.0001, now);
-  masterGain.connect(ctx.destination);
+  const compressor = ctx.createDynamicsCompressor();
 
-  [0, 0.26, 0.52].forEach((offset) => {
-    const osc = ctx.createOscillator();
+  compressor.threshold.setValueAtTime(-18, now);
+  compressor.knee.setValueAtTime(8, now);
+  compressor.ratio.setValueAtTime(8, now);
+  compressor.attack.setValueAtTime(0.003, now);
+  compressor.release.setValueAtTime(0.12, now);
+
+  masterGain.gain.setValueAtTime(0.0001, now);
+  masterGain.connect(compressor);
+  compressor.connect(ctx.destination);
+
+  [0, 0.24, 0.48, 0.82, 1.06, 1.3].forEach((offset) => {
+    const highOsc = ctx.createOscillator();
+    const lowOsc = ctx.createOscillator();
     const gain = ctx.createGain();
     const start = now + offset;
-    const stop = start + 0.16;
+    const stop = start + 0.18;
 
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(880, start);
-    osc.frequency.exponentialRampToValueAtTime(660, stop);
+    highOsc.type = 'square';
+    highOsc.frequency.setValueAtTime(1320, start);
+    highOsc.frequency.exponentialRampToValueAtTime(990, stop);
+
+    lowOsc.type = 'triangle';
+    lowOsc.frequency.setValueAtTime(660, start);
+    lowOsc.frequency.exponentialRampToValueAtTime(520, stop);
 
     gain.gain.setValueAtTime(0.0001, start);
-    gain.gain.exponentialRampToValueAtTime(0.18, start + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.55, start + 0.015);
     gain.gain.exponentialRampToValueAtTime(0.0001, stop);
 
-    osc.connect(gain);
+    highOsc.connect(gain);
+    lowOsc.connect(gain);
     gain.connect(masterGain);
-    osc.start(start);
-    osc.stop(stop + 0.02);
+    highOsc.start(start);
+    lowOsc.start(start);
+    highOsc.stop(stop + 0.02);
+    lowOsc.stop(stop + 0.02);
   });
 
-  masterGain.gain.setValueAtTime(0.9, now);
-  masterGain.gain.setValueAtTime(0.9, now + 0.7);
-  masterGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.78);
-  window.setTimeout(() => masterGain.disconnect(), 900);
+  masterGain.gain.setValueAtTime(1, now);
+  masterGain.gain.setValueAtTime(1, now + 1.55);
+  masterGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.65);
+  window.setTimeout(() => {
+    try {
+      masterGain.disconnect();
+      compressor.disconnect();
+    } catch {
+      // Nodes may already be detached in some mobile browsers.
+    }
+  }, 1800);
 }
