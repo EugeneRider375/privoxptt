@@ -67,20 +67,40 @@ export async function getPttLockOwner(
 
 // ─── Онлайн статусы ──────────────────────────────────────
 export const ONLINE_PREFIX = 'online:user:';
+export const ONLINE_SOCKET_PREFIX = 'online:sockets:user:';
 export const ONLINE_TTL = 60; // секунды — heartbeat обновляет
 
 export async function setUserOnline(userId: string, socketId: string): Promise<void> {
-  await redis.set(`${ONLINE_PREFIX}${userId}`, socketId, 'EX', ONLINE_TTL);
+  const onlineKey = `${ONLINE_PREFIX}${userId}`;
+  const socketsKey = `${ONLINE_SOCKET_PREFIX}${userId}`;
+  await redis
+    .multi()
+    .sadd(socketsKey, socketId)
+    .expire(socketsKey, ONLINE_TTL)
+    .set(onlineKey, '1', 'EX', ONLINE_TTL)
+    .exec();
 }
 
 export async function setUserOffline(userId: string, socketId?: string): Promise<boolean> {
-  const key = `${ONLINE_PREFIX}${userId}`;
+  const onlineKey = `${ONLINE_PREFIX}${userId}`;
+  const socketsKey = `${ONLINE_SOCKET_PREFIX}${userId}`;
+
   if (socketId) {
-    const current = await redis.get(key);
-    if (current !== socketId) return false;
+    await redis.srem(socketsKey, socketId);
+    const remainingSockets = await redis.scard(socketsKey);
+    if (remainingSockets > 0) {
+      await redis
+        .multi()
+        .expire(socketsKey, ONLINE_TTL)
+        .expire(onlineKey, ONLINE_TTL)
+        .exec();
+      return false;
+    }
   }
-  const deleted = await redis.del(key);
-  return deleted === 1;
+
+  const wasOnline = await redis.exists(onlineKey);
+  await redis.del(onlineKey, socketsKey);
+  return wasOnline === 1;
 }
 
 export async function isUserOnline(userId: string): Promise<boolean> {
@@ -89,7 +109,11 @@ export async function isUserOnline(userId: string): Promise<boolean> {
 }
 
 export async function refreshUserOnline(userId: string): Promise<void> {
-  await redis.expire(`${ONLINE_PREFIX}${userId}`, ONLINE_TTL);
+  await redis
+    .multi()
+    .expire(`${ONLINE_PREFIX}${userId}`, ONLINE_TTL)
+    .expire(`${ONLINE_SOCKET_PREFIX}${userId}`, ONLINE_TTL)
+    .exec();
 }
 
 export async function getOnlineUserIds(): Promise<string[]> {

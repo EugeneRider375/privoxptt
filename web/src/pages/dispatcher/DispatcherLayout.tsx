@@ -11,7 +11,7 @@ import { DispatcherDashboard } from './DispatcherDashboard';
 import { DispatcherMap } from './DispatcherMap';
 import { DispatcherSettings } from './DispatcherSettings';
 import { ActivityLogPage } from '../activity/ActivityLogPage';
-import { useSocket } from '@/hooks/useSocket';
+import { disconnectPrivoxSocket, useSocket } from '@/hooks/useSocket';
 import clsx from 'clsx';
 
 const NAV = [
@@ -37,6 +37,7 @@ export function DispatcherLayout() {
   async function handleLogout() {
     const rt = localStorage.getItem('refreshToken') ?? '';
     await authApi.logout(rt).catch(() => {});
+    disconnectPrivoxSocket();
     useStore.getState().clearAuth();
     navigate('/login');
   }

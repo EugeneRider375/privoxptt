@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Clock, LogIn, LogOut, RefreshCw } from 'lucide-react';
 import { activityApi } from '@/api/client';
 import type { ActivityLogEntry, ActivityLogType } from '@/types';
@@ -25,10 +26,11 @@ function formatTime(value: string): string {
 }
 
 export function ActivityLogPage() {
+  const location = useLocation();
   const [logs, setLogs] = useState<ActivityLogEntry[]>([]);
   const [loading, setLoading] = useState(false);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const data = await activityApi.list({ limit: 150 });
@@ -38,11 +40,27 @@ export function ActivityLogPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     load();
-  }, []);
+  }, [load, location.key]);
+
+  useEffect(() => {
+    const timer = window.setInterval(load, 10_000);
+    const refreshWhenVisible = () => {
+      if (!document.hidden) load();
+    };
+
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    window.addEventListener('focus', load);
+
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+      window.removeEventListener('focus', load);
+    };
+  }, [load]);
 
   return (
     <div className="p-4 space-y-4">

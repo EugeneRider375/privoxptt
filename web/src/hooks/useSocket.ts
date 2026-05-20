@@ -14,6 +14,14 @@ export function getPrivoxSocket(): Socket | null {
   return globalSocket;
 }
 
+export function disconnectPrivoxSocket(): void {
+  if (!globalSocket) return;
+  globalSocket.removeAllListeners();
+  globalSocket.disconnect();
+  globalSocket = null;
+  (window as any).__privoxSocket = null;
+}
+
 function publishSocket(socket: Socket): void {
   (window as any).__privoxSocket = socket;
   window.dispatchEvent(new CustomEvent(PRIVOX_SOCKET_READY_EVENT, { detail: socket }));
@@ -25,7 +33,10 @@ export function useSocket() {
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token) {
+      disconnectPrivoxSocket();
+      return;
+    }
 
     // Если сокет уже создан — просто переиспользуем (не создаём дубликаты)
     if (globalSocket) {

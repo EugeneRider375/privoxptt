@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { LogOut, ChevronDown, Users, Radio, Signal, AlertTriangle, PhoneCall } from 'lucide-react';
 import { useStore } from '@/store/useStore';
-import { PRIVOX_DATA_CHANGED_EVENT, useSocket } from '@/hooks/useSocket';
+import { PRIVOX_DATA_CHANGED_EVENT, disconnectPrivoxSocket, useSocket } from '@/hooks/useSocket';
 import { usePTT } from '@/hooks/usePTT';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { groupsApi, authApi } from '@/api/client';
@@ -90,6 +90,7 @@ export function UserRadioPage() {
   async function handleLogout() {
     const rt = localStorage.getItem('refreshToken') ?? '';
     await authApi.logout(rt).catch(() => {});
+    disconnectPrivoxSocket();
     clearAuth();
     window.location.href = '/login';
   }

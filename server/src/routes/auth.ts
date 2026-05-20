@@ -2,7 +2,6 @@ import { Router, Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcrypt';
 import { z } from 'zod';
 import { prisma } from '../database/prisma';
-import { redis } from '../database/redis';
 import {
   authenticate,
   generateAccessToken,
@@ -141,14 +140,11 @@ authRouter.post('/logout', authenticate, async (req: Request, res: Response, nex
       });
     }
 
-    // Помечаем пользователя оффлайн
+    // lastSeen обновляется здесь, а фактический online/offline журнал ведет socket disconnect.
     await prisma.user.update({
       where: { id: req.user!.userId },
       data: { lastSeen: new Date() },
     });
-
-    // Удаляем онлайн статус из Redis
-    await redis.del(`online:user:${req.user!.userId}`);
 
     res.json({ message: 'Logged out' });
   } catch (err) {
