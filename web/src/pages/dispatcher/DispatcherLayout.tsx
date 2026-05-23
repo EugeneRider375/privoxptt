@@ -39,7 +39,7 @@ export function DispatcherLayout() {
     await authApi.logout(rt).catch(() => {});
     disconnectPrivoxSocket();
     useStore.getState().clearAuth();
-    navigate('/login');
+    navigate('/');
   }
 
   return (

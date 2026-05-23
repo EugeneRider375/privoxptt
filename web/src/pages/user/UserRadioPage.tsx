@@ -93,7 +93,7 @@ export function UserRadioPage() {
     await authApi.logout(rt).catch(() => {});
     disconnectPrivoxSocket();
     clearAuth();
-    window.location.href = '/login';
+    window.location.href = '/';
   }
 
   async function handleCallDispatcher() {
