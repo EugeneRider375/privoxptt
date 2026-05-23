@@ -1,6 +1,6 @@
 import { useState, FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Radio, AlertCircle, Loader2 } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Radio, AlertCircle, Loader2, ArrowLeft } from 'lucide-react';
 import { authApi } from '@/api/client';
 import { useStore } from '@/store/useStore';
 import type { User } from '@/types';
@@ -144,6 +144,15 @@ export function LoginPage() {
         <p className="text-center font-mono text-ptt-muted text-xs mt-6 tracking-wider">
           ptt.privox.tech &nbsp;|&nbsp; v1.0.0
         </p>
+        <div className="mt-4 text-center">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 font-mono text-xs tracking-widest text-ptt-text hover:text-ptt-green transition-colors"
+          >
+            <ArrowLeft className="w-3 h-3" />
+            BACK TO WEBSITE
+          </Link>
+        </div>
       </div>
     </div>
   );

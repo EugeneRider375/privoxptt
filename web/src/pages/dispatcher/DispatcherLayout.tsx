@@ -39,7 +39,7 @@ export function DispatcherLayout() {
     await authApi.logout(rt).catch(() => {});
     disconnectPrivoxSocket();
     useStore.getState().clearAuth();
-    window.location.href = '/';
+    window.location.href = '/login';
   }
 
   return (
