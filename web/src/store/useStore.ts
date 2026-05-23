@@ -64,6 +64,7 @@ export const useStore = create<AppStore>()(
       clearAuth: () => {
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
+        localStorage.removeItem('privoxptt');
         set({ user: null, accessToken: null, refreshToken: null });
       },
 
