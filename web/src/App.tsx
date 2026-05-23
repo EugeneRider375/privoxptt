@@ -5,6 +5,7 @@ import { LoginPage } from '@/pages/auth/LoginPage';
 import { UserRadioPage } from '@/pages/user/UserRadioPage';
 import { DispatcherLayout } from '@/pages/dispatcher/DispatcherLayout';
 import { AdminLayout } from '@/pages/admin/AdminLayout';
+import { DownloadPage, DocsPage, FaqPage, HomePage, StatusPage, SupportPage } from '@/pages/public/PublicPages';
 import { unlockAudio } from '@/hooks/useWebRTC';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -65,9 +66,15 @@ export default function App() {
     <ErrorBoundary>
       <BrowserRouter>
         <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/download" element={<DownloadPage />} />
+          <Route path="/docs" element={<DocsPage />} />
+          <Route path="/faq" element={<FaqPage />} />
+          <Route path="/support" element={<SupportPage />} />
+          <Route path="/status" element={<StatusPage />} />
           <Route path="/login" element={<LoginPage />} />
 
-          <Route path="/" element={<RequireAuth><RoleRouter /></RequireAuth>} />
+          <Route path="/app" element={<RequireAuth><RoleRouter /></RequireAuth>} />
 
           <Route path="/radio/*" element={<RequireAuth><ErrorBoundary><UserRadioPage /></ErrorBoundary></RequireAuth>} />
           <Route path="/dispatcher/*" element={<RequireAuth><ErrorBoundary><DispatcherLayout /></ErrorBoundary></RequireAuth>} />

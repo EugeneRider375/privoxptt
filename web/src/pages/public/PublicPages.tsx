@@ -1,0 +1,497 @@
+import { FormEvent, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import {
+  Activity,
+  ArrowRight,
+  BadgeCheck,
+  BookOpen,
+  Building2,
+  CheckCircle2,
+  Cloud,
+  Download,
+  ExternalLink,
+  FileQuestion,
+  Headphones,
+  Lock,
+  MapPinned,
+  MessageCircle,
+  Mic,
+  Radio,
+  Router,
+  ShieldCheck,
+  Smartphone,
+  TerminalSquare,
+  Users,
+  Wifi,
+  Wrench,
+} from 'lucide-react';
+import clsx from 'clsx';
+import { authApi } from '@/api/client';
+import { disconnectPrivoxSocket } from '@/hooks/useSocket';
+import { useStore } from '@/store/useStore';
+
+const navLinks = [
+  { to: '/download', label: 'Download' },
+  { to: '/docs', label: 'Docs' },
+  { to: '/faq', label: 'FAQ' },
+  { to: '/support', label: 'Support' },
+  { to: '/status', label: 'Status' },
+];
+
+const audience = [
+  ['Security teams', ShieldCheck],
+  ['Dispatch centers', Headphones],
+  ['Logistics', MapPinned],
+  ['Farms and field teams', Cloud],
+  ['Remote sites', Wifi],
+  ['Garages and monitoring', Building2],
+  ['Technical services', Wrench],
+  ['Private teams', Users],
+];
+
+const features = [
+  ['Push-to-talk voice', Mic],
+  ['User groups', Users],
+  ['Dispatcher mode', Headphones],
+  ['Administration tools', TerminalSquare],
+  ['Browser access', Cloud],
+  ['Android app path', Smartphone],
+  ['Future ROC device support', Radio],
+  ['WebRTC audio', Wifi],
+  ['Secure authentication', Lock],
+];
+
+const platforms = [
+  { title: 'Web', status: 'Available now', icon: Cloud, tone: 'text-sky-700 bg-sky-50 border-sky-100' },
+  { title: 'Android', status: 'APK in preparation', icon: Smartphone, tone: 'text-emerald-700 bg-emerald-50 border-emerald-100' },
+  { title: 'ROC', status: 'Next stage', icon: Radio, tone: 'text-indigo-700 bg-indigo-50 border-indigo-100' },
+  { title: 'iPhone', status: 'Later via TestFlight/App Store', icon: BadgeCheck, tone: 'text-slate-700 bg-slate-50 border-slate-200' },
+];
+
+const docs = [
+  'System overview',
+  'Quick start',
+  'Browser access',
+  'Android application',
+  'User roles',
+  'Groups and channels',
+  'Dispatcher workflow',
+  'Administrator workflow',
+  'ROC device support',
+  'Security',
+  'Server deployment',
+];
+
+const faqs = [
+  ['What is PTT?', 'Push-to-talk is voice communication built around one simple action: press, speak, release. It feels like a digital radio, but it works over the internet.'],
+  ['Do I need an app?', 'The web version works today. The Android APK is planned for teams that need a more device-native mobile experience.'],
+  ['Can I use it in a browser?', 'Yes. The web version already supports login, groups, dispatching, and PTT audio.'],
+  ['Why will there be an Android APK?', 'An APK can improve mobile workflows with better device integration, notifications, quick launch, and future hardware button support.'],
+  ['Will iPhone be supported?', 'Yes, later through TestFlight or the App Store after the Android path is stabilized.'],
+  ['How will ROC work?', 'ROC device support is planned as a later stage so dedicated radio-style devices can connect to the PRIVOX platform.'],
+  ['Is there a dispatcher mode?', 'Yes. Dispatcher mode includes channels, users, map view, calls, and an activity log.'],
+  ['Can administrators create groups?', 'Yes. Administrators can manage users, groups, and speaking permissions.'],
+  ['What if there is no sound?', 'Check the active channel, microphone permissions, HTTPS access, and network connection.'],
+  ['What if the microphone does not work?', 'Allow microphone access in the browser, reload the page, and check the selected input device in your operating system.'],
+];
+
+function PublicLayout({ children }: { children: React.ReactNode }) {
+  const user = useStore((s) => s.user);
+  const clearAuth = useStore((s) => s.clearAuth);
+
+  async function handleLogout() {
+    const refreshToken = localStorage.getItem('refreshToken') ?? '';
+    await authApi.logout(refreshToken).catch(() => {});
+    disconnectPrivoxSocket();
+    clearAuth();
+  }
+
+  return (
+    <div className="h-full overflow-y-auto bg-white text-slate-950 font-sans">
+      <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
+          <Link to="/" className="flex items-center gap-2 font-bold tracking-tight text-slate-950">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-600 text-white shadow-sm">
+              <Radio className="h-5 w-5" />
+            </span>
+            <span className="text-lg">PRIVOX PTT</span>
+          </Link>
+          <nav className="hidden items-center gap-6 text-sm font-medium text-slate-600 md:flex">
+            {navLinks.map((link) => (
+              <Link key={link.to} to={link.to} className="hover:text-sky-700">
+                {link.label}
+              </Link>
+            ))}
+          </nav>
+          <div className="flex items-center gap-2">
+            {user && (
+              <button
+                onClick={handleLogout}
+                className="hidden rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-sky-300 hover:text-sky-700 sm:inline-flex"
+              >
+                Log out
+              </button>
+            )}
+            <Link
+              to="/app"
+              className="inline-flex items-center gap-2 rounded-md bg-slate-950 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700"
+            >
+              {user ? 'Open app' : 'Sign in'} <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        </div>
+      </header>
+      {children}
+      <footer className="border-t border-slate-200 bg-slate-50">
+        <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
+          <div>
+            <p className="font-bold text-slate-950">PRIVOX PTT</p>
+            <p className="mt-1 text-sm text-slate-500">Secure push-to-talk platform for operational teams.</p>
+          </div>
+          <div className="flex flex-wrap gap-4 text-sm font-medium text-slate-600">
+            <Link to="/app" className="hover:text-sky-700">Sign in</Link>
+            <Link to="/download" className="hover:text-sky-700">Download</Link>
+            <Link to="/docs" className="hover:text-sky-700">Docs</Link>
+            <Link to="/faq" className="hover:text-sky-700">FAQ</Link>
+            <Link to="/support" className="hover:text-sky-700">Support</Link>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
+function SectionHeader({ eyebrow, title, text }: { eyebrow: string; title: string; text?: string }) {
+  return (
+    <div className="mx-auto max-w-3xl text-center">
+      <p className="text-sm font-semibold uppercase tracking-[0.16em] text-sky-700">{eyebrow}</p>
+      <h2 className="mt-3 text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">{title}</h2>
+      {text && <p className="mt-4 text-lg leading-8 text-slate-600">{text}</p>}
+    </div>
+  );
+}
+
+function AppMockup() {
+  return (
+    <div className="relative rounded-xl border border-slate-200 bg-white p-3 shadow-2xl shadow-sky-900/10">
+      <div className="rounded-lg border border-slate-200 bg-slate-950 p-4 text-white">
+        <div className="flex items-center justify-between border-b border-white/10 pb-3">
+          <div className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
+            <span className="text-sm font-semibold">ONLINE</span>
+          </div>
+          <span className="rounded bg-sky-500/15 px-2 py-1 text-xs text-sky-200">DISPATCH</span>
+        </div>
+        <div className="grid gap-3 py-4 sm:grid-cols-[1fr_150px]">
+          <div className="space-y-2">
+            {['Priority channel', 'Field team', 'Operations channel'].map((name, index) => (
+              <div key={name} className={clsx('rounded-md border p-3', index === 1 ? 'border-emerald-400/50 bg-emerald-400/10' : 'border-white/10 bg-white/5')}>
+                <div className="flex items-center gap-2">
+                  <span className={clsx('h-2 w-2 rounded-full', index === 0 ? 'bg-red-400' : index === 1 ? 'bg-emerald-400' : 'bg-sky-400')} />
+                  <span className="text-sm font-semibold">{name}</span>
+                  {index === 1 && <Mic className="ml-auto h-4 w-4 text-emerald-300" />}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="flex flex-col items-center justify-center rounded-lg border border-white/10 bg-white/5 p-4">
+            <div className="flex h-24 w-24 items-center justify-center rounded-full border-4 border-emerald-300 bg-emerald-400 text-slate-950 shadow-lg shadow-emerald-400/20">
+              <Radio className="h-10 w-10" />
+            </div>
+            <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-200">Push to talk</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-2 border-t border-white/10 pt-3 text-xs text-slate-300">
+          <span>Team online</span>
+          <span>WebRTC</span>
+          <span>Secure auth</span>
+        </div>
+      </div>
+      <p className="mt-3 px-1 text-xs text-slate-500">
+        Placeholder mockup. Future real media can include Android screenshots, dispatcher views, ROC devices, and the PTT interface.
+      </p>
+    </div>
+  );
+}
+
+export function HomePage() {
+  return (
+    <PublicLayout>
+      <main>
+        <section className="relative overflow-hidden bg-gradient-to-br from-sky-50 via-white to-slate-100">
+          <div className="mx-auto grid min-h-[calc(100vh-64px)] max-w-7xl items-center gap-12 px-4 py-16 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:px-8">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-white px-3 py-1 text-sm font-medium text-sky-800 shadow-sm">
+                <ShieldCheck className="h-4 w-4" />
+                Web version available now
+              </div>
+              <h1 className="mt-6 text-5xl font-bold tracking-tight text-slate-950 sm:text-6xl lg:text-7xl">
+                PRIVOX PTT
+              </h1>
+              <p className="mt-6 max-w-2xl text-xl leading-8 text-slate-600">
+                A secure push-to-talk communication system for teams, dispatchers, and future ROC devices.
+              </p>
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                <Link to="/app" className="inline-flex items-center justify-center gap-2 rounded-md bg-sky-600 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-sky-700">
+                  Sign in to the system <ArrowRight className="h-4 w-4" />
+                </Link>
+                <Link to="/download" className="inline-flex items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-5 py-3 font-semibold text-slate-800 shadow-sm transition hover:border-sky-300 hover:text-sky-700">
+                  Download app <Download className="h-4 w-4" />
+                </Link>
+                <Link to="/docs" className="inline-flex items-center justify-center gap-2 rounded-md border border-transparent px-5 py-3 font-semibold text-slate-700 transition hover:text-sky-700">
+                  Documentation <BookOpen className="h-4 w-4" />
+                </Link>
+              </div>
+            </div>
+            <AppMockup />
+          </div>
+        </section>
+
+        <section className="bg-white px-4 py-20 sm:px-6 lg:px-8">
+          <SectionHeader
+            eyebrow="What it is"
+            title="Digital radio over the internet"
+            text="PRIVOX PTT gives teams a press-to-talk voice workflow across web access, Android, and future ROC devices."
+          />
+          <div className="mx-auto mt-10 grid max-w-5xl gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {['User groups', 'Dispatcher mode', 'Administration', 'WebRTC audio', 'Secure authentication', 'Device-ready roadmap'].map((item) => (
+              <div key={item} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <CheckCircle2 className="h-5 w-5 text-sky-600" />
+                <p className="mt-3 font-semibold text-slate-900">{item}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="bg-slate-50 px-4 py-20 sm:px-6 lg:px-8">
+          <SectionHeader eyebrow="Who it serves" title="Teams that need fast operational voice" />
+          <div className="mx-auto mt-10 grid max-w-6xl gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {audience.map(([title, Icon]) => (
+              <div key={title as string} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <Icon className="h-6 w-6 text-sky-600" />
+                <p className="mt-4 font-semibold text-slate-900">{title as string}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="bg-white px-4 py-20 sm:px-6 lg:px-8">
+          <SectionHeader eyebrow="How it works" title="One server, roles, and voice channels" />
+          <div className="mx-auto mt-12 grid max-w-6xl gap-4 lg:grid-cols-4">
+            {[
+              ['User / Android / ROC device', Smartphone],
+              ['PRIVOX PTT Server', Router],
+              ['Groups / dispatcher / admin', Users],
+              ['Other users', Radio],
+            ].map(([title, Icon], index) => (
+              <div key={title as string} className="relative rounded-lg border border-slate-200 bg-slate-50 p-6">
+                <Icon className="h-7 w-7 text-sky-600" />
+                <p className="mt-4 font-semibold text-slate-900">{title as string}</p>
+                {index < 3 && <ArrowRight className="absolute -right-3 top-1/2 hidden h-6 w-6 -translate-y-1/2 text-slate-300 lg:block" />}
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="bg-slate-50 px-4 py-20 sm:px-6 lg:px-8">
+          <SectionHeader eyebrow="Capabilities" title="Core pieces for a production PTT platform" />
+          <div className="mx-auto mt-10 grid max-w-6xl gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {features.map(([title, Icon]) => (
+              <div key={title as string} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <Icon className="h-6 w-6 text-sky-600" />
+                <p className="mt-3 font-semibold text-slate-900">{title as string}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <PlatformsSection />
+        <HelpSection />
+      </main>
+    </PublicLayout>
+  );
+}
+
+function PlatformsSection() {
+  return (
+    <section className="bg-white px-4 py-20 sm:px-6 lg:px-8">
+      <SectionHeader eyebrow="Platforms" title="Web today, mobile and ROC next" />
+      <div className="mx-auto mt-10 grid max-w-5xl gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {platforms.map(({ title, status, icon: Icon, tone }) => (
+          <div key={title} className={clsx('rounded-lg border p-5', tone)}>
+            <Icon className="h-7 w-7" />
+            <h3 className="mt-4 text-lg font-bold">{title}</h3>
+            <p className="mt-2 text-sm">{status}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function HelpSection() {
+  return (
+    <section className="bg-slate-950 px-4 py-16 text-white sm:px-6 lg:px-8">
+      <div className="mx-auto grid max-w-6xl gap-8 md:grid-cols-[1fr_1.2fr] md:items-center">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-sky-300">Docs and help</p>
+          <h2 className="mt-3 text-3xl font-bold tracking-tight">Launch, support, and operating materials</h2>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {[
+            ['/docs', 'Docs', BookOpen],
+            ['/faq', 'FAQ', FileQuestion],
+            ['/support', 'Support', MessageCircle],
+          ].map(([to, label, Icon]) => (
+            <Link key={to as string} to={to as string} className="rounded-lg border border-white/10 bg-white/5 p-5 transition hover:bg-white/10">
+              <Icon className="h-6 w-6 text-sky-300" />
+              <p className="mt-4 font-semibold">{label as string}</p>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function DownloadPage() {
+  return (
+    <PublicLayout>
+      <main className="bg-slate-50 px-4 py-16 sm:px-6 lg:px-8">
+        <SectionHeader eyebrow="Download" title="PRIVOX PTT downloads" text="Web access is available now. Native apps and device support are prepared for the next product stages." />
+        <div className="mx-auto mt-10 grid max-w-5xl gap-5 md:grid-cols-3">
+          {[
+            ['Android APK', 'coming soon', Smartphone, 'Download APK'],
+            ['iPhone TestFlight', 'coming soon', BadgeCheck, 'Join TestFlight'],
+            ['ROC device support', 'coming soon', Radio, 'Device program'],
+          ].map(([title, status, Icon, action]) => (
+            <div key={title as string} className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+              <Icon className="h-8 w-8 text-sky-600" />
+              <h2 className="mt-5 text-xl font-bold text-slate-950">{title as string}</h2>
+              <p className="mt-2 text-sm font-medium uppercase tracking-[0.12em] text-slate-500">{status as string}</p>
+              <button disabled className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-md border border-slate-200 bg-slate-100 px-4 py-3 font-semibold text-slate-400">
+                {action as string} <ExternalLink className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      </main>
+    </PublicLayout>
+  );
+}
+
+export function DocsPage() {
+  return (
+    <PublicLayout>
+      <main className="bg-white px-4 py-16 sm:px-6 lg:px-8">
+        <SectionHeader eyebrow="Docs" title="PRIVOX PTT documentation" text="The documentation structure is ready for operating guides, screenshots, deployment notes, and localized versions." />
+        <div className="mx-auto mt-10 grid max-w-6xl gap-4 md:grid-cols-2">
+          {docs.map((item, index) => (
+            <article key={item} className="rounded-lg border border-slate-200 bg-slate-50 p-5">
+              <p className="text-sm font-semibold text-sky-700">Section {index + 1}</p>
+              <h2 className="mt-2 text-xl font-bold text-slate-950">{item}</h2>
+              <p className="mt-3 text-slate-600">This section will expand as the platform and mobile clients evolve.</p>
+            </article>
+          ))}
+        </div>
+      </main>
+    </PublicLayout>
+  );
+}
+
+export function FaqPage() {
+  return (
+    <PublicLayout>
+      <main className="bg-slate-50 px-4 py-16 sm:px-6 lg:px-8">
+        <SectionHeader eyebrow="FAQ" title="Frequently asked questions" />
+        <div className="mx-auto mt-10 max-w-4xl space-y-4">
+          {faqs.map(([question, answer]) => (
+            <article key={question} className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+              <h2 className="text-lg font-bold text-slate-950">{question}</h2>
+              <p className="mt-3 leading-7 text-slate-600">{answer}</p>
+            </article>
+          ))}
+        </div>
+      </main>
+    </PublicLayout>
+  );
+}
+
+export function SupportPage() {
+  const [sent, setSent] = useState(false);
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSent(true);
+  }
+
+  return (
+    <PublicLayout>
+      <main className="bg-white px-4 py-16 sm:px-6 lg:px-8">
+        <SectionHeader eyebrow="Support" title="Support and feedback" text="This form is a placeholder for now. Later it can be connected to email, CRM, or an internal support API." />
+        <form onSubmit={handleSubmit} className="mx-auto mt-10 max-w-2xl rounded-lg border border-slate-200 bg-slate-50 p-6 shadow-sm">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block text-sm font-semibold text-slate-700">
+              Name
+              <input className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-950 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100" placeholder="Your name" />
+            </label>
+            <label className="block text-sm font-semibold text-slate-700">
+              Email
+              <input type="email" className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-950 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100" placeholder="you@example.com" />
+            </label>
+          </div>
+          <label className="mt-4 block text-sm font-semibold text-slate-700">
+            Message
+            <textarea className="mt-2 min-h-36 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-950 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100" placeholder="Describe your question or deployment scenario" />
+          </label>
+          <button className="mt-5 inline-flex items-center gap-2 rounded-md bg-sky-600 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-sky-700">
+            Send request <ArrowRight className="h-4 w-4" />
+          </button>
+          {sent && <p className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">Request prepared. Delivery integration will be added later.</p>}
+        </form>
+      </main>
+    </PublicLayout>
+  );
+}
+
+export function StatusPage() {
+  const [status, setStatus] = useState<'loading' | 'ok' | 'error'>('loading');
+  const [details, setDetails] = useState<string>('Checking API...');
+
+  useEffect(() => {
+    fetch('/health')
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((data) => {
+        setStatus(data?.status === 'ok' ? 'ok' : 'error');
+        setDetails(data?.status === 'ok' ? 'Service is responding normally.' : 'Service returned an unexpected response.');
+      })
+      .catch(() => {
+        setStatus('error');
+        setDetails('Could not reach the public healthcheck.');
+      });
+  }, []);
+
+  return (
+    <PublicLayout>
+      <main className="bg-slate-50 px-4 py-16 sm:px-6 lg:px-8">
+        <SectionHeader eyebrow="Status" title="System status" text="This public page shows only high-level availability, without internal secrets or infrastructure details." />
+        <div className="mx-auto mt-10 max-w-3xl rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center gap-4">
+            <span className={clsx('flex h-12 w-12 items-center justify-center rounded-full', status === 'ok' ? 'bg-emerald-50 text-emerald-700' : status === 'error' ? 'bg-red-50 text-red-700' : 'bg-sky-50 text-sky-700')}>
+              <Activity className="h-6 w-6" />
+            </span>
+            <div>
+              <h2 className="text-xl font-bold text-slate-950">
+                {status === 'ok' ? 'Operational' : status === 'error' ? 'Needs attention' : 'Checking'}
+              </h2>
+              <p className="mt-1 text-slate-600">{details}</p>
+            </div>
+          </div>
+        </div>
+      </main>
+    </PublicLayout>
+  );
+}

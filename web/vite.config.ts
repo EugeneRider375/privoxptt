@@ -4,10 +4,12 @@ import { VitePWA } from 'vite-plugin-pwa';
 import basicSsl from '@vitejs/plugin-basic-ssl';
 import path from 'path';
 
+const useDevHttps = process.env.VITE_DEV_HTTPS === 'true';
+
 export default defineConfig({
   plugins: [
     react(),
-    basicSsl(),
+    ...(useDevHttps ? [basicSsl()] : []),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'icons/*.png'],
@@ -43,7 +45,7 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    https: {},
+    ...(useDevHttps ? { https: {} } : {}),
     proxy: {
       '/api': { target: 'http://localhost:3000', changeOrigin: true },
       '/socket.io': { target: 'http://localhost:3000', ws: true, changeOrigin: true },
