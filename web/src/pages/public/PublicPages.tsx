@@ -355,13 +355,22 @@ function HelpSection() {
 }
 
 export function DownloadPage() {
+  const androidApkUrl = '/downloads/privox-ptt-android-debug.apk';
+
   return (
     <PublicLayout>
       <main className="bg-slate-50 px-4 py-16 sm:px-6 lg:px-8">
-        <SectionHeader eyebrow="Download" title="PRIVOX PTT downloads" text="Web access is available now. Native apps and device support are prepared for the next product stages." />
+        <SectionHeader eyebrow="Download" title="PRIVOX PTT downloads" text="Web access is available now. Android APK testing is available for trusted testers." />
         <div className="mx-auto mt-10 grid max-w-5xl gap-5 md:grid-cols-3">
+          <div className="rounded-lg border border-emerald-200 bg-white p-6 shadow-sm">
+            <Smartphone className="h-8 w-8 text-emerald-600" />
+            <h2 className="mt-5 text-xl font-bold text-slate-950">Android APK</h2>
+            <p className="mt-2 text-sm font-medium uppercase tracking-[0.12em] text-emerald-700">PoC test build</p>
+            <a href={androidApkUrl} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-emerald-700">
+              Download Android APK <Download className="h-4 w-4" />
+            </a>
+          </div>
           {[
-            ['Android APK', 'coming soon', Smartphone, 'Download APK'],
             ['iPhone TestFlight', 'coming soon', BadgeCheck, 'Join TestFlight'],
             ['ROC device support', 'coming soon', Radio, 'Device program'],
           ].map(([title, status, Icon, action]) => (
@@ -375,6 +384,21 @@ export function DownloadPage() {
             </div>
           ))}
         </div>
+        <section className="mx-auto mt-8 max-w-5xl rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-xl font-bold text-slate-950">Android installation steps</h2>
+          <ol className="mt-4 grid gap-3 text-sm leading-6 text-slate-600 md:grid-cols-2">
+            <li className="rounded-md bg-slate-50 p-4"><span className="font-semibold text-slate-950">1.</span> Open this page on the Android phone and tap Download Android APK.</li>
+            <li className="rounded-md bg-slate-50 p-4"><span className="font-semibold text-slate-950">2.</span> Confirm the APK download warning in Chrome or the browser.</li>
+            <li className="rounded-md bg-slate-50 p-4"><span className="font-semibold text-slate-950">3.</span> Open the downloaded APK and allow installation from the browser if Android asks.</li>
+            <li className="rounded-md bg-slate-50 p-4"><span className="font-semibold text-slate-950">4.</span> Install PRIVOX PTT, sign in, allow microphone access, and test PTT with the screen on.</li>
+          </ol>
+          <div className="mt-5 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+            If PRIVOX PTT asks to update Android System WebView, tap Update, install the update from Google Play, then restart the app.
+          </div>
+          <p className="mt-4 text-xs text-slate-500">
+            This is a PoC/debug build for trusted testing. Background operation, hardware PTT buttons, Bluetooth headset behavior, and Play Store distribution are planned later.
+          </p>
+        </section>
       </main>
     </PublicLayout>
   );
