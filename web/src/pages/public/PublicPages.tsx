@@ -366,7 +366,7 @@ export function DownloadPage() {
             <Smartphone className="h-8 w-8 text-emerald-600" />
             <h2 className="mt-5 text-xl font-bold text-slate-950">Android APK</h2>
             <p className="mt-2 text-sm font-medium uppercase tracking-[0.12em] text-emerald-700">PoC test build</p>
-            <a href={androidApkUrl} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-emerald-700">
+            <a href={androidApkUrl} download className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-emerald-700">
               Download Android APK <Download className="h-4 w-4" />
             </a>
           </div>
