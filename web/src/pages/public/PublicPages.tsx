@@ -56,7 +56,7 @@ const features = [
   ['Administration tools', TerminalSquare],
   ['Browser access', Cloud],
   ['Android app path', Smartphone],
-  ['Future ROC device support', Radio],
+  ['Future PoC device testing', Radio],
   ['WebRTC audio', Wifi],
   ['Secure authentication', Lock],
 ];
@@ -64,7 +64,7 @@ const features = [
 const platforms = [
   { title: 'Web', status: 'Available now', icon: Cloud, tone: 'text-sky-700 bg-sky-50 border-sky-100' },
   { title: 'Android', status: 'APK in preparation', icon: Smartphone, tone: 'text-emerald-700 bg-emerald-50 border-emerald-100' },
-  { title: 'ROC', status: 'Next stage', icon: Radio, tone: 'text-indigo-700 bg-indigo-50 border-indigo-100' },
+  { title: 'PoC devices', status: 'Next stage', icon: Radio, tone: 'text-indigo-700 bg-indigo-50 border-indigo-100' },
   { title: 'iPhone', status: 'Later via TestFlight/App Store', icon: BadgeCheck, tone: 'text-slate-700 bg-slate-50 border-slate-200' },
 ];
 
@@ -77,7 +77,7 @@ const docs = [
   'Groups and channels',
   'Dispatcher workflow',
   'Administrator workflow',
-  'ROC device support',
+  'PoC device testing',
   'Security',
   'Server deployment',
 ];
@@ -88,7 +88,7 @@ const faqs = [
   ['Can I use it in a browser?', 'Yes. The web version already supports login, groups, dispatching, and PTT audio.'],
   ['Why will there be an Android APK?', 'An APK can improve mobile workflows with better device integration, notifications, quick launch, and future hardware button support.'],
   ['Will iPhone be supported?', 'Yes, later through TestFlight or the App Store after the Android path is stabilized.'],
-  ['How will ROC work?', 'ROC device support is planned as a later stage so dedicated radio-style devices can connect to the PRIVOX platform.'],
+  ['How will PoC device testing work?', 'PoC device testing is planned as a later stage so dedicated radio-style devices can connect to the PRIVOX platform.'],
   ['Is there a dispatcher mode?', 'Yes. Dispatcher mode includes channels, users, map view, calls, and an activity log.'],
   ['Can administrators create groups?', 'Yes. Administrators can manage users, groups, and speaking permissions.'],
   ['What if there is no sound?', 'Check the active channel, microphone permissions, HTTPS access, and network connection.'],
@@ -208,7 +208,7 @@ function AppMockup() {
         </div>
       </div>
       <p className="mt-3 px-1 text-xs text-slate-500">
-        Placeholder mockup. Future real media can include Android screenshots, dispatcher views, ROC devices, and the PTT interface.
+        Placeholder mockup. Future real media can include Android screenshots, dispatcher views, PoC devices, and the PTT interface.
       </p>
     </div>
   );
@@ -229,7 +229,7 @@ export function HomePage() {
                 PRIVOX PTT
               </h1>
               <p className="mt-6 max-w-2xl text-xl leading-8 text-slate-600">
-                A secure push-to-talk communication system for teams, dispatchers, and future ROC devices.
+                A secure push-to-talk communication system for teams, dispatchers, and future PoC devices.
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <Link to="/app" className="inline-flex items-center justify-center gap-2 rounded-md bg-sky-600 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-sky-700">
@@ -251,7 +251,7 @@ export function HomePage() {
           <SectionHeader
             eyebrow="What it is"
             title="Digital radio over the internet"
-            text="PRIVOX PTT gives teams a press-to-talk voice workflow across web access, Android, and future ROC devices."
+            text="PRIVOX PTT gives teams a press-to-talk voice workflow across web access, Android, and future PoC devices."
           />
           <div className="mx-auto mt-10 grid max-w-5xl gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {['User groups', 'Dispatcher mode', 'Administration', 'WebRTC audio', 'Secure authentication', 'Device-ready roadmap'].map((item) => (
@@ -279,7 +279,7 @@ export function HomePage() {
           <SectionHeader eyebrow="How it works" title="One server, roles, and voice channels" />
           <div className="mx-auto mt-12 grid max-w-6xl gap-4 lg:grid-cols-4">
             {[
-              ['User / Android / ROC device', Smartphone],
+              ['User / Android / PoC device', Smartphone],
               ['PRIVOX PTT Server', Router],
               ['Groups / dispatcher / admin', Users],
               ['Other users', Radio],
@@ -315,7 +315,7 @@ export function HomePage() {
 function PlatformsSection() {
   return (
     <section className="bg-white px-4 py-20 sm:px-6 lg:px-8">
-      <SectionHeader eyebrow="Platforms" title="Web today, mobile and ROC next" />
+      <SectionHeader eyebrow="Platforms" title="Web today, mobile and PoC next" />
       <div className="mx-auto mt-10 grid max-w-5xl gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {platforms.map(({ title, status, icon: Icon, tone }) => (
           <div key={title} className={clsx('rounded-lg border p-5', tone)}>
@@ -372,7 +372,7 @@ export function DownloadPage() {
           </div>
           {[
             ['iPhone TestFlight', 'coming soon', BadgeCheck, 'Join TestFlight'],
-            ['ROC device support', 'coming soon', Radio, 'Device program'],
+            ['PoC device testing', 'coming soon', Radio, 'Device program'],
           ].map(([title, status, Icon, action]) => (
             <div key={title as string} className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
               <Icon className="h-8 w-8 text-sky-600" />
