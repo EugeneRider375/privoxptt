@@ -356,11 +356,12 @@ function HelpSection() {
 
 export function DownloadPage() {
   const androidApkUrl = '/downloads/privox-ptt-android-debug.apk';
+  const webAppUrl = '/app';
 
   return (
     <PublicLayout>
       <main className="bg-slate-50 px-4 py-16 sm:px-6 lg:px-8">
-        <SectionHeader eyebrow="Download" title="PRIVOX PTT downloads" text="Web access is available now. Android APK testing is available for trusted testers." />
+        <SectionHeader eyebrow="Download" title="PRIVOX PTT downloads" text="Use PRIVOX PTT on Android, iPhone, or a computer. Android APK testing is available for trusted testers." />
         <div className="mx-auto mt-10 grid max-w-5xl gap-5 md:grid-cols-3">
           <div className="rounded-lg border border-emerald-200 bg-white p-6 shadow-sm">
             <Smartphone className="h-8 w-8 text-emerald-600" />
@@ -370,20 +371,49 @@ export function DownloadPage() {
               Download Android APK <Download className="h-4 w-4" />
             </a>
           </div>
-          {[
-            ['iPhone TestFlight', 'coming soon', BadgeCheck, 'Join TestFlight'],
-            ['PoC device testing', 'coming soon', Radio, 'Device program'],
-          ].map(([title, status, Icon, action]) => (
-            <div key={title as string} className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-              <Icon className="h-8 w-8 text-sky-600" />
-              <h2 className="mt-5 text-xl font-bold text-slate-950">{title as string}</h2>
-              <p className="mt-2 text-sm font-medium uppercase tracking-[0.12em] text-slate-500">{status as string}</p>
-              <button disabled className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-md border border-slate-200 bg-slate-100 px-4 py-3 font-semibold text-slate-400">
-                {action as string} <ExternalLink className="h-4 w-4" />
-              </button>
-            </div>
-          ))}
+          <div className="rounded-lg border border-sky-200 bg-white p-6 shadow-sm">
+            <BadgeCheck className="h-8 w-8 text-sky-600" />
+            <h2 className="mt-5 text-xl font-bold text-slate-950">iPhone</h2>
+            <p className="mt-2 text-sm font-medium uppercase tracking-[0.12em] text-sky-700">Use web version</p>
+            <a href={webAppUrl} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-md bg-sky-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-sky-700">
+              Open web app <ExternalLink className="h-4 w-4" />
+            </a>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+            <Radio className="h-8 w-8 text-sky-600" />
+            <h2 className="mt-5 text-xl font-bold text-slate-950">PoC device testing</h2>
+            <p className="mt-2 text-sm font-medium uppercase tracking-[0.12em] text-slate-500">coming soon</p>
+            <button disabled className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-md border border-slate-200 bg-slate-100 px-4 py-3 font-semibold text-slate-400">
+              Device program <ExternalLink className="h-4 w-4" />
+            </button>
+          </div>
         </div>
+        <section className="mx-auto mt-8 max-w-5xl rounded-lg border border-sky-200 bg-white p-6 shadow-sm">
+          <h2 className="text-xl font-bold text-slate-950">Web version for iPhone and computers</h2>
+          <p className="mt-3 leading-7 text-slate-600">
+            If you use an iPhone, open the PRIVOX PTT web version in Safari. You can also use the same web version on a desktop or laptop computer.
+          </p>
+          <a href={webAppUrl} className="mt-5 inline-flex items-center gap-2 rounded-md bg-slate-950 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-sky-700">
+            Open PRIVOX PTT web app <ArrowRight className="h-4 w-4" />
+          </a>
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            <div className="rounded-md bg-slate-50 p-4 text-sm leading-6 text-slate-600">
+              <p className="font-semibold text-slate-950">Add to iPhone Home Screen</p>
+              <ol className="mt-2 space-y-1">
+                <li>1. Open PRIVOX PTT in Safari.</li>
+                <li>2. Tap the Share button.</li>
+                <li>3. Choose Add to Home Screen.</li>
+                <li>4. Tap Add.</li>
+              </ol>
+            </div>
+            <div className="rounded-md bg-slate-50 p-4 text-sm leading-6 text-slate-600">
+              <p className="font-semibold text-slate-950">Use on a computer</p>
+              <p className="mt-2">
+                Open this site in Chrome, Edge, Safari, or another modern browser, sign in, allow microphone access, and use PRIVOX PTT directly from the web.
+              </p>
+            </div>
+          </div>
+        </section>
         <section className="mx-auto mt-8 max-w-5xl rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-xl font-bold text-slate-950">Android installation steps</h2>
           <ol className="mt-4 grid gap-3 text-sm leading-6 text-slate-600 md:grid-cols-2">
