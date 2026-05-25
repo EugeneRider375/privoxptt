@@ -33,6 +33,7 @@ export interface Group {
   organizationId: string;
   pttOwnerId?: string | null;
   members?: GroupMember[];
+  organization?: Pick<Organization, 'name' | 'slug'>;
   _count?: { members: number };
 }
 

@@ -42,16 +42,19 @@ groupsRouter.get('/', async (req: Request, res: Response, next: NextFunction) =>
   try {
     const userId = req.user!.userId;
     const orgId = req.user!.organizationId;
+    const requestedOrgId = typeof req.query.orgId === 'string' ? req.query.orgId : undefined;
     const role = req.user!.role;
 
     // Суперадмин и диспетчер видят все группы организации
     const groups =
       privilegedRoles.includes(role)
         ? await prisma.group.findMany({
-            where: role === UserRole.SUPERADMIN ? {} : { organizationId: orgId },
+            where: role === UserRole.SUPERADMIN
+              ? (requestedOrgId ? { organizationId: requestedOrgId } : {})
+              : { organizationId: orgId },
             include: {
               _count: { select: { members: true } },
-              organization: { select: { name: true } },
+              organization: { select: { name: true, slug: true } },
             },
             orderBy: [{ priority: 'desc' }, { name: 'asc' }],
           })
@@ -106,7 +109,9 @@ groupsRouter.get('/:id', async (req: Request, res: Response, next: NextFunction)
 
     if (!group) throw new AppError(404, 'Group not found');
 
-    const isAdmin = privilegedRoles.includes(req.user!.role);
+    const isAdmin =
+      req.user!.role === UserRole.SUPERADMIN ||
+      (privilegedRoles.includes(req.user!.role) && group.organization.id === req.user!.organizationId);
     const isMember = group.members.some((m) => m.userId === req.user!.userId);
 
     if (!isAdmin && !isMember) throw new AppError(403, 'You are not a member of this group');
@@ -212,6 +217,10 @@ groupsRouter.post('/:id/members', requireAdmin, async (req: Request, res: Respon
 
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new AppError(404, 'User not found');
+
+    if (user.organizationId !== group.organizationId) {
+      throw new AppError(400, 'User and group must belong to the same organization');
+    }
 
     if (
       req.user!.role !== UserRole.SUPERADMIN &&

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Plus, Pencil, Trash2, Users, X, UserPlus, UserMinus, MicOff, Mic } from 'lucide-react';
-import { groupsApi, usersApi } from '@/api/client';
-import type { Group, User, GroupMember } from '@/types';
+import { groupsApi, usersApi, orgsApi } from '@/api/client';
+import { useStore } from '@/store/useStore';
+import type { Group, User, GroupMember, Organization } from '@/types';
 
 const inputCls = 'w-full bg-ptt-dark border border-ptt-border rounded px-3 py-2 font-mono text-sm text-white focus:outline-none focus:border-ptt-green';
 
@@ -31,22 +32,31 @@ function Modal({ title, children, onClose }: { title: string; children: React.Re
 const COLORS = ['#3DDC84', '#4A9EFF', '#FFB800', '#FF4444', '#B44AFF', '#FF6B35'];
 
 export function AdminGroups() {
+  const currentUser = useStore((s) => s.user);
+  const isSuperAdmin = currentUser?.role === 'SUPERADMIN';
   const [groups, setGroups] = useState<Group[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [orgs, setOrgs] = useState<Organization[]>([]);
+  const [selectedOrgId, setSelectedOrgId] = useState('');
   const [modal, setModal] = useState<'create' | 'edit' | 'members' | null>(null);
   const [selected, setSelected] = useState<Group | null>(null);
   const [members, setMembers] = useState<GroupMember[]>([]);
-  const [form, setForm] = useState({ name: '', description: '', color: '#3DDC84', priority: 0, isPrivate: false });
+  const [form, setForm] = useState({ name: '', description: '', color: '#3DDC84', priority: 0, isPrivate: false, organizationId: '' });
   const [addUserId, setAddUserId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const load = () => {
-    groupsApi.list().then(setGroups).catch(console.error);
-    usersApi.list().then(setAllUsers).catch(console.error);
+    groupsApi.list(isSuperAdmin ? selectedOrgId || undefined : undefined).then(setGroups).catch(console.error);
+    usersApi.list(isSuperAdmin ? selectedOrgId || undefined : undefined).then(setAllUsers).catch(console.error);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    orgsApi.list().then(setOrgs).catch(console.error);
+  }, [isSuperAdmin]);
+
+  useEffect(() => { load(); }, [selectedOrgId]);
 
   async function loadMembers(groupId: string) {
     const g = await groupsApi.get(groupId);
@@ -54,20 +64,23 @@ export function AdminGroups() {
   }
 
   function openCreate() {
-    setForm({ name: '', description: '', color: '#3DDC84', priority: 0, isPrivate: false });
+    setForm({ name: '', description: '', color: '#3DDC84', priority: 0, isPrivate: false, organizationId: selectedOrgId || orgs[0]?.id || '' });
     setError('');
     setModal('create');
   }
 
   function openEdit(g: Group) {
     setSelected(g);
-    setForm({ name: g.name, description: g.description ?? '', color: g.color, priority: g.priority, isPrivate: g.isPrivate });
+    setForm({ name: g.name, description: g.description ?? '', color: g.color, priority: g.priority, isPrivate: g.isPrivate, organizationId: g.organizationId });
     setError('');
     setModal('edit');
   }
 
   async function openMembers(g: Group) {
     setSelected(g);
+    if (isSuperAdmin) {
+      usersApi.list(g.organizationId).then(setAllUsers).catch(console.error);
+    }
     await loadMembers(g.id);
     setModal('members');
   }
@@ -76,8 +89,17 @@ export function AdminGroups() {
     setLoading(true);
     setError('');
     try {
-      if (modal === 'create') await groupsApi.create(form);
-      else if (modal === 'edit' && selected) await groupsApi.update(selected.id, form);
+      const payload = isSuperAdmin
+        ? form
+        : {
+            name: form.name,
+            description: form.description,
+            color: form.color,
+            priority: form.priority,
+            isPrivate: form.isPrivate,
+          };
+      if (modal === 'create') await groupsApi.create(payload);
+      else if (modal === 'edit' && selected) await groupsApi.update(selected.id, payload);
       load();
       setModal(null);
     } catch (e: any) {
@@ -124,6 +146,22 @@ export function AdminGroups() {
         </button>
       </div>
 
+      {isSuperAdmin && (
+        <div className="card p-3">
+          <label className="font-mono text-ptt-muted text-xs tracking-widest block mb-1">ORGANIZATION</label>
+          <select
+            value={selectedOrgId}
+            onChange={(e) => setSelectedOrgId(e.target.value)}
+            className={inputCls}
+          >
+            <option value="">All organizations</option>
+            {orgs.map((org) => (
+              <option key={org.id} value={org.id}>{org.name} · {org.slug}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {groups.map((g) => (
           <div key={g.id} className="card p-4 space-y-3">
@@ -132,6 +170,7 @@ export function AdminGroups() {
               <div className="flex-1 min-w-0">
                 <p className="font-rajdhani font-bold text-white truncate">{g.name}</p>
                 {g.description && <p className="font-mono text-ptt-muted text-xs truncate">{g.description}</p>}
+                {isSuperAdmin && <p className="font-mono text-ptt-muted text-xs truncate">{g.organization?.name ?? g.organizationId}</p>}
               </div>
             </div>
 
@@ -163,6 +202,15 @@ export function AdminGroups() {
             <Field label="NAME">
               <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputCls} />
             </Field>
+            {modal === 'create' && isSuperAdmin && (
+              <Field label="ORGANIZATION">
+                <select value={form.organizationId} onChange={(e) => setForm({ ...form, organizationId: e.target.value })}
+                  className={inputCls} required>
+                  <option value="">- select organization -</option>
+                  {orgs.map((org) => <option key={org.id} value={org.id}>{org.name} · {org.slug}</option>)}
+                </select>
+              </Field>
+            )}
             <Field label="DESCRIPTION">
               <input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className={inputCls} />
             </Field>

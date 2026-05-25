@@ -90,7 +90,7 @@ export const usersApi = {
 
 // ─── Groups ───────────────────────────────────────────────
 export const groupsApi = {
-  list: () => api.get('/groups').then((r) => r.data),
+  list: (orgId?: string) => api.get('/groups', { params: { orgId } }).then((r) => r.data),
   get: (id: string) => api.get(`/groups/${id}`).then((r) => r.data),
   create: (data: object) => api.post('/groups', data).then((r) => r.data),
   update: (id: string, data: object) => api.put(`/groups/${id}`, data).then((r) => r.data),

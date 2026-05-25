@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Plus, Pencil, Trash2, RotateCcw, Search, X, Check, MicOff } from 'lucide-react';
-import { usersApi, groupsApi } from '@/api/client';
+import { usersApi, groupsApi, orgsApi } from '@/api/client';
 import { useStore } from '@/store/useStore';
-import type { User, Group, UserRole } from '@/types';
+import type { User, Group, UserRole, Organization } from '@/types';
 import clsx from 'clsx';
 
 const ROLES: UserRole[] = ['USER', 'DISPATCHER', 'ADMIN', 'SUPERADMIN'];
@@ -19,16 +19,20 @@ interface UserFormData {
   callsign: string;
   displayName: string;
   role: UserRole;
+  organizationId: string;
 }
 
 const EMPTY_FORM: UserFormData = {
-  email: '', password: '', callsign: '', displayName: '', role: 'USER',
+  email: '', password: '', callsign: '', displayName: '', role: 'USER', organizationId: '',
 };
 
 export function AdminUsers() {
   const currentUser = useStore((s) => s.user);
+  const isSuperAdmin = currentUser?.role === 'SUPERADMIN';
   const [users, setUsers] = useState<User[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
+  const [orgs, setOrgs] = useState<Organization[]>([]);
+  const [selectedOrgId, setSelectedOrgId] = useState('');
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState<'create' | 'edit' | 'reset' | null>(null);
   const [selected, setSelected] = useState<User | null>(null);
@@ -38,11 +42,16 @@ export function AdminUsers() {
   const [error, setError] = useState('');
 
   const load = () => {
-    usersApi.list().then(setUsers).catch(console.error);
+    usersApi.list(isSuperAdmin ? selectedOrgId || undefined : undefined).then(setUsers).catch(console.error);
     groupsApi.list().then(setGroups).catch(console.error);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    orgsApi.list().then(setOrgs).catch(console.error);
+  }, [isSuperAdmin]);
+
+  useEffect(() => { load(); }, [selectedOrgId]);
 
   const filtered = users.filter((u) =>
     u.callsign.toLowerCase().includes(search.toLowerCase()) ||
@@ -51,14 +60,14 @@ export function AdminUsers() {
   );
 
   function openCreate() {
-    setForm(EMPTY_FORM);
+    setForm({ ...EMPTY_FORM, organizationId: selectedOrgId || orgs[0]?.id || '' });
     setError('');
     setModal('create');
   }
 
   function openEdit(u: User) {
     setSelected(u);
-    setForm({ email: u.email, password: '', callsign: u.callsign, displayName: u.displayName, role: u.role });
+    setForm({ email: u.email, password: '', callsign: u.callsign, displayName: u.displayName, role: u.role, organizationId: u.organizationId });
     setError('');
     setModal('edit');
   }
@@ -74,7 +83,16 @@ export function AdminUsers() {
     setLoading(true);
     setError('');
     try {
-      await usersApi.create(form);
+      const payload = isSuperAdmin
+        ? form
+        : {
+            email: form.email,
+            password: form.password,
+            callsign: form.callsign,
+            displayName: form.displayName,
+            role: form.role,
+          };
+      await usersApi.create(payload);
       load();
       setModal(null);
     } catch (e: any) {
@@ -135,6 +153,22 @@ export function AdminUsers() {
         </button>
       </div>
 
+      {isSuperAdmin && (
+        <div className="card p-3">
+          <label className="font-mono text-ptt-muted text-xs tracking-widest block mb-1">ORGANIZATION</label>
+          <select
+            value={selectedOrgId}
+            onChange={(e) => setSelectedOrgId(e.target.value)}
+            className={inputCls}
+          >
+            <option value="">All organizations</option>
+            {orgs.map((org) => (
+              <option key={org.id} value={org.id}>{org.name} · {org.slug}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* Поиск */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ptt-muted" />
@@ -155,6 +189,7 @@ export function AdminUsers() {
                 <th className="text-left font-mono text-ptt-muted text-xs px-3 py-2 tracking-widest">CALLSIGN</th>
                 <th className="text-left font-mono text-ptt-muted text-xs px-3 py-2 tracking-widest">NAME</th>
                 <th className="text-left font-mono text-ptt-muted text-xs px-3 py-2 tracking-widest">EMAIL</th>
+                {isSuperAdmin && <th className="text-left font-mono text-ptt-muted text-xs px-3 py-2 tracking-widest">ORG</th>}
                 <th className="text-left font-mono text-ptt-muted text-xs px-3 py-2 tracking-widest">ROLE</th>
                 <th className="text-left font-mono text-ptt-muted text-xs px-3 py-2 tracking-widest">STATUS</th>
                 <th className="px-3 py-2" />
@@ -168,6 +203,11 @@ export function AdminUsers() {
                   </td>
                   <td className="px-3 py-2.5 font-rajdhani text-white">{u.displayName}</td>
                   <td className="px-3 py-2.5 font-mono text-ptt-text text-xs">{u.email}</td>
+                  {isSuperAdmin && (
+                    <td className="px-3 py-2.5 font-mono text-ptt-muted text-xs">
+                      {u.organization?.name ?? u.organizationId}
+                    </td>
+                  )}
                   <td className={clsx('px-3 py-2.5 font-mono text-xs', ROLE_COLOR[u.role])}>{u.role}</td>
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-1.5">
@@ -216,6 +256,15 @@ export function AdminUsers() {
               <Field label="PASSWORD">
                 <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })}
                   className={inputCls} minLength={8} required />
+              </Field>
+            )}
+            {modal === 'create' && isSuperAdmin && (
+              <Field label="ORGANIZATION">
+                <select value={form.organizationId} onChange={(e) => setForm({ ...form, organizationId: e.target.value })}
+                  className={inputCls} required>
+                  <option value="">- select organization -</option>
+                  {orgs.map((org) => <option key={org.id} value={org.id}>{org.name} · {org.slug}</option>)}
+                </select>
               </Field>
             )}
             <Field label="CALLSIGN">
