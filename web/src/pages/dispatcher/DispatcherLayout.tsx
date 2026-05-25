@@ -7,6 +7,7 @@ import {
 import { useStore } from '@/store/useStore';
 import { groupsApi, authApi } from '@/api/client';
 import { AlertPanel } from '@/components/ui/AlertPanel';
+import { PrivoxLogo } from '@/components/brand/PrivoxLogo';
 import { DispatcherDashboard } from './DispatcherDashboard';
 import { DispatcherMap } from './DispatcherMap';
 import { DispatcherSettings } from './DispatcherSettings';
@@ -53,7 +54,7 @@ export function DispatcherLayout() {
       )}>
         {/* Лого */}
         <div className="flex items-center gap-2 px-3 py-4 border-b border-ptt-border overflow-hidden">
-          <Radio className="w-5 h-5 text-ptt-green shrink-0" />
+          <PrivoxLogo className="h-6 w-6 shrink-0 rounded-md" markClassName="h-4 w-4" />
           {sidebarOpen && (
             <span className="font-orbitron text-sm font-bold text-white whitespace-nowrap">
               PRIVOX<span className="text-ptt-green">PTT</span>

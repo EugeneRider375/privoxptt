@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="PRIVOX PTT">
+  <rect width="512" height="512" fill="#101820"/>
+  <circle cx="256" cy="256" r="134" fill="#08935F"/>
+  <circle cx="256" cy="256" r="116" fill="#10A36F"/>
+  <circle cx="256" cy="256" r="91" fill="#19C47A" opacity="0.28"/>
+  <path d="M196 244v35c0 33.1 26.9 60 60 60s60-26.9 60-60v-35" fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round"/>
+  <path d="M256 148c-30.9 0-56 25.1-56 56v57c0 30.9 25.1 56 56 56s56-25.1 56-56v-57c0-30.9-25.1-56-56-56Z" fill="#FFFFFF"/>
+  <path d="M201 221h37c8.3 0 15 6.7 15 15s-6.7 15-15 15h-37v-30Zm73 0h37v30h-37c-8.3 0-15-6.7-15-15s6.7-15 15-15Z" fill="#10A36F"/>
+  <path d="M241.5 339h29v43h31.5c8.3 0 15 6.7 15 15s-6.7 15-15 15h-92c-8.3 0-15-6.7-15-15s6.7-15 15-15h31.5v-43Z" fill="#FFFFFF"/>
+  <path d="M113 194c-10.8 18.4-17 39.6-17 62s6.2 43.6 17 62" fill="none" stroke="#3DDC84" stroke-width="24" stroke-linecap="round"/>
+  <path d="M75 160c-19.6 27.1-31 60.2-31 96s11.4 68.9 31 96" fill="none" stroke="#20C987" stroke-width="22" stroke-linecap="round" opacity="0.9"/>
+  <path d="M399 194c10.8 18.4 17 39.6 17 62s-6.2 43.6-17 62" fill="none" stroke="#3DDC84" stroke-width="24" stroke-linecap="round"/>
+  <path d="M437 160c19.6 27.1 31 60.2 31 96s-11.4 68.9-31 96" fill="none" stroke="#20C987" stroke-width="22" stroke-linecap="round" opacity="0.9"/>
+</svg>

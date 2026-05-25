@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import clsx from 'clsx';
 import { authApi } from '@/api/client';
+import { PrivoxLogo } from '@/components/brand/PrivoxLogo';
 import { disconnectPrivoxSocket } from '@/hooks/useSocket';
 import { useStore } from '@/store/useStore';
 
@@ -111,9 +112,7 @@ function PublicLayout({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
           <Link to="/" className="flex items-center gap-2 font-bold tracking-tight text-slate-950">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-600 text-white shadow-sm">
-              <Radio className="h-5 w-5" />
-            </span>
+            <PrivoxLogo className="h-9 w-9 shadow-sm" markClassName="h-6 w-6" />
             <span className="text-lg">PRIVOX PTT</span>
           </Link>
           <nav className="hidden items-center gap-6 text-sm font-medium text-slate-600 md:flex">
@@ -195,9 +194,7 @@ function AppMockup() {
             ))}
           </div>
           <div className="flex flex-col items-center justify-center rounded-lg border border-white/10 bg-white/5 p-4">
-            <div className="flex h-24 w-24 items-center justify-center rounded-full border-4 border-emerald-300 bg-emerald-400 text-slate-950 shadow-lg shadow-emerald-400/20">
-              <Radio className="h-10 w-10" />
-            </div>
+            <PrivoxLogo className="h-24 w-24 rounded-2xl shadow-lg shadow-emerald-400/20" markClassName="h-16 w-16" />
             <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-200">Push to talk</p>
           </div>
         </div>

@@ -12,7 +12,7 @@ export default defineConfig({
     ...(useDevHttps ? [basicSsl()] : []),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'icons/*.png'],
+      includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'icons/*.png'],
       manifest: {
         name: 'PrivoxPTT',
         short_name: 'PrivoxPTT',

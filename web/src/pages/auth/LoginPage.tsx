@@ -1,7 +1,8 @@
 import { useState, FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Radio, AlertCircle, Loader2, ArrowLeft } from 'lucide-react';
+import { AlertCircle, Loader2, ArrowLeft } from 'lucide-react';
 import { authApi } from '@/api/client';
+import { PrivoxLogo } from '@/components/brand/PrivoxLogo';
 import { useStore } from '@/store/useStore';
 import type { User } from '@/types';
 
@@ -55,8 +56,8 @@ export function LoginPage() {
       <div className="relative w-full max-w-sm">
         {/* Логотип */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-ptt-card border border-ptt-border mb-4 relative">
-            <Radio className="w-8 h-8 text-ptt-green" />
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-ptt-card border border-ptt-border mb-4 relative overflow-hidden">
+            <PrivoxLogo className="h-full w-full rounded-2xl" markClassName="h-10 w-10" />
             <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-ptt-green animate-ping-slow" />
           </div>
           <h1 className="font-orbitron text-2xl font-bold text-white tracking-wider">
