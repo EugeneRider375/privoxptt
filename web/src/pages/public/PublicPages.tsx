@@ -417,7 +417,7 @@ export function DownloadPage() {
             <li className="rounded-md bg-slate-50 p-4"><span className="font-semibold text-slate-950">1.</span> Open this page on the Android phone and tap Download Android APK.</li>
             <li className="rounded-md bg-slate-50 p-4"><span className="font-semibold text-slate-950">2.</span> Confirm the APK download warning in Chrome or the browser.</li>
             <li className="rounded-md bg-slate-50 p-4"><span className="font-semibold text-slate-950">3.</span> Open the downloaded APK and allow installation from the browser if Android asks.</li>
-            <li className="rounded-md bg-slate-50 p-4"><span className="font-semibold text-slate-950">4.</span> Install PRIVOX PTT, sign in, allow microphone access, and test PTT with the screen on.</li>
+            <li className="rounded-md bg-slate-50 p-4"><span className="font-semibold text-slate-950">4.</span> Install PRIVOX PTT, sign in, allow microphone and location access, and test PTT with the screen on.</li>
           </ol>
           <div className="mt-5 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
             If PRIVOX PTT asks to update Android System WebView, tap Update, install the update from Google Play, then restart the app.
@@ -425,6 +425,43 @@ export function DownloadPage() {
           <p className="mt-4 text-xs text-slate-500">
             This is a PoC/debug build for trusted testing. Background operation, hardware PTT buttons, Bluetooth headset behavior, and Play Store distribution are planned later.
           </p>
+        </section>
+        <section className="mx-auto mt-8 grid max-w-5xl gap-5 md:grid-cols-2">
+          <div className="rounded-lg border border-emerald-200 bg-white p-6 shadow-sm">
+            <h2 className="text-xl font-bold text-slate-950">Tester checklist</h2>
+            <ul className="mt-4 space-y-2 text-sm leading-6 text-slate-600">
+              {[
+                'App launches from the phone launcher.',
+                'Login works with the issued test account.',
+                'Microphone and location permissions are requested.',
+                'PTT transmit and receive work with the screen on.',
+                'Dispatcher map shows the Android app user.',
+                'Logout and login work after restarting the app.',
+              ].map((item) => (
+                <li key={item} className="flex gap-2">
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-xl font-bold text-slate-950">If something does not work</h2>
+            <ul className="mt-4 space-y-2 text-sm leading-6 text-slate-600">
+              {[
+                'Close PRIVOX PTT and open it again once after the first install.',
+                'Check Android app permissions for microphone and location.',
+                'Update Android System WebView if the app asks for it.',
+                'Use a real Android phone for final PTT/audio checks.',
+                'Hard-refresh the web page or clear site data if old icons remain visible.',
+              ].map((item) => (
+                <li key={item} className="flex gap-2">
+                  <Wrench className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
         </section>
       </main>
     </PublicLayout>
