@@ -107,11 +107,14 @@ export function AdminUsers() {
     setLoading(true);
     setError('');
     try {
-      await usersApi.update(selected.id, {
+      const payload = {
         callsign: form.callsign,
         displayName: form.displayName,
         role: form.role,
-      });
+        ...(isSuperAdmin ? { organizationId: form.organizationId } : {}),
+      };
+
+      await usersApi.update(selected.id, payload);
       load();
       setModal(null);
     } catch (e: any) {
@@ -258,13 +261,18 @@ export function AdminUsers() {
                   className={inputCls} minLength={8} required />
               </Field>
             )}
-            {modal === 'create' && isSuperAdmin && (
+            {isSuperAdmin && (
               <Field label="ORGANIZATION">
                 <select value={form.organizationId} onChange={(e) => setForm({ ...form, organizationId: e.target.value })}
                   className={inputCls} required>
                   <option value="">- select organization -</option>
                   {orgs.map((org) => <option key={org.id} value={org.id}>{org.name} · {org.slug}</option>)}
                 </select>
+                {modal === 'edit' && (
+                  <p className="font-mono text-ptt-muted text-[10px] mt-1">
+                    Changing organization removes memberships in groups from the previous organization.
+                  </p>
+                )}
               </Field>
             )}
             <Field label="CALLSIGN">

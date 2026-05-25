@@ -37,6 +37,7 @@ const updateUserSchema = z.object({
   callsign: z.string().min(2).max(20).optional(),
   displayName: z.string().min(2).max(100).optional(),
   role: z.nativeEnum(UserRole).optional(),
+  organizationId: z.string().uuid().optional(),
   isActive: z.boolean().optional(),
   deviceToken: z.string().optional(),
 });
@@ -211,6 +212,30 @@ usersRouter.put('/:id', async (req: Request, res: Response, next: NextFunction) 
       throw new AppError(403, 'Cannot change role');
     }
 
+    if (data.role === UserRole.SUPERADMIN && req.user!.role !== UserRole.SUPERADMIN) {
+      throw new AppError(403, 'Cannot assign superadmin role');
+    }
+
+    if (data.organizationId && req.user!.role !== UserRole.SUPERADMIN) {
+      throw new AppError(403, 'Cannot change organization');
+    }
+
+    if (data.organizationId && data.organizationId !== target.organizationId) {
+      const organization = await prisma.organization.findUnique({
+        where: { id: data.organizationId },
+        select: { id: true },
+      });
+
+      if (!organization) throw new AppError(404, 'Organization not found');
+
+      await prisma.groupMember.deleteMany({
+        where: {
+          userId: id,
+          group: { organizationId: { not: data.organizationId } },
+        },
+      });
+    }
+
     const updated = await prisma.user.update({
       where: { id },
       data: {
@@ -219,11 +244,15 @@ usersRouter.put('/:id', async (req: Request, res: Response, next: NextFunction) 
       },
       select: {
         id: true, email: true, callsign: true, displayName: true,
-        role: true, isActive: true,
+        role: true, isActive: true, organizationId: true,
+        organization: { select: { name: true, slug: true } },
       },
     });
 
     emitOrgDataChanged(req, target.organizationId, 'users', { userId: id, action: 'updated' });
+    if (updated.organizationId !== target.organizationId) {
+      emitOrgDataChanged(req, updated.organizationId, 'users', { userId: id, action: 'updated' });
+    }
     res.json(updated);
   } catch (err) {
     next(err);
