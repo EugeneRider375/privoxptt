@@ -518,21 +518,32 @@ export function DocsPage() {
           title="PRIVOX PTT documentation"
           text="Operating notes for test teams, organization admins, dispatchers, Android testers, and web users."
         />
-        <div className="mx-auto mt-10 grid max-w-6xl gap-5 md:grid-cols-2">
+        <div className="mx-auto mt-10 max-w-5xl space-y-4">
           {docs.map((section, index) => (
-            <article key={section.title} className="rounded-lg border border-slate-200 bg-slate-50 p-5 shadow-sm">
-              <p className="text-sm font-semibold text-sky-700">Section {index + 1}</p>
-              <h2 className="mt-2 text-xl font-bold text-slate-950">{section.title}</h2>
-              <p className="mt-3 leading-7 text-slate-600">{section.text}</p>
-              <ul className="mt-4 space-y-2 text-sm leading-6 text-slate-600">
-                {section.items.map((item) => (
-                  <li key={item} className="flex gap-2">
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </article>
+            <details key={section.title} open={index < 3} className="group rounded-lg border border-slate-200 bg-slate-50 p-5 shadow-sm">
+              <summary className="cursor-pointer list-none">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold text-sky-700">Section {index + 1}</p>
+                    <h2 className="mt-2 text-xl font-bold text-slate-950">{section.title}</h2>
+                  </div>
+                  <span className="mt-1 rounded-md border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-500 group-open:text-sky-700">
+                    Open
+                  </span>
+                </div>
+              </summary>
+              <div className="mt-4 border-t border-slate-200 pt-4">
+                <p className="leading-7 text-slate-600">{section.text}</p>
+                <ul className="mt-4 space-y-2 text-sm leading-6 text-slate-600">
+                  {section.items.map((item) => (
+                    <li key={item} className="flex gap-2">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </details>
           ))}
         </div>
         <section className="mx-auto mt-10 max-w-6xl rounded-lg border border-sky-200 bg-sky-50 p-6">
@@ -565,11 +576,18 @@ export function FaqPage() {
       <main className="bg-slate-50 px-4 py-16 sm:px-6 lg:px-8">
         <SectionHeader eyebrow="FAQ" title="Frequently asked questions" />
         <div className="mx-auto mt-10 max-w-4xl space-y-4">
-          {faqs.map(([question, answer]) => (
-            <article key={question} className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="text-lg font-bold text-slate-950">{question}</h2>
-              <p className="mt-3 leading-7 text-slate-600">{answer}</p>
-            </article>
+          {faqs.map(([question, answer], index) => (
+            <details key={question} open={index < 4} className="group rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+              <summary className="cursor-pointer list-none">
+                <div className="flex items-start justify-between gap-4">
+                  <h2 className="text-lg font-bold text-slate-950">{question}</h2>
+                  <span className="rounded-md border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-500 group-open:text-sky-700">
+                    Open
+                  </span>
+                </div>
+              </summary>
+              <p className="mt-3 border-t border-slate-100 pt-3 leading-7 text-slate-600">{answer}</p>
+            </details>
           ))}
         </div>
       </main>
