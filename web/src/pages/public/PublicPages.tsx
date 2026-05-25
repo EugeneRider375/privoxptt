@@ -64,36 +64,77 @@ const features = [
 
 const platforms = [
   { title: 'Web', status: 'Available now', icon: Cloud, tone: 'text-sky-700 bg-sky-50 border-sky-100' },
-  { title: 'Android', status: 'APK in preparation', icon: Smartphone, tone: 'text-emerald-700 bg-emerald-50 border-emerald-100' },
+  { title: 'Android', status: 'PoC APK available', icon: Smartphone, tone: 'text-emerald-700 bg-emerald-50 border-emerald-100' },
   { title: 'PoC devices', status: 'Next stage', icon: Radio, tone: 'text-indigo-700 bg-indigo-50 border-indigo-100' },
-  { title: 'iPhone', status: 'Later via TestFlight/App Store', icon: BadgeCheck, tone: 'text-slate-700 bg-slate-50 border-slate-200' },
+  { title: 'iPhone', status: 'Use web version now', icon: BadgeCheck, tone: 'text-slate-700 bg-slate-50 border-slate-200' },
 ];
 
 const docs = [
-  'System overview',
-  'Quick start',
-  'Browser access',
-  'Android application',
-  'User roles',
-  'Groups and channels',
-  'Dispatcher workflow',
-  'Administrator workflow',
-  'PoC device testing',
-  'Security',
-  'Server deployment',
+  {
+    title: 'System overview',
+    text: 'PRIVOX PTT is a browser-based push-to-talk system with Android PoC wrapper support. The current platform uses the existing web interface, authorization, groups, WebRTC audio, dispatcher tools, and backend.',
+    items: ['Web app: /app', 'Android PoC APK: /download', 'Roles: superadmin, admin, dispatcher, user', 'Organizations isolate groups and users'],
+  },
+  {
+    title: 'Quick start for testers',
+    text: 'Use this flow when giving access to a new test team.',
+    items: ['Create or choose an organization', 'Create an organization admin', 'Let the admin create groups and users', 'Install Android APK or open the web app', 'Allow microphone and location permissions', 'Test transmit, receive, logout, and login'],
+  },
+  {
+    title: 'Organizations',
+    text: 'Organizations separate customers, teams, or test environments. A superadmin can create organizations and move users between them.',
+    items: ['Superadmin sees all organizations', 'Admin works only inside their organization', 'Moving a user removes memberships in groups from the previous organization', 'After moving a user, add them to groups in the new organization'],
+  },
+  {
+    title: 'User roles',
+    text: 'Roles define what each account can do inside the system.',
+    items: ['SUPERADMIN: manages all organizations', 'ADMIN: manages users and groups inside one organization', 'DISPATCHER: uses dispatcher console and map', 'USER: uses radio/PTT mode'],
+  },
+  {
+    title: 'Groups and channels',
+    text: 'Groups are the voice channels used for PTT communication.',
+    items: ['Create groups inside the selected organization', 'Add users to one or more groups', 'Use can-speak permission to control who may transmit', 'Keep test groups small at first: 2-4 users is ideal'],
+  },
+  {
+    title: 'Dispatcher workflow',
+    text: 'Dispatcher mode is used for operational monitoring and calls.',
+    items: ['Open dispatcher console', 'Monitor online users and active channel state', 'Use map view when location permission is enabled', 'Check SOS/user call behavior during tests'],
+  },
+  {
+    title: 'Android PoC application',
+    text: 'The Android app is currently a Capacitor wrapper around the production web app.',
+    items: ['Opens https://ptt.privox.tech/app', 'Uses existing login and groups', 'Requests microphone and location permissions', 'Keeps screen awake during active tests', 'Background operation with locked screen is not guaranteed yet'],
+  },
+  {
+    title: 'iPhone and desktop web',
+    text: 'iPhone users can use the web version in Safari while native iOS distribution is planned later.',
+    items: ['Open /app in Safari on iPhone', 'Use Share -> Add to Home Screen for a home icon', 'On desktop, use a modern browser and allow microphone access', 'Chrome, Edge, and Safari are recommended for testing'],
+  },
+  {
+    title: 'Test checklist',
+    text: 'Use this list before reporting that a test account is ready.',
+    items: ['Login works', 'Microphone permission appears', 'Transmit and receive work', 'Dispatcher map shows location when allowed', 'Screen does not sleep during active Android test', 'Logout/login works after restart'],
+  },
+  {
+    title: 'Known PoC limitations',
+    text: 'These items are intentionally outside the current Android PoC stage.',
+    items: ['No guaranteed locked-screen/background calling yet', 'No foreground service yet', 'No hardware PTT button yet', 'No Bluetooth headset certification yet', 'No Google Play distribution yet'],
+  },
 ];
 
 const faqs = [
-  ['What is PTT?', 'Push-to-talk is voice communication built around one simple action: press, speak, release. It feels like a digital radio, but it works over the internet.'],
-  ['Do I need an app?', 'The web version works today. The Android APK is planned for teams that need a more device-native mobile experience.'],
-  ['Can I use it in a browser?', 'Yes. The web version already supports login, groups, dispatching, and PTT audio.'],
-  ['Why will there be an Android APK?', 'An APK can improve mobile workflows with better device integration, notifications, quick launch, and future hardware button support.'],
-  ['Will iPhone be supported?', 'Yes, later through TestFlight or the App Store after the Android path is stabilized.'],
-  ['How will PoC device testing work?', 'PoC device testing is planned as a later stage so dedicated radio-style devices can connect to the PRIVOX platform.'],
-  ['Is there a dispatcher mode?', 'Yes. Dispatcher mode includes channels, users, map view, calls, and an activity log.'],
-  ['Can administrators create groups?', 'Yes. Administrators can manage users, groups, and speaking permissions.'],
-  ['What if there is no sound?', 'Check the active channel, microphone permissions, HTTPS access, and network connection.'],
-  ['What if the microphone does not work?', 'Allow microphone access in the browser, reload the page, and check the selected input device in your operating system.'],
+  ['What is PRIVOX PTT?', 'PRIVOX PTT is a secure push-to-talk communication system for teams, dispatchers, and future PoC devices. Users press, speak, and release, similar to radio communication over the internet.'],
+  ['Do I need the Android app?', 'No. The web version works today in a modern browser. The Android APK is useful for mobile field testing and faster access from the phone launcher.'],
+  ['Can iPhone users test PRIVOX PTT?', 'Yes. iPhone users should open the web app in Safari and can add it to the Home Screen from the Safari Share menu. A native iOS app can be considered later.'],
+  ['What does the Android PoC support now?', 'It opens the existing web app, uses existing login and groups, requests microphone and location permissions, supports PTT with the screen on, and keeps the screen awake during tests.'],
+  ['Does Android work with the screen locked?', 'Not reliably at this PoC stage. Locked-screen/background calling requires a native Android foreground service and will be a separate development phase.'],
+  ['Why does Android ask to install an APK from the browser?', 'The current build is a trusted tester APK, not a Google Play release. Android will ask for confirmation before installing apps downloaded from a website.'],
+  ['Why did an older Android phone show render errors?', 'Older devices may have an outdated Android System WebView. Update Android System WebView from Google Play, restart PRIVOX PTT, and test again.'],
+  ['Who creates organizations?', 'A superadmin creates organizations and can assign users to them. Organization admins then manage users and groups inside their own organization.'],
+  ['Can a user be moved to another organization?', 'Yes. A superadmin can edit an existing user and select another organization. The user must then be added to groups in the new organization.'],
+  ['Can administrators create groups?', 'Yes. Organization admins can create groups, create users, assign users to groups, and manage speaking permissions inside their organization.'],
+  ['What if there is no sound?', 'Check that users are in the same group, microphone permission is allowed, the browser or Android WebView is updated, and the network connection is stable. Restart the app once after first installation if needed.'],
+  ['What should testers report?', 'Report the device model, Android or browser version, account role, group name, whether transmit or receive failed, and whether restarting the app changed the result.'],
 ];
 
 function PublicLayout({ children }: { children: React.ReactNode }) {
@@ -472,16 +513,47 @@ export function DocsPage() {
   return (
     <PublicLayout>
       <main className="bg-white px-4 py-16 sm:px-6 lg:px-8">
-        <SectionHeader eyebrow="Docs" title="PRIVOX PTT documentation" text="The documentation structure is ready for operating guides, screenshots, deployment notes, and localized versions." />
-        <div className="mx-auto mt-10 grid max-w-6xl gap-4 md:grid-cols-2">
-          {docs.map((item, index) => (
-            <article key={item} className="rounded-lg border border-slate-200 bg-slate-50 p-5">
+        <SectionHeader
+          eyebrow="Docs"
+          title="PRIVOX PTT documentation"
+          text="Operating notes for test teams, organization admins, dispatchers, Android testers, and web users."
+        />
+        <div className="mx-auto mt-10 grid max-w-6xl gap-5 md:grid-cols-2">
+          {docs.map((section, index) => (
+            <article key={section.title} className="rounded-lg border border-slate-200 bg-slate-50 p-5 shadow-sm">
               <p className="text-sm font-semibold text-sky-700">Section {index + 1}</p>
-              <h2 className="mt-2 text-xl font-bold text-slate-950">{item}</h2>
-              <p className="mt-3 text-slate-600">This section will expand as the platform and mobile clients evolve.</p>
+              <h2 className="mt-2 text-xl font-bold text-slate-950">{section.title}</h2>
+              <p className="mt-3 leading-7 text-slate-600">{section.text}</p>
+              <ul className="mt-4 space-y-2 text-sm leading-6 text-slate-600">
+                {section.items.map((item) => (
+                  <li key={item} className="flex gap-2">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
             </article>
           ))}
         </div>
+        <section className="mx-auto mt-10 max-w-6xl rounded-lg border border-sky-200 bg-sky-50 p-6">
+          <h2 className="text-xl font-bold text-slate-950">Recommended first test scenario</h2>
+          <ol className="mt-4 grid gap-3 text-sm leading-6 text-slate-700 md:grid-cols-2">
+            {[
+              'Superadmin creates a new organization.',
+              'Superadmin creates one admin and one dispatcher in that organization.',
+              'Admin logs in and creates one group.',
+              'Admin creates two users and adds them to the group.',
+              'Two phones or browsers log in as users and test PTT.',
+              'Dispatcher logs in, checks online users, calls, and map markers.',
+              'One user is moved to another organization by superadmin.',
+              'Admin adds the moved user to a group in the new organization and tests again.',
+            ].map((step, index) => (
+              <li key={step} className="rounded-md bg-white p-4 shadow-sm">
+                <span className="font-semibold text-slate-950">{index + 1}.</span> {step}
+              </li>
+            ))}
+          </ol>
+        </section>
       </main>
     </PublicLayout>
   );
@@ -516,8 +588,35 @@ export function SupportPage() {
   return (
     <PublicLayout>
       <main className="bg-white px-4 py-16 sm:px-6 lg:px-8">
-        <SectionHeader eyebrow="Support" title="Support and feedback" text="This form is a placeholder for now. Later it can be connected to email, CRM, or an internal support API." />
-        <form onSubmit={handleSubmit} className="mx-auto mt-10 max-w-2xl rounded-lg border border-slate-200 bg-slate-50 p-6 shadow-sm">
+        <SectionHeader
+          eyebrow="Support"
+          title="Support and feedback"
+          text="Use this page to prepare useful test reports. The contact form is local-only for now and will be connected to a delivery channel later."
+        />
+        <section className="mx-auto mt-10 grid max-w-6xl gap-5 md:grid-cols-3">
+          {[
+            ['Before reporting', ['Restart the app once after first install.', 'Check microphone and location permissions.', 'Confirm users are in the same group.', 'Update Android System WebView on older phones.']],
+            ['Include in the report', ['Device model and Android version.', 'Browser or Android app version if known.', 'User role and callsign.', 'Group name and organization.', 'Whether transmit, receive, login, or map failed.']],
+            ['Fast checks', ['Try web app in Chrome or Safari.', 'Try another group with two users.', 'Log out and log in again.', 'Check if dispatcher sees the user online.']],
+          ].map(([title, items]) => (
+            <article key={title as string} className="rounded-lg border border-slate-200 bg-slate-50 p-5 shadow-sm">
+              <h2 className="text-lg font-bold text-slate-950">{title as string}</h2>
+              <ul className="mt-4 space-y-2 text-sm leading-6 text-slate-600">
+                {(items as string[]).map((item) => (
+                  <li key={item} className="flex gap-2">
+                    <Wrench className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </article>
+          ))}
+        </section>
+        <form onSubmit={handleSubmit} className="mx-auto mt-8 max-w-2xl rounded-lg border border-slate-200 bg-slate-50 p-6 shadow-sm">
+          <h2 className="text-xl font-bold text-slate-950">Prepare a support note</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            This form does not send messages yet. Use it as a checklist for what should be sent to the PRIVOX test coordinator.
+          </p>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block text-sm font-semibold text-slate-700">
               Name
@@ -533,9 +632,9 @@ export function SupportPage() {
             <textarea className="mt-2 min-h-36 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-950 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100" placeholder="Describe your question or deployment scenario" />
           </label>
           <button className="mt-5 inline-flex items-center gap-2 rounded-md bg-sky-600 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-sky-700">
-            Send request <ArrowRight className="h-4 w-4" />
+            Prepare note <ArrowRight className="h-4 w-4" />
           </button>
-          {sent && <p className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">Request prepared. Delivery integration will be added later.</p>}
+          {sent && <p className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">Note prepared. Delivery integration will be added later.</p>}
         </form>
       </main>
     </PublicLayout>
