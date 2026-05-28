@@ -12,6 +12,7 @@ import { connectRedis, disconnectRedis } from './database/redis';
 import { setupSocketIO } from './socket';
 import { mediasoupManager } from './mediasoup/server';
 
+import { startUdpBridge } from './udp-bridge';
 import { authRouter } from './routes/auth';
 import { organizationsRouter } from './routes/organizations';
 import { usersRouter } from './routes/users';
@@ -97,6 +98,9 @@ async function bootstrap() {
     mediasoupManager.initError = errMsg;
     logger.warn({ msg: '⚠️  MediaSoup не запустился — аудио недоступно, сигналинг работает', err: errMsg });
   }
+
+  // ESP32 UDP bridge
+  startUdpBridge(io);
 
   // ─── Запуск ───────────────────────────────────────────────
   httpServer.listen(config.PORT, config.HOST, () => {

@@ -9,6 +9,8 @@ services:
       # MediaSoup UDP/TCP диапазон — ОБЯЗАТЕЛЬНО открыт на VPS фаерволе
       - "10000-10100:10000-10100/udp"
       - "10000-10100:10000-10100/tcp"
+      # ESP32 UDP bridge
+      - "5005:5005/udp"
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://privox:${POSTGRES_PASSWORD:-changeme}@db:5432/privoxptt

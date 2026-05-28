@@ -1,9 +1,28 @@
+import { EventEmitter } from 'events';
 import { Server } from 'socket.io';
 import type { DtlsParameters, RtpParameters, RtpCapabilities } from 'mediasoup/node/lib/types';
 import { mediasoupManager } from './server';
 import { PeerTransportManager } from './transport';
 import { logger } from '../utils/logger';
 import type { AuthenticatedSocket } from '../socket/index';
+
+// Internal event bus for the UDP bridge to track producers.
+// Events: 'producer-created' (groupId, producerId, userId)
+//         'producer-closed'  (groupId, producerId)
+export const groupProducerEvents = new EventEmitter();
+groupProducerEvents.setMaxListeners(100);
+
+/** Returns all active producers in a group (used by bridge on device join). */
+export function getGroupProducers(groupId: string): { producerId: string; userId: string }[] {
+  const peers = groupPeers.get(groupId);
+  if (!peers) return [];
+  const result: { producerId: string; userId: string }[] = [];
+  for (const manager of peers.values()) {
+    const producerId = manager.getProducerId();
+    if (producerId) result.push({ producerId, userId: manager.userId });
+  }
+  return result;
+}
 
 // groupId → (socketId → PeerTransportManager)
 // Каждое соединение (socketId) имеет независимые транспорты.
@@ -174,6 +193,8 @@ export function setupMediasoupSocket(io: Server, socket: AuthenticatedSocket): v
           callsign: socket.data.callsign,
         });
 
+        groupProducerEvents.emit('producer-created', groupId, producerId, userId);
+
         callback({ producerId });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -216,6 +237,7 @@ export function setupMediasoupSocket(io: Server, socket: AuthenticatedSocket): v
 
         if (producerId) {
           socket.to(groupId).emit('ms:producer-closed', { groupId, producerId, producerUserId: userId });
+          groupProducerEvents.emit('producer-closed', groupId, producerId);
         }
         callback({ ok: true });
       } catch (err) {
@@ -287,6 +309,7 @@ export function setupMediasoupSocket(io: Server, socket: AuthenticatedSocket): v
             producerId,
             producerUserId: userId,
           });
+          groupProducerEvents.emit('producer-closed', groupId, producerId);
         }
 
         cleanupPeer(groupId, socketId);
