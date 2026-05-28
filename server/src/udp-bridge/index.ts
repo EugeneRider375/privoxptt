@@ -10,7 +10,7 @@ import {
   buildAuthFail,
 } from './protocol';
 
-const UDP_PORT = parseInt(process.env.ESP32_BRIDGE_PORT ?? '5005', 10);
+const UDP_PORT = parseInt(process.env.ESP32_BRIDGE_PORT ?? '5055', 10);
 
 // Map: "ip:port" → DeviceSession
 const sessions = new Map<string, DeviceSession>();

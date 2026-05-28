@@ -10,7 +10,7 @@ services:
       - "10000-10100:10000-10100/udp"
       - "10000-10100:10000-10100/tcp"
       # ESP32 UDP bridge
-      - "5005:5005/udp"
+      - "5055:5055/udp"
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://privox:${POSTGRES_PASSWORD:-changeme}@db:5432/privoxptt
