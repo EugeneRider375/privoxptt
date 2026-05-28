@@ -99,8 +99,12 @@ async function bootstrap() {
     logger.warn({ msg: '⚠️  MediaSoup не запустился — аудио недоступно, сигналинг работает', err: errMsg });
   }
 
-  // ESP32 UDP bridge
-  startUdpBridge(io);
+  // ESP32 UDP bridge — graceful: основной сервер работает даже если bridge упал
+  try {
+    startUdpBridge(io);
+  } catch (err) {
+    logger.warn({ msg: '⚠️  ESP32 UDP bridge не запустился — PTT через веб продолжает работать', err });
+  }
 
   // ─── Запуск ───────────────────────────────────────────────
   httpServer.listen(config.PORT, config.HOST, () => {
