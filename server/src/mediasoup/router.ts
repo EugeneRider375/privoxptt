@@ -12,15 +12,39 @@ import type { AuthenticatedSocket } from '../socket/index';
 export const groupProducerEvents = new EventEmitter();
 groupProducerEvents.setMaxListeners(100);
 
-/** Returns all active producers in a group (used by bridge on device join). */
+// Registry of active ESP32 device producers: groupId → Map<producerId, userId>
+const deviceProducers = new Map<string, Map<string, string>>();
+
+export function registerDeviceProducer(groupId: string, producerId: string, userId: string): void {
+  if (!deviceProducers.has(groupId)) deviceProducers.set(groupId, new Map());
+  deviceProducers.get(groupId)!.set(producerId, userId);
+}
+
+export function unregisterDeviceProducer(groupId: string, producerId: string): void {
+  deviceProducers.get(groupId)?.delete(producerId);
+}
+
+/** Returns all active producers in a group — both web clients and ESP32 devices. */
 export function getGroupProducers(groupId: string): { producerId: string; userId: string }[] {
-  const peers = groupPeers.get(groupId);
-  if (!peers) return [];
   const result: { producerId: string; userId: string }[] = [];
-  for (const manager of peers.values()) {
-    const producerId = manager.getProducerId();
-    if (producerId) result.push({ producerId, userId: manager.userId });
+
+  // Web client producers
+  const peers = groupPeers.get(groupId);
+  if (peers) {
+    for (const manager of peers.values()) {
+      const producerId = manager.getProducerId();
+      if (producerId) result.push({ producerId, userId: manager.userId });
+    }
   }
+
+  // ESP32 device producers
+  const devices = deviceProducers.get(groupId);
+  if (devices) {
+    for (const [producerId, userId] of devices.entries()) {
+      result.push({ producerId, userId });
+    }
+  }
+
   return result;
 }
 

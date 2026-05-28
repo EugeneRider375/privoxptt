@@ -2,7 +2,7 @@ import dgram from 'dgram';
 import type { Server } from 'socket.io';
 import type { PlainTransport, Producer, Consumer } from 'mediasoup/node/lib/types';
 import { mediasoupManager } from '../mediasoup/server';
-import { groupProducerEvents, getGroupProducers } from '../mediasoup/router';
+import { groupProducerEvents, getGroupProducers, registerDeviceProducer, unregisterDeviceProducer } from '../mediasoup/router';
 import { acquirePttLock, releasePttLock } from '../database/redis';
 import { logger } from '../utils/logger';
 import {
@@ -113,6 +113,9 @@ export class DeviceSession {
         );
       }
     }
+
+    // Register in global device producer registry so late-joining devices find it
+    registerDeviceProducer(this.groupId, this.producer.id, this.userId);
 
     // Announce ESP32 producer to web clients and other device sessions
     this.io.to(this.groupId).emit('ms:new-producer', {
@@ -278,7 +281,10 @@ export class DeviceSession {
     }
     this.consumers.clear();
 
-    if (this.producer && !this.producer.closed) this.producer.close();
+    if (this.producer && !this.producer.closed) {
+      unregisterDeviceProducer(this.groupId, this.producer.id);
+      this.producer.close();
+    }
     if (this.txTransport && !this.txTransport.closed) this.txTransport.close();
     if (this.rxTransport && !this.rxTransport.closed) this.rxTransport.close();
 
