@@ -3,6 +3,7 @@ import type { Server } from 'socket.io';
 import type { PlainTransport, Producer, Consumer } from 'mediasoup/node/lib/types';
 import { mediasoupManager } from '../mediasoup/server';
 import { groupProducerEvents, getGroupProducers, registerDeviceProducer, unregisterDeviceProducer } from '../mediasoup/router';
+import { setUserOnline, setUserOffline } from '../database/redis';
 import { acquirePttLock, releasePttLock } from '../database/redis';
 import { logger } from '../utils/logger';
 import {
@@ -39,15 +40,20 @@ export class DeviceSession {
 
   readonly ssrc: number;
 
+  private readonly deviceSocketId: string;
+
   constructor(
-    public readonly userId:   string,
-    public readonly callsign: string,
-    public readonly groupId:  string,
+    public readonly userId:         string,
+    public readonly callsign:       string,
+    public readonly displayName:    string,
+    public readonly organizationId: string,
+    public readonly groupId:        string,
     private readonly sendToDevice: (buf: Buffer) => void,
     private readonly io: Server,
     private readonly onDisconnect: () => void,
   ) {
     this.ssrc = (ssrcCounter++ >>> 0);
+    this.deviceSocketId = `esp32:${userId}`;
   }
 
   async init(): Promise<void> {
@@ -133,6 +139,14 @@ export class DeviceSession {
     // Heartbeat watchdog
     this.heartbeatTimer = setInterval(() => this.checkHeartbeat(), HEARTBEAT_INTERVAL_MS);
     this.lastPong = Date.now();
+
+    // Presence — показываем ESP32 в онлайн-списке как обычного пользователя
+    await setUserOnline(this.userId, this.deviceSocketId);
+    this.io.to(`org:${this.organizationId}`).emit('user-online', {
+      userId:      this.userId,
+      callsign:    this.callsign,
+      displayName: this.displayName,
+    });
 
     logger.info({ msg: 'DeviceSession ready', userId: this.userId, groupId: this.groupId });
   }
@@ -287,6 +301,8 @@ export class DeviceSession {
     groupProducerEvents.off('producer-closed',  this.onProducerClosed);
 
     await releasePttLock(this.groupId, this.userId).catch(() => {});
+    await setUserOffline(this.userId, this.deviceSocketId).catch(() => {});
+    this.io.to(`org:${this.organizationId}`).emit('user-offline', { userId: this.userId });
 
     for (const c of this.consumers.values()) {
       if (!c.closed) c.close();

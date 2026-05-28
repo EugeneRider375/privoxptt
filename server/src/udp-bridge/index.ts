@@ -60,7 +60,7 @@ async function handleMessage(
     try {
       const user = await prisma.user.findUnique({
         where: { email },
-        select: { id: true, password: true, isActive: true, callsign: true, groupMembers: { select: { groupId: true } } },
+        select: { id: true, password: true, isActive: true, callsign: true, displayName: true, organizationId: true, groupMembers: { select: { groupId: true } } },
       });
 
       if (!user || !user.isActive) {
@@ -84,6 +84,8 @@ async function handleMessage(
       const session = new DeviceSession(
         user.id,
         user.callsign,
+        user.displayName,
+        user.organizationId,
         groupId,
         send,
         io,
