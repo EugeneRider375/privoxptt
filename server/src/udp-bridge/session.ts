@@ -114,6 +114,15 @@ export class DeviceSession {
       }
     }
 
+    // Announce ESP32 producer to web clients and other device sessions
+    this.io.to(this.groupId).emit('ms:new-producer', {
+      groupId:        this.groupId,
+      producerId:     this.producer.id,
+      producerUserId: this.userId,
+      callsign:       this.callsign,
+    });
+    groupProducerEvents.emit('producer-created', this.groupId, this.producer.id, this.userId);
+
     // Subscribe to future producers
     groupProducerEvents.on('producer-created', this.onProducerCreated);
     groupProducerEvents.on('producer-closed',  this.onProducerClosed);
@@ -237,6 +246,7 @@ export class DeviceSession {
   // ── Ping / pong ───────────────────────────────────────────
   onPing(): void {
     this.sendToDevice(buildPong());
+    this.lastPong = Date.now(); // входящий ping = подтверждение жизни
   }
 
   onPong(): void {
