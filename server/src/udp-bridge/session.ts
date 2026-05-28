@@ -154,9 +154,15 @@ export class DeviceSession {
   };
 
   private async subscribeToProducer(producerId: string): Promise<void> {
-    if (!this.rxTransport || this.rxTransport.closed) return;
+    if (!this.rxTransport || this.rxTransport.closed) {
+      logger.warn({ msg: 'subscribeToProducer: rxTransport missing', userId: this.userId, producerId });
+      return;
+    }
     const router = mediasoupManager.getGroupRouter(this.groupId);
-    if (!router) return;
+    if (!router) {
+      logger.warn({ msg: 'subscribeToProducer: router not found', userId: this.userId, producerId });
+      return;
+    }
 
     const consumer = await this.rxTransport.consume({
       producerId,
@@ -168,7 +174,7 @@ export class DeviceSession {
     consumer.on('transportclose', () => this.consumers.delete(producerId));
 
     this.consumers.set(producerId, consumer);
-    logger.debug({ msg: 'ESP32 consumer created', userId: this.userId, producerId });
+    logger.info({ msg: 'ESP32 consumer created', userId: this.userId, callsign: this.callsign, producerId, consumerId: consumer.id });
   }
 
   // ── PTT ───────────────────────────────────────────────────
@@ -231,6 +237,8 @@ export class DeviceSession {
   }
 
   // ── Audio from MediaSoup → ESP32 ──────────────────────────
+  private rxPktCount = 0;
+
   private onRtpFromMediasoup(pkt: Buffer): void {
     const off = getRtpPayloadOffset(pkt);
     if (off < 0 || off >= pkt.length) return;
@@ -239,10 +247,14 @@ export class DeviceSession {
     try {
       const pcm16 = decodeOpusToPcm(opusPayload);
       if (pcm16.length > 0) {
+        this.rxPktCount++;
+        if (this.rxPktCount <= 5 || this.rxPktCount % 50 === 0) {
+          logger.info({ msg: 'ESP32 RX audio → device', callsign: this.callsign, pkt: this.rxPktCount, bytes: pcm16.length });
+        }
         this.sendToDevice(buildAudioPacket(this.txSeqOut++ & 0xffff, pcm16));
       }
-    } catch {
-      // Packet may be malformed — ignore
+    } catch (err) {
+      logger.warn({ msg: 'ESP32 RX decode error', callsign: this.callsign, err });
     }
   }
 
