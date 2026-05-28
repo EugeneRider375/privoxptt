@@ -93,7 +93,7 @@ export class DeviceSession {
     await new Promise<void>((res, rej) =>
       this.rxSocket!.bind(0, '127.0.0.1', (err?: Error) => err ? rej(err) : res())
     );
-    const rxPort = (this.rxSocket.address() as dgram.AddressInfo).port;
+    const rxPort = (this.rxSocket.address() as { port: number }).port;
 
     this.rxTransport = await router.createPlainTransport({
       listenIp: { ip: '127.0.0.1' },
