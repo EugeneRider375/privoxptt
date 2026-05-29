@@ -14,8 +14,6 @@ const UDP_PORT = parseInt(process.env.ESP32_BRIDGE_PORT ?? '5055', 10);
 
 // Map: "ip:port" → DeviceSession
 const sessions = new Map<string, DeviceSession>();
-// Map: "ip:port" → { email, password, groupId } — auth in progress
-const pendingAuth = new Map<string, { email: string; password: string; groupId: string }>();
 
 export function startUdpBridge(io: Server): void {
   const socket = dgram.createSocket('udp4');
@@ -46,6 +44,17 @@ async function handleMessage(
   if (!packet) return;
 
   const send = (buf: Buffer) => socket.send(buf, port, ip);
+
+  // PING без сессии — сервер перезапустился, просим переавторизоваться
+  if (packet.type === 'ping') {
+    const session = sessions.get(key);
+    if (session) {
+      session.onPing();
+    } else {
+      send(buildAuthFail('session_lost'));
+    }
+    return;
+  }
 
   // ── AUTH ─────────────────────────────────────────────────
   if (packet.type === 'auth') {
@@ -112,7 +121,6 @@ async function handleMessage(
     case 'ptt_start': await session.onPttStart(); break;
     case 'ptt_stop':  await session.onPttStop();  break;
     case 'audio':     session.onAudio(packet.pcm); break;
-    case 'ping':      session.onPing(); break;
     case 'pong':      session.onPong(); break;
   }
 }
