@@ -57,7 +57,7 @@ const features = [
   ['Administration tools', TerminalSquare],
   ['Browser access', Cloud],
   ['Android app path', Smartphone],
-  ['Future PoC device testing', Radio],
+  ['PRIVOX Mini Radio hardware', Radio],
   ['WebRTC audio', Wifi],
   ['Secure authentication', Lock],
 ];
@@ -65,7 +65,7 @@ const features = [
 const platforms = [
   { title: 'Web', status: 'Available now', icon: Cloud, tone: 'text-sky-700 bg-sky-50 border-sky-100' },
   { title: 'Android', status: 'PoC APK available', icon: Smartphone, tone: 'text-emerald-700 bg-emerald-50 border-emerald-100' },
-  { title: 'PoC devices', status: 'Next stage', icon: Radio, tone: 'text-indigo-700 bg-indigo-50 border-indigo-100' },
+  { title: 'PRIVOX Mini Radio', status: 'Available — self-build', icon: Radio, tone: 'text-indigo-700 bg-indigo-50 border-indigo-100' },
   { title: 'iPhone', status: 'Use web version now', icon: BadgeCheck, tone: 'text-slate-700 bg-slate-50 border-slate-200' },
 ];
 
@@ -120,6 +120,53 @@ const docs = [
     text: 'These items are intentionally outside the current Android PoC stage.',
     items: ['No guaranteed locked-screen/background calling yet', 'No foreground service yet', 'No hardware PTT button yet', 'No Bluetooth headset certification yet', 'No Google Play distribution yet'],
   },
+  {
+    title: 'PRIVOX Mini Radio — overview',
+    text: 'PRIVOX Mini Radio is a self-build ESP32-S3 PTT radio that connects to the PRIVOX PTT server over Wi-Fi. It works alongside web and Android clients inside the same groups and organizations.',
+    items: [
+      'Hardware: ESP32-S3 DevKitC-1, INMP441 microphone, MAX98357A amplifier, 4Ω speaker, PTT button',
+      'Audio: 16 kHz PCM over UDP, transcoded to Opus on the server bridge',
+      'LED indicator built into the ESP32-S3 board (no external LEDs needed)',
+      'Configuration via built-in Wi-Fi portal — no programming tools required for end users',
+      'Supports up to 5 saved Wi-Fi networks with automatic selection',
+      'Firmware source: open, built with PlatformIO and Arduino framework',
+    ],
+  },
+  {
+    title: 'PRIVOX Mini Radio — first-time setup',
+    text: 'Follow these steps to configure a new device. The admin prepares the account; the user only adds their Wi-Fi network.',
+    items: [
+      'Admin: create a user account in PRIVOX PTT (email + password)',
+      'Admin: add the user to the required group',
+      'Admin: connect to the device Wi-Fi portal and enter server, email, password, group ID',
+      'User: power on the device — it will start in portal mode (LED blinks purple)',
+      'User: connect phone or laptop to the Wi-Fi network named PRIVOX-XXXX (no password)',
+      'User: open a browser — the setup page opens automatically',
+      'User: enter Wi-Fi network name and password, then tap Save & Reboot',
+      'Device connects to Wi-Fi and authenticates — LED turns solid blue when ready',
+    ],
+  },
+  {
+    title: 'PRIVOX Mini Radio — LED indicators',
+    text: 'The built-in RGB LED shows the current device state at a glance.',
+    items: [
+      'Purple blinking — portal mode active, waiting for configuration',
+      'Purple solid — connecting to Wi-Fi or authenticating with server',
+      'Orange — authentication error (check email, password, or group ID)',
+      'Blue solid — connected and ready, no activity',
+      'Green — receiving audio from the group',
+      'Red — PTT pressed, transmitting',
+    ],
+  },
+  {
+    title: 'PRIVOX Mini Radio — PTT hold at power-on',
+    text: 'Holding the PTT button while powering on gives access to configuration without erasing data, or performs a full reset.',
+    items: [
+      'Release immediately (under 3 s): normal start',
+      'Hold 3–8 s until LED turns yellow, then release: opens portal with all settings preserved — use to add a new Wi-Fi network',
+      'Hold more than 8 s until LED turns red, then release: full factory reset — all settings erased, device starts fresh portal',
+    ],
+  },
 ];
 
 const faqs = [
@@ -135,6 +182,12 @@ const faqs = [
   ['Can administrators create groups?', 'Yes. Organization admins can create groups, create users, assign users to groups, and manage speaking permissions inside their organization.'],
   ['What if there is no sound?', 'Check that users are in the same group, microphone permission is allowed, the browser or Android WebView is updated, and the network connection is stable. Restart the app once after first installation if needed.'],
   ['What should testers report?', 'Report the device model, Android or browser version, account role, group name, whether transmit or receive failed, and whether restarting the app changed the result.'],
+  ['What is PRIVOX Mini Radio?', 'PRIVOX Mini Radio is a self-build PTT radio based on the ESP32-S3 microcontroller. It connects to the PRIVOX PTT server over Wi-Fi and works inside the same groups as web and Android users.'],
+  ['Do I need to program the PRIVOX Mini Radio?', 'No programming tools are needed for configuration. The device starts a Wi-Fi setup portal on first power-on. Connect a phone to the PRIVOX-XXXX network, open a browser, and fill in the Wi-Fi and account details.'],
+  ['What hardware do I need to build PRIVOX Mini Radio?', 'ESP32-S3 DevKitC-1, INMP441 I2S microphone, MAX98357A I2S amplifier, a small 4Ω speaker, and a push button. Full wiring details are in the Docs section.'],
+  ['How do I add a new Wi-Fi network to PRIVOX Mini Radio?', 'Hold the PTT button while powering on until the LED turns yellow (3–8 seconds), then release. The portal opens with existing settings preserved. Add the new network and save.'],
+  ['How do I factory reset PRIVOX Mini Radio?', 'Hold the PTT button while powering on until the LED turns red (more than 8 seconds), then release. All settings are erased and the device restarts the setup portal.'],
+  ['Can PRIVOX Mini Radio work on mobile data?', 'Yes. Connect the radio to a mobile hotspot like any other Wi-Fi network. It will authenticate and work the same way as on a home or office network.'],
 ];
 
 function PublicLayout({ children }: { children: React.ReactNode }) {
@@ -417,13 +470,13 @@ export function DownloadPage() {
               Open web app <ExternalLink className="h-4 w-4" />
             </a>
           </div>
-          <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-            <Radio className="h-8 w-8 text-sky-600" />
-            <h2 className="mt-5 text-xl font-bold text-slate-950">PoC device testing</h2>
-            <p className="mt-2 text-sm font-medium uppercase tracking-[0.12em] text-slate-500">coming soon</p>
-            <button disabled className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-md border border-slate-200 bg-slate-100 px-4 py-3 font-semibold text-slate-400">
-              Device program <ExternalLink className="h-4 w-4" />
-            </button>
+          <div className="rounded-lg border border-indigo-200 bg-white p-6 shadow-sm">
+            <Radio className="h-8 w-8 text-indigo-600" />
+            <h2 className="mt-5 text-xl font-bold text-slate-950">PRIVOX Mini Radio</h2>
+            <p className="mt-2 text-sm font-medium uppercase tracking-[0.12em] text-indigo-700">Self-build hardware</p>
+            <Link to="/docs" className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-md bg-indigo-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-indigo-700">
+              Setup guide <BookOpen className="h-4 w-4" />
+            </Link>
           </div>
         </div>
         <section className="mx-auto mt-8 max-w-5xl rounded-lg border border-sky-200 bg-white p-6 shadow-sm">
