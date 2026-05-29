@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { Component, useEffect, useState, type ReactNode } from 'react';
+import { Component, useEffect, type ReactNode } from 'react';
 import { useStore } from '@/store/useStore';
 import { LoginPage } from '@/pages/auth/LoginPage';
 import { UserRadioPage } from '@/pages/user/UserRadioPage';
@@ -7,8 +7,6 @@ import { DispatcherLayout } from '@/pages/dispatcher/DispatcherLayout';
 import { AdminLayout } from '@/pages/admin/AdminLayout';
 import { DownloadPage, DocsPage, FaqPage, HomePage, StatusPage, SupportPage } from '@/pages/public/PublicPages';
 import { unlockAudio } from '@/hooks/useWebRTC';
-import { authApi } from '@/api/client';
-import type { User } from '@/types';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null };
@@ -30,17 +28,8 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
   }
 }
 
-function AuthLoading() {
-  return (
-    <div className="min-h-screen bg-ptt-dark text-ptt-green flex items-center justify-center font-mono text-xs tracking-widest">
-      CONNECTING...
-    </div>
-  );
-}
-
-function RequireAuth({ children, authReady }: { children: ReactNode; authReady: boolean }) {
+function RequireAuth({ children }: { children: ReactNode }) {
   const token = useStore((s) => s.accessToken);
-  if (!authReady) return <AuthLoading />;
   if (!token) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
@@ -56,52 +45,8 @@ function RoleRouter() {
 }
 
 export default function App() {
-  const [authReady, setAuthReady] = useState(false);
-
   useEffect(() => {
-    let cancelled = false;
-
-    async function bootstrapSession() {
-      await useStore.persist.rehydrate();
-
-      const path = window.location.pathname;
-      const isProtectedPath =
-        path === '/app' ||
-        path.startsWith('/radio') ||
-        path.startsWith('/dispatcher') ||
-        path.startsWith('/admin');
-
-      if (isProtectedPath) {
-        const state = useStore.getState();
-        const hasStoredSession =
-          Boolean(localStorage.getItem('accessToken') || state.accessToken) &&
-          Boolean(localStorage.getItem('refreshToken') || state.refreshToken);
-
-        if (hasStoredSession) {
-          try {
-            const user = await authApi.me();
-            const accessToken = localStorage.getItem('accessToken') ?? useStore.getState().accessToken;
-            const refreshToken = localStorage.getItem('refreshToken') ?? useStore.getState().refreshToken;
-            if (accessToken && refreshToken) {
-              useStore.getState().setAuth(user as User, accessToken, refreshToken);
-            }
-          } catch {
-            useStore.getState().clearAuth();
-          }
-        }
-      }
-
-      if (!cancelled) setAuthReady(true);
-    }
-
-    bootstrapSession().catch(() => {
-      useStore.getState().clearAuth();
-      if (!cancelled) setAuthReady(true);
-    });
-
-    return () => {
-      cancelled = true;
-    };
+    useStore.persist.rehydrate();
   }, []);
 
   // Разблокируем AudioContext при любом касании — нужно для Safari и мобильных браузеров
@@ -129,11 +74,11 @@ export default function App() {
           <Route path="/status" element={<StatusPage />} />
           <Route path="/login" element={<LoginPage />} />
 
-          <Route path="/app" element={<RequireAuth authReady={authReady}><RoleRouter /></RequireAuth>} />
+          <Route path="/app" element={<RequireAuth><RoleRouter /></RequireAuth>} />
 
-          <Route path="/radio/*" element={<RequireAuth authReady={authReady}><ErrorBoundary><UserRadioPage /></ErrorBoundary></RequireAuth>} />
-          <Route path="/dispatcher/*" element={<RequireAuth authReady={authReady}><ErrorBoundary><DispatcherLayout /></ErrorBoundary></RequireAuth>} />
-          <Route path="/admin/*" element={<RequireAuth authReady={authReady}><ErrorBoundary><AdminLayout /></ErrorBoundary></RequireAuth>} />
+          <Route path="/radio/*" element={<RequireAuth><ErrorBoundary><UserRadioPage /></ErrorBoundary></RequireAuth>} />
+          <Route path="/dispatcher/*" element={<RequireAuth><ErrorBoundary><DispatcherLayout /></ErrorBoundary></RequireAuth>} />
+          <Route path="/admin/*" element={<RequireAuth><ErrorBoundary><AdminLayout /></ErrorBoundary></RequireAuth>} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
