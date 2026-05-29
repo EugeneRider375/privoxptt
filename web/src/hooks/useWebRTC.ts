@@ -368,6 +368,7 @@ export function useWebRTC(groupId: string | null) {
     };
 
     let subscribedSocket: any = null;
+    let subscribedSocketId: string | undefined;
     let disposed = false;
 
     // Полная переинициализация после переподключения сокета (редеплой сервера)
@@ -386,14 +387,21 @@ export function useWebRTC(groupId: string | null) {
 
     const subscribe = (socket: any) => {
       if (disposed) return;
+      if (subscribedSocket === socket) {
+        if (!socket.disconnected && socket.id !== subscribedSocketId) {
+          subscribedSocketId = socket.id;
+          handleSocketReconnect();
+        }
+        return;
+      }
       if (subscribedSocket) {
         subscribedSocket.off('ms:new-producer', handleNewProducer);
         subscribedSocket.off('ms:producer-closed', handleProducerClosed);
         subscribedSocket.io?.off('reconnect', handleSocketReconnect);
       }
-      if (subscribedSocket === socket && !socket.disconnected) return;
 
       subscribedSocket = socket;
+      subscribedSocketId = socket.id;
       socket.on('ms:new-producer', handleNewProducer);
       socket.on('ms:producer-closed', handleProducerClosed);
       socket.io?.on('reconnect', handleSocketReconnect);

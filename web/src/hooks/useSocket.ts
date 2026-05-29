@@ -28,6 +28,12 @@ function publishSocket(socket: Socket): void {
   window.dispatchEvent(new CustomEvent(PRIVOX_SOCKET_READY_EVENT, { detail: socket }));
 }
 
+function rejoinActiveGroup(socket: Socket): void {
+  const { activeGroupId } = useStore.getState();
+  if (!activeGroupId) return;
+  socket.emit('join-group', { groupId: activeGroupId });
+}
+
 export function useSocket() {
   // Только токен нужен как реактивная зависимость
   const token = useStore((s) => s.accessToken);
@@ -60,6 +66,8 @@ export function useSocket() {
 
     socket.on('connect', () => {
       console.log('[Socket] Connected:', socket.id);
+      rejoinActiveGroup(socket);
+      publishSocket(socket);
       const heartbeat = setInterval(() => socket.emit('heartbeat'), 30_000);
       socket.on('disconnect', () => clearInterval(heartbeat));
     });
