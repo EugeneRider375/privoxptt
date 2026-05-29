@@ -370,16 +370,33 @@ export function useWebRTC(groupId: string | null) {
     let subscribedSocket: any = null;
     let disposed = false;
 
+    // Полная переинициализация после переподключения сокета (редеплой сервера)
+    const handleSocketReconnect = () => {
+      if (disposed) return;
+      console.log('[WebRTC] Socket reconnected after server restart — reinitializing consumers');
+      consumersRef.current.forEach((c) => c.close());
+      consumersRef.current.clear();
+      consumedProducersRef.current.clear();
+      producerCleanupRef.current.clear();
+      recvTransportRef.current?.close();
+      recvTransportRef.current = null;
+      deviceRef.current = null;
+      init().catch(console.error);
+    };
+
     const subscribe = (socket: any) => {
-      if (disposed || subscribedSocket === socket) return;
+      if (disposed) return;
       if (subscribedSocket) {
         subscribedSocket.off('ms:new-producer', handleNewProducer);
         subscribedSocket.off('ms:producer-closed', handleProducerClosed);
+        subscribedSocket.io?.off('reconnect', handleSocketReconnect);
       }
+      if (subscribedSocket === socket && !socket.disconnected) return;
 
       subscribedSocket = socket;
       socket.on('ms:new-producer', handleNewProducer);
       socket.on('ms:producer-closed', handleProducerClosed);
+      socket.io?.on('reconnect', handleSocketReconnect);
       init().catch(console.error);
     };
 
@@ -398,6 +415,7 @@ export function useWebRTC(groupId: string | null) {
       if (subscribedSocket) {
         subscribedSocket.off('ms:new-producer', handleNewProducer);
         subscribedSocket.off('ms:producer-closed', handleProducerClosed);
+        subscribedSocket.io?.off('reconnect', handleSocketReconnect);
       }
     };
   }, [groupId, consumeProducer, createRecvTransport, emit, initDevice]);
