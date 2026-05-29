@@ -103,6 +103,9 @@ export function useWebRTC(groupId: string | null) {
     return transport;
   }, [groupId, emit]);
 
+  // Ref чтобы resubscribeAll был доступен внутри createRecvTransport без циклических зависимостей
+  const resubscribeAllRef = useRef<(() => void) | null>(null);
+
   const createRecvTransport = useCallback(async () => {
     if (!deviceRef.current || !groupId) throw new Error('Device is not initialized');
 
@@ -119,12 +122,33 @@ export function useWebRTC(groupId: string | null) {
       } catch (err) { errback(err as Error); }
     });
 
+    // Таймер для обнаружения зависшего "disconnected" (мобильные сети, LTE↔WiFi)
+    let disconnectedTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const triggerRecovery = () => {
+      if (transport.closed) return;
+      console.warn('[WebRTC] Recv transport recovery triggered');
+      transport.close();
+      if (recvTransportRef.current === transport) {
+        recvTransportRef.current = null;
+        // Переподписываемся на всех текущих продюсеров через 1 с
+        setTimeout(() => resubscribeAllRef.current?.(), 1000);
+      }
+    };
+
     transport.on('connectionstatechange', (state) => {
       console.log('[WebRTC] Recv ICE state:', state);
-      if ((state === 'failed' || state === 'disconnected') && !transport.closed) {
-        console.warn('[WebRTC] Recv transport ICE failed — закрываем для пересоздания');
-        transport.close();
-        if (recvTransportRef.current === transport) recvTransportRef.current = null;
+
+      if (state === 'disconnected') {
+        // Даём 8 секунд на восстановление — если не восстановилось, пересоздаём
+        disconnectedTimer = setTimeout(triggerRecovery, 8000);
+      } else {
+        if (disconnectedTimer) { clearTimeout(disconnectedTimer); disconnectedTimer = null; }
+      }
+
+      if (state === 'failed') {
+        if (disconnectedTimer) { clearTimeout(disconnectedTimer); disconnectedTimer = null; }
+        triggerRecovery();
       }
     });
 
@@ -334,6 +358,13 @@ export function useWebRTC(groupId: string | null) {
       for (const p of producers) {
         await consumeProducer(p.producerId, p.producerUserId);
       }
+    };
+
+    // Переподписка на всех текущих продюсеров после восстановления транспорта
+    resubscribeAllRef.current = () => {
+      if (disposed) return;
+      console.log('[WebRTC] Resubscribing to all producers after transport recovery');
+      init().catch(console.error);
     };
 
     let subscribedSocket: any = null;
