@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { LogOut, ChevronDown, Users, Radio, Signal, AlertTriangle, PhoneCall } from 'lucide-react';
 import { useStore } from '@/store/useStore';
-import { PRIVOX_DATA_CHANGED_EVENT, disconnectPrivoxSocket, useSocket } from '@/hooks/useSocket';
+import { PRIVOX_DATA_CHANGED_EVENT, PRIVOX_SOCKET_READY_EVENT, disconnectPrivoxSocket, useSocket } from '@/hooks/useSocket';
 import { usePTT } from '@/hooks/usePTT';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { groupsApi, authApi } from '@/api/client';
@@ -71,7 +71,18 @@ export function UserRadioPage() {
     if (!activeGroupId) return;
     joinGroup(activeGroupId);
     refreshActiveGroup();
-    return () => { leaveGroup(activeGroupId); };
+
+    const handleSocketReady = () => {
+      joinGroup(activeGroupId);
+      refreshActiveGroup();
+    };
+
+    window.addEventListener(PRIVOX_SOCKET_READY_EVENT, handleSocketReady);
+
+    return () => {
+      window.removeEventListener(PRIVOX_SOCKET_READY_EVENT, handleSocketReady);
+      leaveGroup(activeGroupId);
+    };
   }, [activeGroupId, joinGroup, leaveGroup, refreshActiveGroup]);
 
   useEffect(() => {

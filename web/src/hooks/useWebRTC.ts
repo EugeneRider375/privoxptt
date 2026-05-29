@@ -379,10 +379,11 @@ export function useWebRTC(groupId: string | null) {
       consumersRef.current.clear();
       consumedProducersRef.current.clear();
       producerCleanupRef.current.clear();
+      recvTransportCreatingRef.current = null;
       recvTransportRef.current?.close();
       recvTransportRef.current = null;
       deviceRef.current = null;
-      init().catch(console.error);
+      setTimeout(() => init().catch(console.error), 300);
     };
 
     const subscribe = (socket: any) => {
