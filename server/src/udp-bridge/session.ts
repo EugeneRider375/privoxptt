@@ -3,7 +3,7 @@ import type { Server } from 'socket.io';
 import type { PlainTransport, Producer, Consumer } from 'mediasoup/node/lib/types';
 import { mediasoupManager } from '../mediasoup/server';
 import { groupProducerEvents, getGroupProducers, registerDeviceProducer, unregisterDeviceProducer } from '../mediasoup/router';
-import { setUserOnline, setUserOffline } from '../database/redis';
+import { setUserOnline, setUserOffline, refreshUserOnline } from '../database/redis';
 import { acquirePttLock, releasePttLock } from '../database/redis';
 import { logger } from '../utils/logger';
 import {
@@ -287,7 +287,10 @@ export class DeviceSession {
       logger.warn({ msg: 'ESP32 heartbeat timeout', userId: this.userId });
       void this.close();
       this.onDisconnect();
+      return;
     }
+    // Обновляем TTL присутствия в Redis (ONLINE_TTL = 60s, heartbeat каждые 10s)
+    refreshUserOnline(this.userId).catch(() => {});
   }
 
   // ── Cleanup ───────────────────────────────────────────────
