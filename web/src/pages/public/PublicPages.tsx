@@ -473,7 +473,7 @@ export function DownloadPage() {
           <div className="rounded-lg border border-indigo-200 bg-white p-6 shadow-sm">
             <Radio className="h-8 w-8 text-indigo-600" />
             <h2 className="mt-5 text-xl font-bold text-slate-950">PRIVOX Mini Radio</h2>
-            <p className="mt-2 text-sm font-medium uppercase tracking-[0.12em] text-indigo-700">Self-build hardware</p>
+            <p className="mt-2 text-sm font-medium uppercase tracking-[0.12em] text-indigo-700">Hardware PTT radio</p>
             <Link to="/docs" className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-md bg-indigo-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-indigo-700">
               Setup guide <BookOpen className="h-4 w-4" />
             </Link>
