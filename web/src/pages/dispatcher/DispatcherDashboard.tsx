@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Radio, Mic, MicOff, PhoneCall, Check, Clock } from 'lucide-react';
 import { useStore } from '@/store/useStore';
-import { PRIVOX_DATA_CHANGED_EVENT, PRIVOX_SOCKET_READY_EVENT, useSocket } from '@/hooks/useSocket';
+import { PRIVOX_DATA_CHANGED_EVENT, useSocket } from '@/hooks/useSocket';
 import { usePTT } from '@/hooks/usePTT';
 import { groupsApi } from '@/api/client';
 import { PTTButton } from '@/components/ui/PTTButton';
@@ -68,17 +68,7 @@ export function DispatcherDashboard() {
     joinGroup(activeGroupId);
     refreshActiveGroup();
 
-    const handleSocketReady = () => {
-      joinGroup(activeGroupId);
-      refreshActiveGroup();
-    };
-
-    window.addEventListener(PRIVOX_SOCKET_READY_EVENT, handleSocketReady);
-
-    return () => {
-      window.removeEventListener(PRIVOX_SOCKET_READY_EVENT, handleSocketReady);
-      leaveGroup(activeGroupId);
-    };
+    return () => { leaveGroup(activeGroupId); };
   }, [activeGroupId, joinGroup, leaveGroup, refreshActiveGroup]);
 
   useEffect(() => {
