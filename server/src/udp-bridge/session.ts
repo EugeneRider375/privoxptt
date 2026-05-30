@@ -3,8 +3,10 @@ import type { Server } from 'socket.io';
 import type { PlainTransport, Producer, Consumer } from 'mediasoup/node/lib/types';
 import { mediasoupManager } from '../mediasoup/server';
 import { groupProducerEvents, getGroupProducers, registerDeviceProducer, unregisterDeviceProducer } from '../mediasoup/router';
-import { setUserOnline, setUserOffline, refreshUserOnline } from '../database/redis';
+import { setUserOnline, setUserOffline, refreshUserOnline, isUserOnline } from '../database/redis';
 import { acquirePttLock, releasePttLock } from '../database/redis';
+import { prisma } from '../database/prisma';
+import { ActivityLogType } from '@prisma/client';
 import { logger } from '../utils/logger';
 import {
   encodePcmToOpus,
@@ -141,12 +143,25 @@ export class DeviceSession {
     this.lastPong = Date.now();
 
     // Presence — показываем ESP32 в онлайн-списке как обычного пользователя
+    const wasOnline = await isUserOnline(this.userId);
     await setUserOnline(this.userId, this.deviceSocketId);
     this.io.to(`org:${this.organizationId}`).emit('user-online', {
       userId:      this.userId,
       callsign:    this.callsign,
       displayName: this.displayName,
     });
+    // Журнал активности — рация теперь видна в логах админа/диспетчера наравне с веб/Android
+    if (!wasOnline) {
+      await prisma.activityLog.create({
+        data: {
+          type: ActivityLogType.USER_ONLINE,
+          organizationId: this.organizationId,
+          userId: this.userId,
+          callsign: this.callsign,
+          displayName: this.displayName,
+        },
+      }).catch((err) => logger.error({ msg: 'ESP32 activity log online failed', err }));
+    }
 
     logger.info({ msg: 'DeviceSession ready', userId: this.userId, groupId: this.groupId });
   }
@@ -252,6 +267,13 @@ export class DeviceSession {
 
   // ── Audio from MediaSoup → ESP32 ──────────────────────────
   private rxPktCount = 0;
+  private squelchOpenUntil = 0;
+
+  // Шумовой гейт: Opus DTX шлёт тихие comfort-noise кадры в паузах — они давали
+  // щелчки и ложные зелёные мигания на рации. Пропускаем только кадры громче порога,
+  // с «хвостом» чтобы не резать окончания фраз.
+  private static readonly SQUELCH_RMS    = 400;  // порог int16 (речь сотни-тысячи)
+  private static readonly SQUELCH_HANG_MS = 300; // держим открытым после громкого кадра
 
   private onRtpFromMediasoup(pkt: Buffer): void {
     const off = getRtpPayloadOffset(pkt);
@@ -260,13 +282,25 @@ export class DeviceSession {
     const opusPayload = pkt.subarray(off);
     try {
       const pcm16 = decodeOpusToPcm(opusPayload);
-      if (pcm16.length > 0) {
-        this.rxPktCount++;
-        if (this.rxPktCount <= 5 || this.rxPktCount % 50 === 0) {
-          logger.info({ msg: 'ESP32 RX audio → device', callsign: this.callsign, pkt: this.rxPktCount, bytes: pcm16.length });
-        }
-        this.sendToDevice(buildAudioPacket(this.txSeqOut++ & 0xffff, pcm16));
+      if (pcm16.length === 0) return;
+
+      // RMS кадра
+      const n = pcm16.length >> 1;
+      let sum = 0;
+      for (let i = 0; i < n; i++) {
+        const s = pcm16.readInt16LE(i << 1);
+        sum += s * s;
       }
+      const rms = Math.sqrt(sum / Math.max(1, n));
+
+      const now = Date.now();
+      if (rms >= DeviceSession.SQUELCH_RMS) {
+        this.squelchOpenUntil = now + DeviceSession.SQUELCH_HANG_MS;
+      }
+      if (now > this.squelchOpenUntil) return; // тишина/comfort-noise — не шлём
+
+      this.rxPktCount++;
+      this.sendToDevice(buildAudioPacket(this.txSeqOut++ & 0xffff, pcm16));
     } catch (err) {
       logger.warn({ msg: 'ESP32 RX decode error', callsign: this.callsign, err });
     }
@@ -304,8 +338,19 @@ export class DeviceSession {
     groupProducerEvents.off('producer-closed',  this.onProducerClosed);
 
     await releasePttLock(this.groupId, this.userId).catch(() => {});
-    await setUserOffline(this.userId, this.deviceSocketId).catch(() => {});
+    const wentOffline = await setUserOffline(this.userId, this.deviceSocketId).catch(() => false);
     this.io.to(`org:${this.organizationId}`).emit('user-offline', { userId: this.userId });
+    if (wentOffline) {
+      await prisma.activityLog.create({
+        data: {
+          type: ActivityLogType.USER_OFFLINE,
+          organizationId: this.organizationId,
+          userId: this.userId,
+          callsign: this.callsign,
+          displayName: this.displayName,
+        },
+      }).catch((err) => logger.error({ msg: 'ESP32 activity log offline failed', err }));
+    }
 
     for (const c of this.consumers.values()) {
       if (!c.closed) c.close();
