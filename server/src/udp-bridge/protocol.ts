@@ -43,9 +43,21 @@ export function parsePacket(buf: Buffer): Packet | null {
   }
 }
 
-export function buildAuthOk(): Buffer {
-  const b = Buffer.alloc(2);
+// AUTH_OK payload (backward compatible — old firmware reads only the 2-byte magic):
+//   magic(2 LE) | count(1) | repeat count times: groupId\0 name\0
+// Group names are capped to keep the packet small and display-friendly.
+export function buildAuthOk(groups: { id: string; name: string }[] = []): Buffer {
+  const capped = groups.slice(0, 16); // hard cap to bound packet size
+  const parts: Buffer[] = [];
+  for (const g of capped) {
+    const name = g.name.length > 20 ? g.name.slice(0, 20) : g.name;
+    parts.push(Buffer.from(`${g.id}\0${name}\0`, 'utf8'));
+  }
+  const body = Buffer.concat(parts);
+  const b = Buffer.alloc(3 + body.length);
   b.writeUInt16LE(MAGIC_AUTH_OK, 0);
+  b.writeUInt8(capped.length, 2);
+  body.copy(b, 3);
   return b;
 }
 

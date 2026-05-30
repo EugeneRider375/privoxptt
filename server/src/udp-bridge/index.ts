@@ -69,7 +69,11 @@ async function handleMessage(
     try {
       const user = await prisma.user.findUnique({
         where: { email },
-        select: { id: true, password: true, isActive: true, callsign: true, displayName: true, organizationId: true, groupMembers: { select: { groupId: true } } },
+        select: {
+          id: true, password: true, isActive: true, callsign: true,
+          displayName: true, organizationId: true,
+          groupMembers: { select: { group: { select: { id: true, name: true } } } },
+        },
       });
 
       if (!user || !user.isActive) {
@@ -84,7 +88,8 @@ async function handleMessage(
       }
 
       // Check group membership
-      const isMember = user.groupMembers.some((m) => m.groupId === groupId);
+      const myGroups = user.groupMembers.map((m) => m.group);
+      const isMember = myGroups.some((g) => g.id === groupId);
       if (!isMember) {
         send(buildAuthFail('Not a member of this group'));
         return;
@@ -103,7 +108,7 @@ async function handleMessage(
 
       await session.init();
       sessions.set(key, session);
-      send(buildAuthOk());
+      send(buildAuthOk(myGroups));
 
       logger.info({ msg: 'ESP32 authenticated', userId: user.id, callsign: user.callsign, groupId, ip, port });
     } catch (err) {
