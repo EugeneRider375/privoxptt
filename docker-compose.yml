@@ -32,6 +32,14 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      # Coolify/Docker считают контейнер живым только когда /health отвечает 200.
+      # Без этого трафик мог уходить в зависший после редеплоя контейнер.
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
     networks:
       - privoxptt-net
     volumes:
