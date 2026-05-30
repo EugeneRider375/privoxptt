@@ -9,6 +9,7 @@ export const MAGIC_PTT_START  = 0xAB16;
 export const MAGIC_PTT_STOP   = 0xAB17;
 export const MAGIC_PING       = 0xAB18;
 export const MAGIC_PONG       = 0xAB19;
+export const MAGIC_CALL       = 0xAB1A; // server→device: callerName\0 groupName\0
 
 export type Packet =
   | { type: 'audio';    seq: number; samples: number; pcm: Buffer }
@@ -72,6 +73,17 @@ export function buildAuthFail(msg: string): Buffer {
 export function buildPong(): Buffer {
   const b = Buffer.alloc(2);
   b.writeUInt16LE(MAGIC_PONG, 0);
+  return b;
+}
+
+// Входящий вызов на рацию: magic | callerName\0 groupName\0
+export function buildCallPacket(callerName: string, groupName: string): Buffer {
+  const nm = callerName.length > 22 ? callerName.slice(0, 22) : callerName;
+  const gn = groupName.length  > 22 ? groupName.slice(0, 22)  : groupName;
+  const body = Buffer.from(`${nm}\0${gn}\0`, 'utf8');
+  const b = Buffer.alloc(2 + body.length);
+  b.writeUInt16LE(MAGIC_CALL, 0);
+  body.copy(b, 2);
   return b;
 }
 

@@ -11,6 +11,7 @@ import {
   PTT_LOCK_PREFIX,
 } from '../database/redis';
 import { logger } from '../utils/logger';
+import { notifyDeviceCall } from '../udp-bridge';
 import type { AuthenticatedSocket } from './index';
 
 export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
@@ -260,6 +261,9 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
         groupName: access.group.name,
         createdAt: Date.now(),
       });
+
+      // Если цель — мини-рация (UDP-устройство), доставляем вызов на неё напрямую
+      notifyDeviceCall(targetUserId, displayName || callsign, access.group.name);
 
       logger.info({ msg: 'User call requested', from: userId, to: targetUserId, groupId });
       callback?.({ ok: true });

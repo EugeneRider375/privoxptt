@@ -17,7 +17,7 @@ import {
   RTP_PAYLOAD_TYPE,
   RTP_TIMESTAMP_PER_FRAME,
 } from './codec';
-import { buildAudioPacket, buildPong } from './protocol';
+import { buildAudioPacket, buildPong, buildCallPacket } from './protocol';
 
 const HEARTBEAT_INTERVAL_MS = 10_000;
 const HEARTBEAT_TIMEOUT_MS  = 30_000;
@@ -304,6 +304,12 @@ export class DeviceSession {
     } catch (err) {
       logger.warn({ msg: 'ESP32 RX decode error', callsign: this.callsign, err });
     }
+  }
+
+  // ── Входящий вызов ────────────────────────────────────────
+  onIncomingCall(callerName: string, groupName: string): void {
+    this.sendToDevice(buildCallPacket(callerName, groupName));
+    logger.info({ msg: 'ESP32 incoming call', userId: this.userId, callerName, groupName });
   }
 
   // ── Ping / pong ───────────────────────────────────────────

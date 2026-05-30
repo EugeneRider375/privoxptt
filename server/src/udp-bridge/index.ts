@@ -14,6 +14,16 @@ const UDP_PORT = parseInt(process.env.ESP32_BRIDGE_PORT ?? '5055', 10);
 
 // Map: "ip:port" → DeviceSession
 const sessions = new Map<string, DeviceSession>();
+// Map: userId → DeviceSession — чтобы найти рацию для входящего вызова
+const devicesByUser = new Map<string, DeviceSession>();
+
+// Вызвать рацию (если этот пользователь — онлайн-устройство). true = доставлено.
+export function notifyDeviceCall(userId: string, callerName: string, groupName: string): boolean {
+  const session = devicesByUser.get(userId);
+  if (!session) return false;
+  session.onIncomingCall(callerName, groupName);
+  return true;
+}
 
 export function startUdpBridge(io: Server): void {
   const socket = dgram.createSocket('udp4');
@@ -103,11 +113,12 @@ async function handleMessage(
         groupId,
         send,
         io,
-        () => sessions.delete(key),
+        () => { sessions.delete(key); devicesByUser.delete(user.id); },
       );
 
       await session.init();
       sessions.set(key, session);
+      devicesByUser.set(user.id, session);
       send(buildAuthOk(myGroups));
 
       logger.info({ msg: 'ESP32 authenticated', userId: user.id, callsign: user.callsign, groupId, ip, port });
