@@ -17,7 +17,7 @@ import {
   RTP_PAYLOAD_TYPE,
   RTP_TIMESTAMP_PER_FRAME,
 } from './codec';
-import { buildAudioPacket, buildPong, buildCallPacket } from './protocol';
+import { buildAudioPacket, buildPong, buildCallPacket, buildChannelState } from './protocol';
 
 const HEARTBEAT_INTERVAL_MS = 10_000;
 const HEARTBEAT_TIMEOUT_MS  = 30_000;
@@ -31,6 +31,17 @@ export class DeviceSession {
   private rxSocket: dgram.Socket | null = null;
   private producer: Producer | null = null;
   private consumers = new Map<string, Consumer>(); // producerId → Consumer
+  private lastChannelBusy = false; // последнее отправленное на рацию состояние канала
+
+  // Канал занят, если в группе есть хоть один чужой передатчик (мы его потребляем).
+  // Отправляем рации только при изменении — она зажигает зелёный (занято) / синий (свободно)
+  // независимо от того, говорит передающий прямо сейчас или молчит.
+  private sendChannelState(): void {
+    const busy = this.consumers.size > 0;
+    if (busy === this.lastChannelBusy) return;
+    this.lastChannelBusy = busy;
+    this.sendToDevice(buildChannelState(busy));
+  }
 
   private pcmBuffer   = Buffer.alloc(0);
   private rtpSeq      = 0;
@@ -180,6 +191,7 @@ export class DeviceSession {
     const consumer = this.consumers.get(producerId);
     if (consumer && !consumer.closed) consumer.close();
     this.consumers.delete(producerId);
+    this.sendChannelState();
   };
 
   private async subscribeToProducer(producerId: string): Promise<void> {
@@ -199,10 +211,11 @@ export class DeviceSession {
       paused: false,
     });
 
-    consumer.on('producerclose', () => this.consumers.delete(producerId));
-    consumer.on('transportclose', () => this.consumers.delete(producerId));
+    consumer.on('producerclose', () => { this.consumers.delete(producerId); this.sendChannelState(); });
+    consumer.on('transportclose', () => { this.consumers.delete(producerId); this.sendChannelState(); });
 
     this.consumers.set(producerId, consumer);
+    this.sendChannelState();
     logger.info({ msg: 'ESP32 consumer created', userId: this.userId, callsign: this.callsign, producerId, consumerId: consumer.id });
   }
 

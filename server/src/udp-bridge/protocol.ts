@@ -10,6 +10,7 @@ export const MAGIC_PTT_STOP   = 0xAB17;
 export const MAGIC_PING       = 0xAB18;
 export const MAGIC_PONG       = 0xAB19;
 export const MAGIC_CALL       = 0xAB1A; // server→device: callerName\0 groupName\0
+export const MAGIC_CHANNEL    = 0xAB1B; // server→device: 1 byte 1=busy 0=free
 
 export type Packet =
   | { type: 'audio';    seq: number; samples: number; pcm: Buffer }
@@ -73,6 +74,14 @@ export function buildAuthFail(msg: string): Buffer {
 export function buildPong(): Buffer {
   const b = Buffer.alloc(2);
   b.writeUInt16LE(MAGIC_PONG, 0);
+  return b;
+}
+
+// Состояние канала: занят (кто-то передаёт) / свободен
+export function buildChannelState(busy: boolean): Buffer {
+  const b = Buffer.alloc(3);
+  b.writeUInt16LE(MAGIC_CHANNEL, 0);
+  b.writeUInt8(busy ? 1 : 0, 2);
   return b;
 }
 
