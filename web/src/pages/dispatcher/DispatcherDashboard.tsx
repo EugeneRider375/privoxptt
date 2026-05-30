@@ -19,11 +19,26 @@ export function DispatcherDashboard() {
   const onlineUsers = useStore((s) => s.onlineUsers);
   const dispatcherCalls = useStore((s) => s.dispatcherCalls);
 
-  const { joinGroup, leaveGroup, acceptDispatcherCall } = useSocket();
+  const user = useStore((s) => s.user);
+  const { joinGroup, leaveGroup, acceptDispatcherCall, callUser } = useSocket();
   const { startPtt, stopPtt } = usePTT(activeGroupId);
 
   const [members, setMembers] = useState<GroupMember[]>([]);
+  const [callingUserId, setCallingUserId] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
+
+  async function handleCallUser(targetUserId: string, callsign: string) {
+    if (!activeGroupId || callingUserId) return;
+    setCallingUserId(targetUserId);
+    try {
+      await callUser(targetUserId, activeGroupId);
+      useStore.getState().addAlert({ type: 'info', callsign, message: `Call sent to ${callsign}` });
+    } catch (err) {
+      useStore.getState().addAlert({ type: 'warn', message: err instanceof Error ? err.message : 'Failed to call user' });
+    } finally {
+      setCallingUserId(null);
+    }
+  }
 
   const activeGroup = groups.find((g) => g.id === activeGroupId);
 
@@ -277,6 +292,16 @@ export function DispatcherDashboard() {
                 </div>
                 {talking && <Radio className="w-3 h-3 text-ptt-green shrink-0 animate-pulse" />}
                 {!m.canSpeak && !talking && <MicOff className="w-3 h-3 text-ptt-muted shrink-0" />}
+                {online && m.userId !== user?.id && (
+                  <button
+                    onClick={() => handleCallUser(m.userId, m.user.callsign)}
+                    disabled={!!callingUserId}
+                    title={`Call ${m.user.callsign}`}
+                    className="shrink-0 p-1.5 rounded-md text-ptt-blue hover:bg-ptt-blue/10 disabled:opacity-40"
+                  >
+                    <PhoneCall className={clsx('w-4 h-4', callingUserId === m.userId && 'animate-pulse')} />
+                  </button>
+                )}
               </div>
             );
           })}
