@@ -17,7 +17,7 @@ import {
   RTP_PAYLOAD_TYPE,
   RTP_TIMESTAMP_PER_FRAME,
 } from './codec';
-import { buildAudioPacket, buildPong, buildCallPacket, buildChannelState } from './protocol';
+import { buildAudioPacket, buildPong, buildCallPacket } from './protocol';
 
 const HEARTBEAT_INTERVAL_MS = 10_000;
 const HEARTBEAT_TIMEOUT_MS  = 30_000;
@@ -31,17 +31,6 @@ export class DeviceSession {
   private rxSocket: dgram.Socket | null = null;
   private producer: Producer | null = null;
   private consumers = new Map<string, Consumer>(); // producerId → Consumer
-  private lastChannelBusy = false; // последнее отправленное на рацию состояние канала
-
-  // Канал занят, если в группе есть хоть один чужой передатчик (мы его потребляем).
-  // Отправляем рации только при изменении — она зажигает зелёный (занято) / синий (свободно)
-  // независимо от того, говорит передающий прямо сейчас или молчит.
-  private sendChannelState(): void {
-    const busy = this.consumers.size > 0;
-    if (busy === this.lastChannelBusy) return;
-    this.lastChannelBusy = busy;
-    this.sendToDevice(buildChannelState(busy));
-  }
 
   private pcmBuffer   = Buffer.alloc(0);
   private rtpSeq      = 0;
@@ -191,7 +180,6 @@ export class DeviceSession {
     const consumer = this.consumers.get(producerId);
     if (consumer && !consumer.closed) consumer.close();
     this.consumers.delete(producerId);
-    this.sendChannelState();
   };
 
   private async subscribeToProducer(producerId: string): Promise<void> {
@@ -211,11 +199,10 @@ export class DeviceSession {
       paused: false,
     });
 
-    consumer.on('producerclose', () => { this.consumers.delete(producerId); this.sendChannelState(); });
-    consumer.on('transportclose', () => { this.consumers.delete(producerId); this.sendChannelState(); });
+    consumer.on('producerclose', () => this.consumers.delete(producerId));
+    consumer.on('transportclose', () => this.consumers.delete(producerId));
 
     this.consumers.set(producerId, consumer);
-    this.sendChannelState();
     logger.info({ msg: 'ESP32 consumer created', userId: this.userId, callsign: this.callsign, producerId, consumerId: consumer.id });
   }
 
@@ -279,15 +266,6 @@ export class DeviceSession {
   }
 
   // ── Audio from MediaSoup → ESP32 ──────────────────────────
-  private rxPktCount = 0;
-  private squelchOpenUntil = 0;
-
-  // Шумовой гейт: Opus DTX шлёт тихие comfort-noise кадры в паузах — они давали
-  // щелчки и ложные зелёные мигания на рации. Пропускаем только кадры громче порога,
-  // с «хвостом» чтобы не резать окончания фраз.
-  private static readonly SQUELCH_RMS    = 400;  // порог int16 (речь сотни-тысячи)
-  private static readonly SQUELCH_HANG_MS = 300; // держим открытым после громкого кадра
-
   private onRtpFromMediasoup(pkt: Buffer): void {
     const off = getRtpPayloadOffset(pkt);
     if (off < 0 || off >= pkt.length) return;
@@ -295,25 +273,9 @@ export class DeviceSession {
     const opusPayload = pkt.subarray(off);
     try {
       const pcm16 = decodeOpusToPcm(opusPayload);
-      if (pcm16.length === 0) return;
-
-      // RMS кадра
-      const n = pcm16.length >> 1;
-      let sum = 0;
-      for (let i = 0; i < n; i++) {
-        const s = pcm16.readInt16LE(i << 1);
-        sum += s * s;
+      if (pcm16.length > 0) {
+        this.sendToDevice(buildAudioPacket(this.txSeqOut++ & 0xffff, pcm16));
       }
-      const rms = Math.sqrt(sum / Math.max(1, n));
-
-      const now = Date.now();
-      if (rms >= DeviceSession.SQUELCH_RMS) {
-        this.squelchOpenUntil = now + DeviceSession.SQUELCH_HANG_MS;
-      }
-      if (now > this.squelchOpenUntil) return; // тишина/comfort-noise — не шлём
-
-      this.rxPktCount++;
-      this.sendToDevice(buildAudioPacket(this.txSeqOut++ & 0xffff, pcm16));
     } catch (err) {
       logger.warn({ msg: 'ESP32 RX decode error', callsign: this.callsign, err });
     }
