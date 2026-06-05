@@ -419,6 +419,8 @@ export function useWebRTC(groupId: string | null) {
     const handleSocketReconnect = () => {
       if (disposed) return;
       console.log('[WebRTC] Socket reconnected after server restart — reinitializing consumers');
+      // Re-join the group room so we receive ms:new-producer events from future PTT presses
+      if (groupId) subscribedSocket?.emit('join-group', { groupId });
       consumersRef.current.forEach((c) => c.close());
       consumersRef.current.clear();
       consumedProducersRef.current.clear();
