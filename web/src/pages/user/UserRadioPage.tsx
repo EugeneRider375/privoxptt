@@ -141,9 +141,8 @@ export function UserRadioPage() {
   // above keep running (incl. usePTT's hardware-PTT Space handler); only the
   // rendered layout differs. Phones fall through to the standard layout below.
   if (isRadioDevice()) {
+    // No AlertPanel on the radio: toasts pile up and clutter the tiny screen.
     return (
-      <>
-        <AlertPanel />
         <RadioDeviceScreen
           user={user}
           groups={groups}
@@ -159,7 +158,6 @@ export function UserRadioPage() {
           onSos={() => { if (activeGroupId) sendSos(activeGroupId); }}
           onLogout={handleLogout}
         />
-      </>
     );
   }
 

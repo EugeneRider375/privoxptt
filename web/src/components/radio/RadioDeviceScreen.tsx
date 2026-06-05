@@ -62,9 +62,28 @@ export function RadioDeviceScreen({
       setActiveGroup(g.id);
       setView('members');
       setSelected(0);
+      // Push a history entry so the hardware Back button (curved arrow) returns
+      // to the groups list (like phones), and only minimizes the app at the
+      // top level. Same path -> react-router stays on /radio.
+      window.history.pushState({ radioView: 'members' }, '');
     },
     [setActiveGroup],
   );
+
+  const goBackToGroups = useCallback(() => {
+    // Use history.back so hardware Back and ←/Backspace behave identically.
+    if (view === 'members') window.history.back();
+  }, [view]);
+
+  // Hardware Back / browser back -> return to groups list.
+  useEffect(() => {
+    const onPop = () => {
+      setView('groups');
+      setSelected(0);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
 
   const activate = useCallback(() => {
     if (view === 'groups') {
@@ -101,7 +120,7 @@ export function RadioDeviceScreen({
         case 'Backspace':
           if (view === 'members') {
             e.preventDefault();
-            setView('groups');
+            goBackToGroups();
           }
           break;
         case 'ArrowRight':
@@ -116,7 +135,7 @@ export function RadioDeviceScreen({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [count, view, activate]);
+  }, [count, view, activate, goBackToGroups]);
 
   // Keep the highlighted row visible on the tiny screen.
   useEffect(() => {
