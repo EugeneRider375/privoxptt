@@ -47,6 +47,7 @@ export function RadioDeviceScreen({
 }: Props) {
   const [view, setView] = useState<View>('groups');
   const [selected, setSelected] = useState(0);
+  const [confirmLogout, setConfirmLogout] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
 
   const list = view === 'groups' ? groups : members;
@@ -103,6 +104,7 @@ export function RadioDeviceScreen({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (document.activeElement?.tagName === 'INPUT') return;
+      if (confirmLogout) return; // overlay shown — ignore list navigation
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault();
@@ -135,7 +137,7 @@ export function RadioDeviceScreen({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [count, view, activate, goBackToGroups]);
+  }, [count, view, activate, goBackToGroups, confirmLogout]);
 
   // Keep the highlighted row visible on the tiny screen.
   useEffect(() => {
@@ -157,7 +159,7 @@ export function RadioDeviceScreen({
         </div>
         <div className="flex items-center gap-1">
           <Signal className="w-3 h-3 text-ptt-green" />
-          <button onClick={onLogout} title="Log out" className="text-ptt-muted hover:text-white ml-1">
+          <button onClick={() => setConfirmLogout(true)} title="Log out" className="text-ptt-muted hover:text-white ml-1">
             <LogOut className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -259,6 +261,27 @@ export function RadioDeviceScreen({
         </div>
         <div className={`shrink-0 w-2 h-2 rounded-full ${transmitting ? 'bg-ptt-green animate-pulse' : receiving ? 'bg-ptt-blue animate-pulse' : 'bg-ptt-border'}`} />
       </div>
+
+      {/* Logout confirmation — avoids accidental sign-out on the radio */}
+      {confirmLogout && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-black/80 px-4">
+          <p className="font-rajdhani font-bold text-white text-base">Log out?</p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setConfirmLogout(false)}
+              className="px-4 py-2 border border-ptt-border rounded text-ptt-text font-mono text-xs tracking-widest"
+            >
+              CANCEL
+            </button>
+            <button
+              onClick={onLogout}
+              className="px-4 py-2 border border-ptt-danger/60 rounded text-ptt-danger font-mono text-xs tracking-widest"
+            >
+              LOG OUT
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
