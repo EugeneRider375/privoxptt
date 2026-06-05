@@ -63,27 +63,37 @@ export function RadioDeviceScreen({
       setActiveGroup(g.id);
       setView('members');
       setSelected(0);
-      // Push a history entry so the hardware Back button (curved arrow) returns
-      // to the groups list (like phones), and only minimizes the app at the
-      // top level. Same path -> react-router stays on /radio.
-      window.history.pushState({ radioView: 'members' }, '');
     },
     [setActiveGroup],
   );
 
   const goBackToGroups = useCallback(() => {
-    // Use history.back so hardware Back and ←/Backspace behave identically.
-    if (view === 'members') window.history.back();
-  }, [view]);
-
-  // Hardware Back / browser back -> return to groups list.
-  useEffect(() => {
-    const onPop = () => {
+    if (view === 'members') {
       setView('groups');
       setSelected(0);
+    }
+  }, [view]);
+
+  // Expose a back handler for the native wrapper. The T320 hardware Back button
+  // (curved arrow) is intercepted in MainActivity, which calls this: if we're
+  // inside a group, step back to the groups list and report handled (true);
+  // otherwise return false so the wrapper backgrounds the app. A ref keeps the
+  // latest view without re-registering.
+  const backRef = useRef<() => boolean>(() => false);
+  backRef.current = () => {
+    if (view === 'members') {
+      setView('groups');
+      setSelected(0);
+      return true;
+    }
+    return false;
+  };
+  useEffect(() => {
+    (window as unknown as { __privoxRadioBack?: () => boolean }).__privoxRadioBack = () =>
+      backRef.current();
+    return () => {
+      delete (window as unknown as { __privoxRadioBack?: () => boolean }).__privoxRadioBack;
     };
-    window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
   }, []);
 
   const activate = useCallback(() => {
