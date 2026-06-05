@@ -65,6 +65,7 @@ const features = [
 const platforms = [
   { title: 'Web', status: 'Available now', icon: Cloud, tone: 'text-sky-700 bg-sky-50 border-sky-100' },
   { title: 'Android', status: 'PoC APK available', icon: Smartphone, tone: 'text-emerald-700 bg-emerald-50 border-emerald-100' },
+  { title: 'Inrico T320', status: 'Hardware radio — verified', icon: Radio, tone: 'text-orange-700 bg-orange-50 border-orange-100' },
   { title: 'PRIVOX Mini Radio', status: 'Available — self-build', icon: Radio, tone: 'text-indigo-700 bg-indigo-50 border-indigo-100' },
   { title: 'iPhone', status: 'Use web version now', icon: BadgeCheck, tone: 'text-slate-700 bg-slate-50 border-slate-200' },
 ];
@@ -119,6 +120,30 @@ const docs = [
     title: 'Known PoC limitations',
     text: 'These items are intentionally outside the current Android PoC stage.',
     items: ['No guaranteed locked-screen/background calling yet', 'No foreground service yet', 'No hardware PTT button yet', 'No Bluetooth headset certification yet', 'No Google Play distribution yet'],
+  },
+  {
+    title: 'Inrico T320 digital radio',
+    text: 'Inrico T320 is a commercial Android-based PTT radio that runs the PRIVOX PTT application natively. It has a dedicated hardware PTT button, an integrated speaker and microphone, a 3800 mAh battery, and supports SIM card (2G/3G), Wi-Fi, Bluetooth, and GPS. The device runs Android 8.1 with an updatable WebView and works as a drop-in radio for PRIVOX PTT without any visible difference from the web or Android app experience.',
+    items: [
+      'Works in the same groups as web and Android users — all users hear each other',
+      'Dedicated hardware PTT side button triggers transmit instantly, same as pressing the on-screen button',
+      'SIM card option lets the device work on cellular data without a Wi-Fi hotspot',
+      'Standalone device — no phone or computer needed during operation',
+      'Full dispatcher map, SOS, and dispatcher call features work on the device',
+      'WebRTC audio (transmit and receive) confirmed on hardware',
+    ],
+  },
+  {
+    title: 'Inrico T320 — setup and installation',
+    text: 'The T320 requires one-time preparation before use: updating the system WebView and installing the PRIVOX PTT APK. An administrator completes this setup once; after that the user only needs to log in.',
+    items: [
+      'Connect the T320 to Wi-Fi and open the Play Store — update Chrome to the latest version (WebView is powered by Chrome on this device)',
+      'Download the PRIVOX PTT APK from ptt.privox.tech/download on the device or sideload it via USB',
+      'Allow installation from the browser if Android asks — tap Settings, enable the option, go back and install',
+      'Open PRIVOX PTT, allow microphone and location permissions, and sign in',
+      'Press the hardware PTT button on the side — the app immediately enters TRANSMITTING state',
+      'The T320 appears in the dispatcher console and on the map the same way as any other user',
+    ],
   },
   {
     title: 'PRIVOX Mini Radio',
@@ -182,6 +207,11 @@ const faqs = [
   ['Can administrators create groups?', 'Yes. Organization admins can create groups, create users, assign users to groups, and manage speaking permissions inside their organization.'],
   ['What if there is no sound?', 'Check that users are in the same group, microphone permission is allowed, the browser or Android WebView is updated, and the network connection is stable. Restart the app once after first installation if needed.'],
   ['What should testers report?', 'Report the device model, Android or browser version, account role, group name, whether transmit or receive failed, and whether restarting the app changed the result.'],
+  ['What is Inrico T320?', 'Inrico T320 is a commercial Android-based digital radio. It runs the PRIVOX PTT application as a native APK and works alongside web and Android users in the same groups. The hardware PTT side button is fully integrated and triggers transmit instantly.'],
+  ['Does Inrico T320 require a SIM card?', 'No. The T320 works over Wi-Fi without a SIM. A SIM card (2G/3G) can also be used for cellular connectivity in the field, giving the device standalone operation without a separate hotspot.'],
+  ['How is Inrico T320 different from the Android app?', 'Both run the same PRIVOX PTT web app through a Capacitor wrapper. The main difference is that T320 is a dedicated radio device with a hardware PTT button, a louder built-in speaker, a large battery, and no distraction from a phone. The T320 APK also intercepts the hardware PTT key and maps it to push-to-talk.'],
+  ['Does the hardware PTT button work on Inrico T320?', 'Yes. The side PTT button on the T320 is captured by the PRIVOX PTT app and triggers transmit immediately. Releasing the button stops transmission. No on-screen interaction is needed during operation.'],
+  ['What if the Inrico T320 shows a blank screen after opening PRIVOX PTT?', 'The factory Chrome on older T320 units is version 70, which is too old for the web app. Open the Play Store, update Chrome to version 100 or later, then restart PRIVOX PTT. The system WebView on T320 is powered by Chrome, so updating Chrome is sufficient.'],
   ['What is PRIVOX Mini Radio?', 'PRIVOX Mini Radio is a self-build PTT radio based on the ESP32-S3 microcontroller. It connects to the PRIVOX PTT server over Wi-Fi and works inside the same groups as web and Android users.'],
   ['Do I need to program the PRIVOX Mini Radio?', 'No programming tools are needed for configuration. The device starts a Wi-Fi setup portal on first power-on. Connect a phone to the PRIVOX-XXXX network, open a browser, and fill in the Wi-Fi and account details.'],
   ['What hardware do I need to build PRIVOX Mini Radio?', 'ESP32-S3 DevKitC-1, INMP441 I2S microphone, MAX98357A I2S amplifier, a small 4Ω speaker, and a push button. Full wiring details are in the Docs section.'],
@@ -406,8 +436,8 @@ export function HomePage() {
 function PlatformsSection() {
   return (
     <section className="bg-white px-4 py-20 sm:px-6 lg:px-8">
-      <SectionHeader eyebrow="Platforms" title="Web today, mobile and PoC next" />
-      <div className="mx-auto mt-10 grid max-w-5xl gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <SectionHeader eyebrow="Platforms" title="Web today, mobile and hardware next" />
+      <div className="mx-auto mt-10 grid max-w-6xl gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {platforms.map(({ title, status, icon: Icon, tone }) => (
           <div key={title} className={clsx('rounded-lg border p-5', tone)}>
             <Icon className="h-7 w-7" />
@@ -452,8 +482,8 @@ export function DownloadPage() {
   return (
     <PublicLayout>
       <main className="bg-slate-50 px-4 py-16 sm:px-6 lg:px-8">
-        <SectionHeader eyebrow="Download" title="PRIVOX PTT downloads" text="Use PRIVOX PTT on Android, iPhone, or a computer. Android APK testing is available for trusted testers." />
-        <div className="mx-auto mt-10 grid max-w-5xl gap-5 md:grid-cols-3">
+        <SectionHeader eyebrow="Download" title="PRIVOX PTT downloads" text="Use PRIVOX PTT on Android, iPhone, a computer, or a dedicated hardware radio." />
+        <div className="mx-auto mt-10 grid max-w-5xl gap-5 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-lg border border-emerald-200 bg-white p-6 shadow-sm">
             <Smartphone className="h-8 w-8 text-emerald-600" />
             <h2 className="mt-5 text-xl font-bold text-slate-950">Android APK</h2>
@@ -461,6 +491,15 @@ export function DownloadPage() {
             <a href={androidApkUrl} download className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-emerald-700">
               Download Android APK <Download className="h-4 w-4" />
             </a>
+          </div>
+          <div className="rounded-lg border border-orange-200 bg-white p-6 shadow-sm">
+            <Radio className="h-8 w-8 text-orange-600" />
+            <h2 className="mt-5 text-xl font-bold text-slate-950">Inrico T320</h2>
+            <p className="mt-2 text-sm font-medium uppercase tracking-[0.12em] text-orange-700">Hardware PTT radio</p>
+            <p className="mt-3 text-sm leading-6 text-slate-600">Android-based radio with a dedicated PTT button. Runs the PRIVOX PTT app natively.</p>
+            <Link to="/docs" className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-md bg-orange-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-orange-700">
+              Setup guide <BookOpen className="h-4 w-4" />
+            </Link>
           </div>
           <div className="rounded-lg border border-sky-200 bg-white p-6 shadow-sm">
             <BadgeCheck className="h-8 w-8 text-sky-600" />
