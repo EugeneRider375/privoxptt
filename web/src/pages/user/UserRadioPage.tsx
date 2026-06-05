@@ -8,6 +8,8 @@ import { groupsApi, authApi } from '@/api/client';
 import { PTTButton } from '@/components/ui/PTTButton';
 import { Waveform } from '@/components/ui/Waveform';
 import { AlertPanel } from '@/components/ui/AlertPanel';
+import { RadioDeviceScreen } from '@/components/radio/RadioDeviceScreen';
+import { isRadioDevice } from '@/utils/device';
 import type { Group, GroupMember } from '@/types';
 
 export function UserRadioPage() {
@@ -134,6 +136,32 @@ export function UserRadioPage() {
 
   const onlineCount = members.filter((m) => onlineUsers[m.userId]).length;
   const isBusy = activeGroup?.pttOwnerId != null;
+
+  // Inrico T320 radio: compact, D-pad–navigable layout. Same hooks/handlers
+  // above keep running (incl. usePTT's hardware-PTT Space handler); only the
+  // rendered layout differs. Phones fall through to the standard layout below.
+  if (isRadioDevice()) {
+    return (
+      <>
+        <AlertPanel />
+        <RadioDeviceScreen
+          user={user}
+          groups={groups}
+          activeGroup={activeGroup}
+          activeGroupId={activeGroupId}
+          members={members}
+          onlineUsers={onlineUsers}
+          pttStatus={pttStatus}
+          pttCallsign={pttCallsign}
+          callingUserId={callingUserId}
+          setActiveGroup={setActiveGroup}
+          onCallUser={handleCallUser}
+          onSos={() => { if (activeGroupId) sendSos(activeGroupId); }}
+          onLogout={handleLogout}
+        />
+      </>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col bg-ptt-dark text-white max-w-md mx-auto relative">

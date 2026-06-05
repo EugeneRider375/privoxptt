@@ -45,9 +45,8 @@ function RoleRouter() {
 }
 
 export default function App() {
-  useEffect(() => {
-    useStore.persist.rehydrate();
-  }, []);
+  // Store rehydration now runs synchronously in main.tsx before the first
+  // render (fixes the cold-start bounce to /login). See main.tsx.
 
   // Разблокируем AudioContext при любом касании — нужно для Safari и мобильных браузеров
   useEffect(() => {
