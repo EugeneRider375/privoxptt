@@ -3,6 +3,7 @@ import * as mediasoupClient from 'mediasoup-client';
 import type { Device, Transport, Producer, Consumer } from 'mediasoup-client/types';
 import { getPrivoxSocket, PRIVOX_SOCKET_READY_EVENT } from './useSocket';
 import { getAudioContext, unlockAudio } from '@/utils/audio';
+import { isRadioDevice } from '@/utils/device';
 
 export { unlockAudio };
 
@@ -13,6 +14,11 @@ const OPUS_CODEC_OPTIONS = {
   opusMaxAverageBitrate: 32000,
 };
 
+// На рации T320 микрофон в MODE_IN_COMMUNICATION звучит тихо — усиливаем
+// исходящий сигнал через WebAudio GainNode. Только в режиме рации; телефоны
+// не затрагиваются. Значение подбирается на устройстве.
+const RADIO_MIC_GAIN = 4.0;
+
 export function useWebRTC(groupId: string | null) {
   const deviceRef = useRef<Device | null>(null);
   const sendTransportRef = useRef<Transport | null>(null);
@@ -20,6 +26,12 @@ export function useWebRTC(groupId: string | null) {
   const producerRef = useRef<Producer | null>(null);
   const consumersRef = useRef<Map<string, Consumer>>(new Map());
   const streamRef = useRef<MediaStream | null>(null);
+  // WebAudio gain pipeline for the T320 mic boost (radio mode only).
+  const micProcessingRef = useRef<{
+    source: MediaStreamAudioSourceNode;
+    gain: GainNode;
+    dest: MediaStreamAudioDestinationNode;
+  } | null>(null);
   // Mutex: предотвращает одновременный запуск двух startTransmitting (quick press-release-press race)
   const isStartingRef = useRef(false);
   // Защита от одновременного создания нескольких recv transport
@@ -192,7 +204,31 @@ export function useWebRTC(groupId: string | null) {
       await createSendTransport();
 
       console.log('[WebRTC] startTransmitting: шаг 4 — produce, transport:', sendTransportRef.current?.id, 'listeners:', sendTransportRef.current?.listenerCount('produce'));
-      const track = stream.getAudioTracks()[0];
+      let track = stream.getAudioTracks()[0];
+
+      // T320 radio: boost the (quiet) mic via a WebAudio GainNode and send the
+      // processed track instead of the raw one. Phones use the raw track.
+      if (isRadioDevice() && track) {
+        try {
+          const ctx = getAudioContext();
+          await ctx.resume().catch(() => {});
+          const source = ctx.createMediaStreamSource(stream);
+          const gain = ctx.createGain();
+          gain.gain.value = RADIO_MIC_GAIN;
+          const dest = ctx.createMediaStreamDestination();
+          source.connect(gain);
+          gain.connect(dest);
+          micProcessingRef.current = { source, gain, dest };
+          const boosted = dest.stream.getAudioTracks()[0];
+          if (boosted) {
+            track = boosted;
+            console.log('[WebRTC] T320 mic gain x' + RADIO_MIC_GAIN + ' applied');
+          }
+        } catch (e) {
+          console.warn('[WebRTC] mic gain setup failed, using raw track', e);
+        }
+      }
+
       console.log('[WebRTC] Mic track:', track?.label, 'enabled:', track?.enabled, 'muted:', track?.muted, 'readyState:', track?.readyState);
       const producer = await sendTransportRef.current!.produce({
         track,
@@ -211,6 +247,15 @@ export function useWebRTC(groupId: string | null) {
     if (producerRef.current && !producerRef.current.closed) {
       producerRef.current.close();
       producerRef.current = null;
+    }
+    if (micProcessingRef.current) {
+      try {
+        micProcessingRef.current.source.disconnect();
+        micProcessingRef.current.gain.disconnect();
+      } catch {
+        // nodes may already be detached
+      }
+      micProcessingRef.current = null;
     }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
