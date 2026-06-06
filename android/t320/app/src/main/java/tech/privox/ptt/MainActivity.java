@@ -90,6 +90,7 @@ public class MainActivity extends BridgeActivity {
     public void onStart() {
         super.onStart();
         appInForeground = true;
+        PrivoxIncomingCallRinger.stop();
         NotificationManager manager = getSystemService(NotificationManager.class);
         if (manager != null) manager.cancel(2001);
     }

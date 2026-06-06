@@ -15,6 +15,7 @@ public class PrivoxCallActionReceiver extends BroadcastReceiver {
             .edit()
             .clear()
             .apply();
+        PrivoxIncomingCallRinger.stop();
         NotificationManager manager = context.getSystemService(NotificationManager.class);
         if (manager != null) manager.cancel(intent.getIntExtra("notification_id", 2001));
     }

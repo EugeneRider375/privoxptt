@@ -6,9 +6,6 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.media.AudioAttributes;
-import android.media.RingtoneManager;
-import android.net.Uri;
 import android.os.Build;
 
 import androidx.core.app.NotificationCompat;
@@ -20,7 +17,7 @@ import com.google.firebase.messaging.RemoteMessage;
 import java.util.Map;
 
 public class PrivoxFirebaseMessagingService extends FirebaseMessagingService {
-    private static final String CHANNEL_ID = "privox_incoming_calls";
+    private static final String CHANNEL_ID = "privox_incoming_calls_v2";
     private static final int NOTIFICATION_ID = 2001;
 
     @Override
@@ -31,6 +28,7 @@ public class PrivoxFirebaseMessagingService extends FirebaseMessagingService {
 
         savePendingCall(data);
         showIncomingCall(data);
+        PrivoxIncomingCallRinger.start(this);
     }
 
     private void savePendingCall(Map<String, String> data) {
@@ -99,17 +97,13 @@ public class PrivoxFirebaseMessagingService extends FirebaseMessagingService {
 
     private void createCallChannel() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
-        Uri ringtone = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
-        AudioAttributes audio = new AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
-            .build();
         NotificationChannel channel = new NotificationChannel(
             CHANNEL_ID, "PRIVOX incoming calls", NotificationManager.IMPORTANCE_HIGH
         );
         channel.setDescription("Incoming PRIVOX PTT user and group calls");
         channel.enableVibration(true);
         channel.setVibrationPattern(new long[]{0, 500, 300, 500});
-        channel.setSound(ringtone, audio);
+        channel.setSound(null, null);
         channel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
         NotificationManager manager = getSystemService(NotificationManager.class);
         if (manager != null) manager.createNotificationChannel(channel);

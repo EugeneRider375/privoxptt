@@ -100,6 +100,7 @@ public class IncomingCallActivity extends Activity {
     }
 
     private void cancelNotification() {
+        PrivoxIncomingCallRinger.stop();
         NotificationManager manager = getSystemService(NotificationManager.class);
         if (manager != null) manager.cancel(2001);
     }
