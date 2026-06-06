@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { LogOut, ChevronDown, Users, Radio, Signal, AlertTriangle, PhoneCall } from 'lucide-react';
+import { LogOut, ChevronDown, Users, Radio, Signal, AlertTriangle, PhoneCall, BatteryCharging, BatteryFull, BatteryMedium, BatteryLow, BatteryWarning } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { PRIVOX_DATA_CHANGED_EVENT, disconnectPrivoxSocket, useSocket } from '@/hooks/useSocket';
 import { usePTT } from '@/hooks/usePTT';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { groupsApi, authApi } from '@/api/client';
+import { useBattery } from '@/hooks/useBattery';
 import { PTTButton } from '@/components/ui/PTTButton';
 import { Waveform } from '@/components/ui/Waveform';
 import { AlertPanel } from '@/components/ui/AlertPanel';
@@ -23,6 +24,7 @@ export function UserRadioPage() {
   const clearAuth = useStore((s) => s.clearAuth);
   const onlineUsers = useStore((s) => s.onlineUsers);
 
+  const battery = useBattery();
   const { joinGroup, leaveGroup, sendSos, callUser, callDispatcher } = useSocket();
   const { startPtt, stopPtt } = usePTT(activeGroupId);
   useGeolocation(true);
@@ -171,9 +173,27 @@ export function UserRadioPage() {
           <div className="online-dot" />
           <span className="callsign text-sm">{user?.callsign}</span>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
           <Signal className="w-3 h-3 text-ptt-green" />
           <span className="font-mono text-ptt-text text-xs">ONLINE</span>
+          {battery.level !== null && (
+            <>
+              <span className="text-ptt-muted/40 text-xs">·</span>
+              {battery.charging
+                ? <BatteryCharging className="w-3.5 h-3.5 text-ptt-green" />
+                : battery.level > 0.8
+                  ? <BatteryFull className="w-3.5 h-3.5 text-ptt-green" />
+                  : battery.level > 0.4
+                    ? <BatteryMedium className="w-3.5 h-3.5 text-ptt-text" />
+                    : battery.level > 0.2
+                      ? <BatteryLow className="w-3.5 h-3.5 text-yellow-400" />
+                      : <BatteryWarning className="w-3.5 h-3.5 text-ptt-danger" />
+              }
+              <span className={`font-mono text-xs ${battery.level <= 0.2 ? 'text-ptt-danger' : battery.level <= 0.4 ? 'text-yellow-400' : 'text-ptt-text'}`}>
+                {Math.round(battery.level * 100)}%
+              </span>
+            </>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <button
