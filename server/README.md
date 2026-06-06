@@ -19,6 +19,7 @@ npm install
 # 2. Создать .env из примера
 cp .env.example .env
 # Заполните DATABASE_URL, JWT_SECRET, REFRESH_TOKEN_SECRET
+# Для пробуждения Android также добавьте FIREBASE_SERVICE_ACCOUNT_JSON
 
 # 3. Запустить PostgreSQL и Redis (Docker)
 docker run -d --name privox-pg -e POSTGRES_USER=privox -e POSTGRES_PASSWORD=dev -e POSTGRES_DB=privoxptt -p 5432:5432 postgres:16-alpine
@@ -50,7 +51,10 @@ src/
 │   ├── auth.ts           # POST /api/auth/login|logout|refresh, GET /me
 │   ├── organizations.ts  # CRUD /api/orgs
 │   ├── users.ts          # CRUD /api/users + смена пароля
+│   ├── devices.ts        # регистрация FCM/APNs устройств
 │   └── groups.ts         # CRUD /api/groups + участники
+├── services/
+│   └── push.ts           # Firebase Admin, high-priority wake calls
 ├── socket/
 │   ├── index.ts          # Socket.io setup + JWT auth middleware
 │   ├── presence.ts       # Онлайн/офлайн статусы
@@ -98,6 +102,28 @@ src/
 | POST | `/api/groups/:id/members` | Добавить участника |
 | DELETE | `/api/groups/:id/members/:userId` | Удалить участника |
 | PATCH | `/api/groups/:id/members/:userId` | Изменить canSpeak |
+
+### Push-устройства
+
+| Метод | Путь | Описание |
+|-------|------|----------|
+| POST | `/api/devices/register` | Зарегистрировать или обновить FCM/APNs-токен |
+| POST | `/api/devices/unregister` | Отключить токен при выходе |
+
+## Firebase Cloud Messaging
+
+В production Firebase Admin получает service-account JSON из переменной Coolify:
+
+```text
+FIREBASE_SERVICE_ACCOUNT_JSON={"type":"service_account",...}
+```
+
+Значение хранится одной строкой. Не добавляйте JSON сервисного аккаунта в Git,
+Docker image, APK или web assets.
+
+При индивидуальном вызове сервер одновременно использует Socket.IO и FCM.
+High-priority FCM data message имеет TTL 45 секунд. Недействительные токены
+автоматически помечаются `enabled=false`.
 
 ## Socket.io события
 
