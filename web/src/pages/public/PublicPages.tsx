@@ -478,7 +478,7 @@ function HelpSection() {
 }
 
 export function DownloadPage() {
-  const androidApkUrl = '/downloads/privox-ptt-android-debug.apk?v=3';
+  const androidApkUrl = '/downloads/privox-ptt-android-debug.apk?v=4';
   const webAppUrl = '/app';
 
   return (

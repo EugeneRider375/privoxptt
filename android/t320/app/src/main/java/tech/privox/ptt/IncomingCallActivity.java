@@ -96,7 +96,11 @@ public class IncomingCallActivity extends Activity {
             .clear()
             .apply();
         cancelNotification();
-        finish();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            finishAndRemoveTask();
+        } else {
+            finish();
+        }
     }
 
     private void cancelNotification() {

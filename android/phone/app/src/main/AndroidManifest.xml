@@ -30,6 +30,7 @@
             android:exported="false"
             android:launchMode="singleTop"
             android:showWhenLocked="true"
+            android:taskAffinity="tech.privox.ptt.incoming"
             android:turnScreenOn="true"
             android:theme="@style/AppTheme.NoActionBar" />
 

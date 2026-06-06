@@ -9,7 +9,6 @@ import android.content.SharedPreferences;
 import android.os.Build;
 
 import androidx.core.app.NotificationCompat;
-import androidx.core.app.Person;
 
 import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
@@ -46,14 +45,6 @@ public class PrivoxFirebaseMessagingService extends FirebaseMessagingService {
     private void showIncomingCall(Map<String, String> data) {
         createCallChannel();
 
-        Intent answer = new Intent(this, MainActivity.class)
-            .putExtra("privox_call_id", value(data, "callId"))
-            .putExtra("privox_group_id", value(data, "groupId"))
-            .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        PendingIntent answerIntent = PendingIntent.getActivity(
-            this, 201, answer, PendingIntent.FLAG_UPDATE_CURRENT | immutableFlag()
-        );
-
         Intent incomingScreen = new Intent(this, IncomingCallActivity.class)
             .putExtra("from_callsign", value(data, "fromCallsign"))
             .putExtra("from_display_name", value(data, "fromDisplayName"))
@@ -63,19 +54,8 @@ public class PrivoxFirebaseMessagingService extends FirebaseMessagingService {
             this, 203, incomingScreen, PendingIntent.FLAG_UPDATE_CURRENT | immutableFlag()
         );
 
-        Intent decline = new Intent(this, PrivoxCallActionReceiver.class)
-            .setAction(PrivoxCallActionReceiver.ACTION_DECLINE)
-            .putExtra("notification_id", NOTIFICATION_ID);
-        PendingIntent declineIntent = PendingIntent.getBroadcast(
-            this, 202, decline, PendingIntent.FLAG_UPDATE_CURRENT | immutableFlag()
-        );
-
         String callsign = value(data, "fromCallsign");
         String groupName = value(data, "groupName");
-        Person caller = new Person.Builder()
-            .setName(callsign.isEmpty() ? "PRIVOX PTT" : callsign)
-            .setImportant(true)
-            .build();
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
@@ -88,8 +68,7 @@ public class PrivoxFirebaseMessagingService extends FirebaseMessagingService {
             .setAutoCancel(false)
             .setFullScreenIntent(incomingScreenIntent, true)
             .setContentIntent(incomingScreenIntent)
-            .setTimeoutAfter(45_000)
-            .setStyle(NotificationCompat.CallStyle.forIncomingCall(caller, declineIntent, answerIntent));
+            .setTimeoutAfter(45_000);
 
         NotificationManager manager = getSystemService(NotificationManager.class);
         if (manager != null) manager.notify(NOTIFICATION_ID, builder.build());
