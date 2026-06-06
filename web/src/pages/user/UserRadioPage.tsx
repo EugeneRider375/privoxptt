@@ -138,7 +138,7 @@ export function UserRadioPage() {
     }
   }
 
-  const onlineCount = members.filter((m) => onlineUsers[m.userId]).length;
+  const onlineCount = members.filter((m) => onlineUsers[m.userId] || m.isOnline).length;
   const isBusy = activeGroup?.pttOwnerId != null;
 
   // Inrico T320 radio: compact, D-pad–navigable layout. Same hooks/handlers
@@ -316,7 +316,7 @@ export function UserRadioPage() {
         </div>
 
         {members.map((m) => {
-          const isOnline = !!onlineUsers[m.userId];
+          const isOnline = !!onlineUsers[m.userId] || !!m.isOnline;
           const isReachable = isOnline || !!m.isReachable;
           const isTalking = activeGroup?.pttOwnerId === m.userId;
           const isSelf = m.userId === user?.id;

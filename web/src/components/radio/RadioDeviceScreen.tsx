@@ -105,7 +105,7 @@ export function RadioDeviceScreen({
     // members view: call the selected online subscriber (not self)
     const m = members[selected];
     if (!m) return;
-    const isOnline = !!onlineUsers[m.userId];
+    const isOnline = !!onlineUsers[m.userId] || !!m.isOnline;
     const isReachable = isOnline || !!m.isReachable;
     const isSelf = m.userId === user?.id;
     if (isReachable && !isSelf) onCallUser(m.userId);
@@ -156,7 +156,7 @@ export function RadioDeviceScreen({
     el?.scrollIntoView({ block: 'nearest' });
   }, [selected, view]);
 
-  const onlineCount = members.filter((m) => onlineUsers[m.userId]).length;
+  const onlineCount = members.filter((m) => onlineUsers[m.userId] || m.isOnline).length;
   const transmitting = pttStatus === 'transmitting';
   const receiving = pttStatus === 'receiving';
 
@@ -221,7 +221,7 @@ export function RadioDeviceScreen({
         {view === 'members' &&
           members.map((m, idx) => {
             const sel = idx === selected;
-            const isOnline = !!onlineUsers[m.userId];
+            const isOnline = !!onlineUsers[m.userId] || !!m.isOnline;
             const isReachable = isOnline || !!m.isReachable;
             const isTalking = activeGroup?.pttOwnerId === m.userId;
             const isSelf = m.userId === user?.id;

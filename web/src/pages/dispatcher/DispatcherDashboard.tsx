@@ -264,13 +264,13 @@ export function DispatcherDashboard() {
         <div className="px-3 py-2 border-b border-ptt-border flex items-center justify-between">
           <p className="font-mono text-ptt-text text-xs tracking-widest">SUBSCRIBERS</p>
           <span className="font-mono text-xs text-ptt-green">
-            {members.filter((m) => onlineUsers[m.userId]).length}/{members.length}
+            {members.filter((m) => onlineUsers[m.userId] || m.isOnline).length}/{members.length}
           </span>
         </div>
 
         <div className="flex-1 overflow-y-auto">
           {members.map((m) => {
-            const online = !!onlineUsers[m.userId];
+            const online = !!onlineUsers[m.userId] || !!m.isOnline;
             const reachable = online || !!m.isReachable;
             const talking = activeGroup?.pttOwnerId === m.userId;
             return (
