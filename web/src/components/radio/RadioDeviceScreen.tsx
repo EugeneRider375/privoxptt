@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { LogOut, Signal, Radio, PhoneCall, ChevronLeft, AlertTriangle } from 'lucide-react';
+import { LogOut, Signal, Radio, PhoneCall, ChevronLeft, AlertTriangle, Check } from 'lucide-react';
 import type { Group, GroupMember, User, PttStatus } from '@/types';
 
 // Compact, D-pad–navigable screen for the Inrico T320 radio (240x320).
@@ -176,14 +176,31 @@ export function RadioDeviceScreen({
         </div>
       </div>
 
-      {/* View header */}
-      <div className="flex items-center gap-1 px-2 py-1 bg-ptt-card border-b border-ptt-border">
+      {/* Active group is always visible, including while browsing the group list. */}
+      <div className="flex items-center gap-2 px-2 py-1.5 bg-ptt-card border-b border-ptt-green/50">
+        <div
+          className="w-3 h-3 rounded-full shrink-0 ring-2 ring-white/10"
+          style={{ backgroundColor: activeGroup?.color ?? '#59645d' }}
+        />
+        <div className="min-w-0 flex-1">
+          <p className="font-mono text-[8px] leading-none tracking-[0.18em] text-ptt-green">
+            ACTIVE GROUP
+          </p>
+          <p className="font-rajdhani font-bold text-[15px] leading-tight text-white truncate">
+            {(activeGroup?.name ?? 'NO GROUP').toUpperCase()}
+          </p>
+        </div>
+        {activeGroup?.pttOwnerId && <Radio className="w-4 h-4 text-ptt-green animate-pulse shrink-0" />}
+      </div>
+
+      {/* Navigation header */}
+      <div className="flex items-center gap-1 px-2 py-0.5 bg-ptt-panel border-b border-ptt-border">
         {view === 'members' && <ChevronLeft className="w-3.5 h-3.5 text-ptt-muted" />}
-        <span className="font-mono text-[11px] tracking-widest text-ptt-text">
-          {view === 'groups' ? 'GROUPS' : (activeGroup?.name ?? 'GROUP').toUpperCase()}
+        <span className="font-mono text-[9px] tracking-widest text-ptt-muted">
+          {view === 'groups' ? 'SELECT GROUP' : 'SUBSCRIBERS'}
         </span>
         {view === 'members' && (
-          <span className="ml-auto font-mono text-[11px] text-ptt-green">
+          <span className="ml-auto font-mono text-[10px] text-ptt-green">
             {onlineCount}/{members.length}
           </span>
         )}
@@ -213,6 +230,7 @@ export function RadioDeviceScreen({
                     {g._count?.members ?? 0} members
                   </p>
                 </div>
+                {isActive && <Check className="w-3.5 h-3.5 text-ptt-green shrink-0" />}
                 {g.pttOwnerId && <Radio className="w-3 h-3 text-ptt-green animate-pulse shrink-0" />}
               </div>
             );
