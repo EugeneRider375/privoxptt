@@ -249,8 +249,10 @@ export function RadioDeviceScreen({
                   {isSelf && <span className="text-ptt-muted text-[10px]"> (you)</span>}
                 </span>
                 {isTalking && <Radio className="w-3 h-3 text-ptt-green animate-pulse shrink-0" />}
-                {!isTalking && !isSelf && isReachable && (
-                  <PhoneCall className={`w-3.5 h-3.5 shrink-0 text-ptt-blue ${isCalling ? 'animate-pulse' : ''}`} />
+                {!isTalking && !isSelf && (
+                  <PhoneCall className={`w-3.5 h-3.5 shrink-0 ${
+                    isOnline ? 'text-ptt-green' : isReachable ? 'text-ptt-blue' : 'text-ptt-muted'
+                  } ${isCalling ? 'animate-pulse' : ''}`} />
                 )}
               </div>
             );

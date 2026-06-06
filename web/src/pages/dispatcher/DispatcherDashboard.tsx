@@ -301,12 +301,19 @@ export function DispatcherDashboard() {
                 </div>
                 {talking && <Radio className="w-3 h-3 text-ptt-green shrink-0 animate-pulse" />}
                 {!m.canSpeak && !talking && <MicOff className="w-3 h-3 text-ptt-muted shrink-0" />}
-                {reachable && m.userId !== user?.id && (
+                {m.userId !== user?.id && (
                   <button
                     onClick={() => handleCallUser(m.userId, m.user.callsign)}
-                    disabled={!!callingUserId}
-                    title={`Call ${m.user.callsign}`}
-                    className="shrink-0 p-1.5 rounded-md text-ptt-blue hover:bg-ptt-blue/10 disabled:opacity-40"
+                    disabled={!reachable || !!callingUserId}
+                    title={reachable ? `Call ${m.user.callsign}` : `${m.user.callsign} is offline`}
+                    className={clsx(
+                      'shrink-0 p-1.5 rounded-md disabled:cursor-not-allowed',
+                      online
+                        ? 'text-ptt-green hover:bg-ptt-green/10'
+                        : reachable
+                          ? 'text-ptt-blue hover:bg-ptt-blue/10'
+                          : 'text-ptt-muted'
+                    )}
                   >
                     <PhoneCall className={clsx('w-4 h-4', callingUserId === m.userId && 'animate-pulse')} />
                   </button>

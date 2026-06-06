@@ -345,7 +345,7 @@ export function UserRadioPage() {
                   <button
                     onClick={() => handleCallUser(m.userId)}
                     disabled={!isReachable || !!callingUserId}
-                    className="text-ptt-blue hover:text-white disabled:text-ptt-muted disabled:opacity-40 transition-colors"
+                    className={`${isOnline ? 'text-ptt-green' : isReachable ? 'text-ptt-blue' : 'text-ptt-muted'} hover:text-white disabled:hover:text-ptt-muted disabled:cursor-not-allowed transition-colors`}
                     title={isReachable ? `Call ${m.user.callsign}` : `${m.user.callsign} is offline`}
                   >
                     <PhoneCall className={`w-3.5 h-3.5 ${isCalling ? 'animate-pulse' : ''}`} />
