@@ -1,0 +1,13 @@
+{
+  "name": "privox-ptt-android-builds",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Shared Capacitor dependencies for phone/ and t320/ Android projects",
+  "dependencies": {
+    "@capacitor/android": "^8.3.4",
+    "@capacitor/core": "^8.3.4"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.3.4"
+  }
+}

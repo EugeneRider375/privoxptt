@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">PRIVOX PTT</string>
+    <string name="title_activity_main">PRIVOX PTT</string>
+    <string name="package_name">tech.privox.ptt</string>
+    <string name="custom_url_scheme">tech.privox.ptt</string>
+</resources>

@@ -1,0 +1,15 @@
+{
+	"appId": "tech.privox.ptt",
+	"appName": "PRIVOX PTT",
+	"webDir": "www",
+	"server": {
+		"url": "https://ptt.privox.tech/radio",
+		"cleartext": false
+	},
+	"android": {
+		"allowMixedContent": false,
+		"captureInput": true,
+		"webContentsDebuggingEnabled": true,
+		"appendUserAgent": "PrivoxT320"
+	}
+}
