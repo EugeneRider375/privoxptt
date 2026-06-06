@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { devicesApi } from '@/api/client';
 import { useStore } from '@/store/useStore';
+import { PRIVOX_MEDIA_RECOVER_EVENT } from './useWebRTC';
 
 interface PendingCall {
   callId?: string;
@@ -48,6 +49,9 @@ export function useNativePush(): void {
 
       const state = useStore.getState();
       state.setActiveGroup(call.groupId);
+      window.setTimeout(() => {
+        window.dispatchEvent(new Event(PRIVOX_MEDIA_RECOVER_EVENT));
+      }, 0);
       state.addAlert({
         type: 'info',
         variant: 'user-call',

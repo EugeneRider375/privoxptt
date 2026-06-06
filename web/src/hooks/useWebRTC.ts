@@ -7,6 +7,8 @@ import { isRadioDevice } from '@/utils/device';
 
 export { unlockAudio };
 
+export const PRIVOX_MEDIA_RECOVER_EVENT = 'privox-media-recover';
+
 // ProducerCodecOptions для Opus — FEC и DTX снижают нагрузку PTT
 const OPUS_CODEC_OPTIONS = {
   opusFec: true,
@@ -413,22 +415,72 @@ export function useWebRTC(groupId: string | null) {
     };
 
     let subscribedSocket: any = null;
+    let subscribedSocketId: string | null = null;
     let disposed = false;
+    let recoveryTimer: ReturnType<typeof setTimeout> | null = null;
 
-    // Полная переинициализация после переподключения сокета (редеплой сервера)
-    const handleSocketReconnect = () => {
+    const resetMediaSession = () => {
+      isStartingRef.current = false;
+      producerRef.current?.close();
+      producerRef.current = null;
+      sendTransportRef.current?.close();
+      sendTransportRef.current = null;
+      if (micProcessingRef.current) {
+        try {
+          micProcessingRef.current.source.disconnect();
+          micProcessingRef.current.gain.disconnect();
+        } catch {
+          // nodes may already be detached
+        }
+        micProcessingRef.current = null;
+      }
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
       if (disposed) return;
-      console.log('[WebRTC] Socket reconnected after server restart — reinitializing consumers');
-      // Re-join the group room so we receive ms:new-producer events from future PTT presses
-      if (groupId) subscribedSocket?.emit('join-group', { groupId });
       consumersRef.current.forEach((c) => c.close());
       consumersRef.current.clear();
       consumedProducersRef.current.clear();
       producerCleanupRef.current.clear();
       recvTransportRef.current?.close();
       recvTransportRef.current = null;
+      recvTransportCreatingRef.current = null;
       deviceRef.current = null;
-      init().catch(console.error);
+    };
+
+    const recoverMediaSession = (reason: string) => {
+      if (disposed || !subscribedSocket?.connected) return;
+      if (recoveryTimer) clearTimeout(recoveryTimer);
+      recoveryTimer = setTimeout(() => {
+        recoveryTimer = null;
+        if (disposed || !subscribedSocket?.connected) return;
+        console.log(`[WebRTC] Recovering media session: ${reason}`);
+        subscribedSocket.emit('join-group', { groupId });
+        resetMediaSession();
+        init().catch(console.error);
+      }, 150);
+    };
+
+    // Socket.IO emits "connect" for both the first connection and every
+    // reconnect. Listening on the socket itself is more reliable for a
+    // suspended WebView than relying only on Manager's "reconnect" event.
+    const handleSocketConnect = () => {
+      if (disposed) return;
+      const nextSocketId = subscribedSocket?.id ?? null;
+      const reason = subscribedSocketId
+        ? `socket reconnected (${subscribedSocketId} -> ${nextSocketId})`
+        : 'socket connected';
+      subscribedSocketId = nextSocketId;
+      recoverMediaSession(reason);
+    };
+
+    const handleMediaRecover = () => {
+      recoverMediaSession('app resumed');
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        recoverMediaSession('document became visible');
+      }
     };
 
     const subscribe = (socket: any) => {
@@ -436,15 +488,19 @@ export function useWebRTC(groupId: string | null) {
       if (subscribedSocket) {
         subscribedSocket.off('ms:new-producer', handleNewProducer);
         subscribedSocket.off('ms:producer-closed', handleProducerClosed);
-        subscribedSocket.io?.off('reconnect', handleSocketReconnect);
+        subscribedSocket.off('connect', handleSocketConnect);
       }
       if (subscribedSocket === socket && !socket.disconnected) return;
 
       subscribedSocket = socket;
+      subscribedSocketId = socket.connected ? socket.id : null;
       socket.on('ms:new-producer', handleNewProducer);
       socket.on('ms:producer-closed', handleProducerClosed);
-      socket.io?.on('reconnect', handleSocketReconnect);
-      init().catch(console.error);
+      socket.on('connect', handleSocketConnect);
+      if (socket.connected) {
+        socket.emit('join-group', { groupId });
+        init().catch(console.error);
+      }
     };
 
     const existingSocket = getPrivoxSocket() ?? (window as any).__privoxSocket;
@@ -455,14 +511,19 @@ export function useWebRTC(groupId: string | null) {
     };
 
     window.addEventListener(PRIVOX_SOCKET_READY_EVENT, handleSocketReady);
+    window.addEventListener(PRIVOX_MEDIA_RECOVER_EVENT, handleMediaRecover);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       disposed = true;
+      if (recoveryTimer) clearTimeout(recoveryTimer);
       window.removeEventListener(PRIVOX_SOCKET_READY_EVENT, handleSocketReady);
+      window.removeEventListener(PRIVOX_MEDIA_RECOVER_EVENT, handleMediaRecover);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (subscribedSocket) {
         subscribedSocket.off('ms:new-producer', handleNewProducer);
         subscribedSocket.off('ms:producer-closed', handleProducerClosed);
-        subscribedSocket.io?.off('reconnect', handleSocketReconnect);
+        subscribedSocket.off('connect', handleSocketConnect);
       }
     };
   }, [groupId, consumeProducer, createRecvTransport, emit, initDevice]);
