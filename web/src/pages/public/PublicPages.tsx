@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import clsx from 'clsx';
 import { authApi } from '@/api/client';
+import { unregisterNativePushDevice } from '@/hooks/useNativePush';
 import { PrivoxLogo } from '@/components/brand/PrivoxLogo';
 import { disconnectPrivoxSocket } from '@/hooks/useSocket';
 import { useStore } from '@/store/useStore';
@@ -226,6 +227,7 @@ function PublicLayout({ children }: { children: React.ReactNode }) {
 
   async function handleLogout() {
     const refreshToken = localStorage.getItem('refreshToken') ?? '';
+    await unregisterNativePushDevice().catch(() => {});
     await authApi.logout(refreshToken).catch(() => {});
     disconnectPrivoxSocket();
     clearAuth();
@@ -476,7 +478,7 @@ function HelpSection() {
 }
 
 export function DownloadPage() {
-  const androidApkUrl = '/downloads/privox-ptt-android-debug.apk';
+  const androidApkUrl = '/downloads/privox-ptt-android-debug.apk?v=2';
   const webAppUrl = '/app';
 
   return (

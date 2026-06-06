@@ -27,6 +27,7 @@ services:
       CORS_ORIGINS: https://ptt.privox.tech,http://localhost:5173
       SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL:-admin@privox.tech}
       SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD:?SUPERADMIN_PASSWORD обязателен}
+      FIREBASE_SERVICE_ACCOUNT_JSON: ${FIREBASE_SERVICE_ACCOUNT_JSON:-}
     depends_on:
       db:
         condition: service_healthy

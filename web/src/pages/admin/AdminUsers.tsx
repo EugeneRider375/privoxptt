@@ -214,9 +214,15 @@ export function AdminUsers() {
                   <td className={clsx('px-3 py-2.5 font-mono text-xs', ROLE_COLOR[u.role])}>{u.role}</td>
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-1.5">
-                      <div className={(u.isOnline ?? false) ? 'online-dot' : 'offline-dot'} />
+                      <div className={
+                        u.isOnline
+                          ? 'online-dot'
+                          : u.isReachable
+                            ? 'w-2 h-2 rounded-full bg-ptt-blue'
+                            : 'offline-dot'
+                      } />
                       <span className="font-mono text-xs text-ptt-muted">
-                        {(u.isOnline ?? false) ? 'online' : 'offline'}
+                        {u.isOnline ? 'online' : u.isReachable ? 'available by call' : 'offline'}
                       </span>
                     </div>
                   </td>

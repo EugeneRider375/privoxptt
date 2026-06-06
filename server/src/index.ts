@@ -18,6 +18,7 @@ import { organizationsRouter } from './routes/organizations';
 import { usersRouter } from './routes/users';
 import { groupsRouter } from './routes/groups';
 import { activityRouter } from './routes/activity';
+import { devicesRouter } from './routes/devices';
 import { errorHandler, notFound } from './middleware/errorHandler';
 
 async function bootstrap() {
@@ -74,6 +75,7 @@ async function bootstrap() {
   app.use('/api/users', usersRouter);
   app.use('/api/groups', groupsRouter);
   app.use('/api/activity', activityRouter);
+  app.use('/api/devices', devicesRouter);
 
   // ─── 404 и обработка ошибок ───────────────────────────────
   app.use(notFound);

@@ -117,3 +117,15 @@ export const activityApi = {
   list: (params?: { limit?: number; type?: string }) =>
     api.get('/activity', { params }).then((r) => r.data),
 };
+
+// ─── Native push devices ─────────────────────────────────
+export const devicesApi = {
+  register: (data: {
+    pushToken: string;
+    platform: 'ANDROID' | 'IOS';
+    deviceName?: string;
+    appVersion?: string;
+  }) => api.post('/devices/register', data).then((r) => r.data),
+  unregister: (pushToken: string) =>
+    api.post('/devices/unregister', { pushToken }).then((r) => r.data),
+};

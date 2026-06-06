@@ -2,6 +2,7 @@ package tech.privox.ptt;
 
 import android.Manifest;
 import android.app.AlertDialog;
+import android.app.NotificationManager;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
@@ -25,18 +26,42 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     private static final int MIN_WEBVIEW_MAJOR_VERSION = 100;
     private static final int RECORD_AUDIO_REQUEST_CODE = 100;
+    private static volatile boolean appInForeground = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         requestWindowFeature(Window.FEATURE_NO_TITLE);
+        registerPlugin(PrivoxPushPlugin.class);
         super.onCreate(savedInstanceState);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true);
+            setTurnScreenOn(true);
+        } else {
+            getWindow().addFlags(
+                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED |
+                WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+            );
+        }
         enableFullscreenMode();
         requestMicrophonePermission();
         requestNotificationPermission();
+        requestFullScreenCallPermission();
         requestBatteryOptimizationExemption();
         warnIfWebViewIsOutdated();
         startPrivoxService();
+    }
+
+    public static boolean isAppInForeground() {
+        return appInForeground;
+    }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+        appInForeground = true;
+        NotificationManager manager = getSystemService(NotificationManager.class);
+        if (manager != null) manager.cancel(2001);
     }
 
     @Override
@@ -77,6 +102,17 @@ public class MainActivity extends BridgeActivity {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return;
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return;
         ActivityCompat.requestPermissions(this, new String[]{ Manifest.permission.POST_NOTIFICATIONS }, 101);
+    }
+
+    private void requestFullScreenCallPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return;
+        NotificationManager manager = getSystemService(NotificationManager.class);
+        if (manager == null || manager.canUseFullScreenIntent()) return;
+        try {
+            Intent intent = new Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT);
+            intent.setData(Uri.parse("package:" + getPackageName()));
+            startActivity(intent);
+        } catch (ActivityNotFoundException ignored) {}
     }
 
     private void requestMicrophonePermission() {
@@ -146,6 +182,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onStop() {
         super.onStop();
+        appInForeground = false;
         if (getBridge() != null && getBridge().getWebView() != null) {
             getBridge().getWebView().onResume();
             getBridge().getWebView().resumeTimers();

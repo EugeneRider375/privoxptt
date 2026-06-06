@@ -2,6 +2,7 @@ import { Routes, Route, NavLink, useNavigate } from 'react-router-dom';
 import { Radio, Users, Layers, Building2, LogOut, ChevronLeft, ChevronRight, ClipboardList } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { authApi } from '@/api/client';
+import { unregisterNativePushDevice } from '@/hooks/useNativePush';
 import { AlertPanel } from '@/components/ui/AlertPanel';
 import { PrivoxLogo } from '@/components/brand/PrivoxLogo';
 import { AdminUsers } from './AdminUsers';
@@ -31,6 +32,7 @@ export function AdminLayout() {
 
   async function handleLogout() {
     const rt = localStorage.getItem('refreshToken') ?? '';
+    await unregisterNativePushDevice().catch(() => {});
     await authApi.logout(rt).catch(() => {});
     disconnectPrivoxSocket();
     useStore.getState().clearAuth();

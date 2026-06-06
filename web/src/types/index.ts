@@ -9,6 +9,7 @@ export interface User {
   role: UserRole;
   isActive: boolean;
   isOnline?: boolean;
+  isReachable?: boolean;
   lastSeen?: string;
   organizationId: string;
   organization?: Organization;
@@ -43,6 +44,7 @@ export interface GroupMember {
   groupId: string;
   canSpeak: boolean;
   isOnline?: boolean;
+  isReachable?: boolean;
   user: Pick<User, 'id' | 'callsign' | 'displayName' | 'role'>;
 }
 

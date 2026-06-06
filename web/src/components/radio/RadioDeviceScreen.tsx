@@ -106,8 +106,9 @@ export function RadioDeviceScreen({
     const m = members[selected];
     if (!m) return;
     const isOnline = !!onlineUsers[m.userId];
+    const isReachable = isOnline || !!m.isReachable;
     const isSelf = m.userId === user?.id;
-    if (isOnline && !isSelf) onCallUser(m.userId);
+    if (isReachable && !isSelf) onCallUser(m.userId);
   }, [view, groups, members, selected, onlineUsers, user?.id, enterGroup, onCallUser]);
 
   // D-pad / keyboard navigation. Space is reserved for PTT (handled in usePTT).
@@ -221,6 +222,7 @@ export function RadioDeviceScreen({
           members.map((m, idx) => {
             const sel = idx === selected;
             const isOnline = !!onlineUsers[m.userId];
+            const isReachable = isOnline || !!m.isReachable;
             const isTalking = activeGroup?.pttOwnerId === m.userId;
             const isSelf = m.userId === user?.id;
             const isCalling = callingUserId === m.userId;
@@ -228,18 +230,26 @@ export function RadioDeviceScreen({
               <div
                 key={m.id}
                 data-idx={idx}
-                onClick={() => isOnline && !isSelf && onCallUser(m.userId)}
+                onClick={() => isReachable && !isSelf && onCallUser(m.userId)}
                 className={`flex items-center gap-2 px-2 py-2 border-b border-ptt-border/30 cursor-pointer ${
                   sel ? 'bg-ptt-green/20' : ''
                 }`}
               >
-                <div className={isTalking ? 'online-dot animate-pulse' : isOnline ? 'online-dot' : 'offline-dot'} />
-                <span className={`callsign text-sm truncate flex-1 ${isTalking ? 'text-ptt-green' : isOnline ? 'text-white' : 'text-ptt-muted'}`}>
+                <div className={
+                  isTalking
+                    ? 'online-dot animate-pulse'
+                    : isOnline
+                      ? 'online-dot'
+                      : isReachable
+                        ? 'w-2 h-2 rounded-full bg-ptt-blue'
+                        : 'offline-dot'
+                } />
+                <span className={`callsign text-sm truncate flex-1 ${isTalking ? 'text-ptt-green' : isOnline ? 'text-white' : isReachable ? 'text-ptt-blue' : 'text-ptt-muted'}`}>
                   {m.user.callsign}
                   {isSelf && <span className="text-ptt-muted text-[10px]"> (you)</span>}
                 </span>
                 {isTalking && <Radio className="w-3 h-3 text-ptt-green animate-pulse shrink-0" />}
-                {!isTalking && !isSelf && isOnline && (
+                {!isTalking && !isSelf && isReachable && (
                   <PhoneCall className={`w-3.5 h-3.5 shrink-0 text-ptt-blue ${isCalling ? 'animate-pulse' : ''}`} />
                 )}
               </div>

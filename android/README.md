@@ -243,7 +243,9 @@ Current implementation:
 
 The foreground service remains alive and the notification stays visible; only the Socket.IO WebSocket inside the WebView drops.
 
-**Planned fix**: FCM push notification (see Section 7). No additional client-side workarounds are planned until FCM is implemented.
+**Implemented wake path**: FCM delivers native incoming-call notifications while
+the WebView socket is suspended. The user answers the native call screen, then
+the WebView opens the requested group and reconnects Socket.IO/WebRTC.
 
 ---
 
@@ -432,31 +434,40 @@ There is no public Android API to disable this throttling from Java code. The st
 
 ---
 
-## 7. Preparing for FCM (Firebase Cloud Messaging)
-
-**FCM is not yet implemented.** This section describes where each integration point should go when the task is started.
+## 7. FCM (Firebase Cloud Messaging)
 
 ### How it will work
 
-1. Server starts a PTT transmission
-2. Server sends an FCM push to all group members who are not currently connected via Socket.IO
-3. Android receives the push via `FirebaseMessagingService` even if the app is fully killed
-4. Android wakes up, connects Socket.IO, joins the group room, and receives WebRTC audio
+1. A user presses the blue call button for another subscriber.
+2. The server sends the normal Socket.IO event and an FCM high-priority data message.
+3. If the Android app is backgrounded, `PrivoxFirebaseMessagingService` shows a
+   native incoming-call notification and full-screen call activity.
+4. The recipient chooses **Answer** or **Decline**.
+5. Answer opens the WebView, selects the requested group, and reconnects
+   Socket.IO/WebRTC. Normal group PTT then continues in the existing web client.
 
-### Integration points
+FCM is used for explicit user/group wake calls, not as an audio transport and
+not for every PTT transmission.
 
-| What | Where |
+### Android components
+
+| Component | Purpose |
 |------|-------|
-| Add `google-services.json` | `phone/app/` and `t320/app/` — **gitignored, never commit** |
-| Apply `com.google.gms.google-services` plugin | already in `build.gradle` `buildscript`, gated behind `google-services.json` existence check |
-| Add `firebase-messaging` dependency | `app/build.gradle` `dependencies {}` |
-| FCM token retrieval | new class `PrivoxFcmService extends FirebaseMessagingService`, `onNewToken(token)` → POST to server API |
-| FCM token storage | server database, associated with the user account |
-| Incoming push handler | `onMessageReceived(message)` in `PrivoxFcmService` → launch `MainActivity` with `FLAG_ACTIVITY_NEW_TASK` |
-| Incoming call UI | `MainActivity` already has `FLAG_SHOW_WHEN_LOCKED` + `FLAG_TURN_SCREEN_ON` (T320) — add same to phone build; show a heads-up notification or launch activity directly |
-| Declare `FirebaseMessagingService` | `AndroidManifest.xml` `<service>` with `MESSAGING_EVENT` intent filter |
+| `PrivoxPushPlugin` | exposes the FCM token and pending call to the remote WebView |
+| `PrivoxFirebaseMessagingService` | receives high-priority call messages |
+| `IncomingCallActivity` | lock-screen Answer/Decline UI |
+| `PrivoxCallActionReceiver` | handles Decline from the notification |
 
-Do **not** implement FCM without an explicit separate task.
+`google-services.json` is installed locally in both `phone/app/` and `t320/app/`
+and remains gitignored.
+
+The server uses Firebase Admin through the Coolify environment variable:
+
+```text
+FIREBASE_SERVICE_ACCOUNT_JSON={"type":"service_account",...}
+```
+
+Keep the service-account JSON out of Git, APKs, Docker images, and web assets.
 
 ---
 

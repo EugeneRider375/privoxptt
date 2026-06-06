@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { groupsApi, authApi } from '@/api/client';
+import { unregisterNativePushDevice } from '@/hooks/useNativePush';
 import { AlertPanel } from '@/components/ui/AlertPanel';
 import { PrivoxLogo } from '@/components/brand/PrivoxLogo';
 import { DispatcherDashboard } from './DispatcherDashboard';
@@ -37,6 +38,7 @@ export function DispatcherLayout() {
 
   async function handleLogout() {
     const rt = localStorage.getItem('refreshToken') ?? '';
+    await unregisterNativePushDevice().catch(() => {});
     await authApi.logout(rt).catch(() => {});
     disconnectPrivoxSocket();
     useStore.getState().clearAuth();

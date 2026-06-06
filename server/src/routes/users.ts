@@ -7,6 +7,7 @@ import { AppError } from '../middleware/errorHandler';
 import { UserRole } from '@prisma/client';
 import { isUserOnline } from '../database/redis';
 import { emitOrgDataChanged } from '../utils/realtime';
+import { hasReachablePushDevice } from '../services/push';
 
 export const usersRouter = Router();
 
@@ -77,10 +78,13 @@ usersRouter.get('/', requireAdmin, async (req: Request, res: Response, next: Nex
 
     // Добавляем онлайн статус из Redis
     const usersWithOnline = await Promise.all(
-      users.map(async (u) => ({
-        ...u,
-        isOnline: await isUserOnline(u.id),
-      }))
+      users.map(async (u) => {
+        const [isOnline, hasPush] = await Promise.all([
+          isUserOnline(u.id),
+          hasReachablePushDevice(u.id),
+        ]);
+        return { ...u, isOnline, isReachable: isOnline || hasPush };
+      })
     );
 
     res.json(usersWithOnline);
@@ -146,7 +150,11 @@ usersRouter.get('/:id', async (req: Request, res: Response, next: NextFunction) 
       throw new AppError(403, 'Access denied');
     }
 
-    res.json({ ...user, isOnline: await isUserOnline(user.id) });
+    const [isOnline, hasPush] = await Promise.all([
+      isUserOnline(user.id),
+      hasReachablePushDevice(user.id),
+    ]);
+    res.json({ ...user, isOnline, isReachable: isOnline || hasPush });
   } catch (err) {
     next(err);
   }

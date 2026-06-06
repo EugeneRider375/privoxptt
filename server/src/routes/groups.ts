@@ -6,6 +6,7 @@ import { AppError } from '../middleware/errorHandler';
 import { UserRole } from '@prisma/client';
 import { getPttLockOwner, isUserOnline } from '../database/redis';
 import { emitOrgDataChanged } from '../utils/realtime';
+import { hasReachablePushDevice } from '../services/push';
 
 export const groupsRouter = Router();
 
@@ -118,10 +119,13 @@ groupsRouter.get('/:id', async (req: Request, res: Response, next: NextFunction)
 
     // Онлайн статусы участников
     const membersWithOnline = await Promise.all(
-      group.members.map(async (m) => ({
-        ...m,
-        isOnline: await isUserOnline(m.userId),
-      }))
+      group.members.map(async (m) => {
+        const [isOnline, isReachable] = await Promise.all([
+          isUserOnline(m.userId),
+          hasReachablePushDevice(m.userId),
+        ]);
+        return { ...m, isOnline, isReachable: isOnline || isReachable };
+      })
     );
 
     res.json({

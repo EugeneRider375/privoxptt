@@ -7,6 +7,7 @@ import { DispatcherLayout } from '@/pages/dispatcher/DispatcherLayout';
 import { AdminLayout } from '@/pages/admin/AdminLayout';
 import { DownloadPage, DocsPage, FaqPage, HomePage, StatusPage, SupportPage } from '@/pages/public/PublicPages';
 import { unlockAudio } from '@/hooks/useWebRTC';
+import { useNativePush } from '@/hooks/useNativePush';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null };
@@ -45,6 +46,8 @@ function RoleRouter() {
 }
 
 export default function App() {
+  useNativePush();
+
   // Store rehydration now runs synchronously in main.tsx before the first
   // render (fixes the cold-start bounce to /login). See main.tsx.
 

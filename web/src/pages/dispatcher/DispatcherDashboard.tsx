@@ -271,6 +271,7 @@ export function DispatcherDashboard() {
         <div className="flex-1 overflow-y-auto">
           {members.map((m) => {
             const online = !!onlineUsers[m.userId];
+            const reachable = online || !!m.isReachable;
             const talking = activeGroup?.pttOwnerId === m.userId;
             return (
               <div
@@ -280,11 +281,19 @@ export function DispatcherDashboard() {
                   talking && 'bg-ptt-green/5'
                 )}
               >
-                <div className={talking ? 'online-dot animate-pulse' : online ? 'online-dot' : 'offline-dot'} />
+                <div className={
+                  talking
+                    ? 'online-dot animate-pulse'
+                    : online
+                      ? 'online-dot'
+                      : reachable
+                        ? 'w-2 h-2 rounded-full bg-ptt-blue'
+                        : 'offline-dot'
+                } />
                 <div className="flex-1 min-w-0">
                   <p className={clsx(
                     'callsign text-xs truncate',
-                    !online && 'text-ptt-muted'
+                    !online && (reachable ? 'text-ptt-blue' : 'text-ptt-muted')
                   )}>
                     {m.user.callsign}
                   </p>
@@ -292,7 +301,7 @@ export function DispatcherDashboard() {
                 </div>
                 {talking && <Radio className="w-3 h-3 text-ptt-green shrink-0 animate-pulse" />}
                 {!m.canSpeak && !talking && <MicOff className="w-3 h-3 text-ptt-muted shrink-0" />}
-                {online && m.userId !== user?.id && (
+                {reachable && m.userId !== user?.id && (
                   <button
                     onClick={() => handleCallUser(m.userId, m.user.callsign)}
                     disabled={!!callingUserId}

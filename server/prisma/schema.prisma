@@ -10,42 +10,60 @@ datasource db {
 model Organization {
   id          String   @id @default(uuid())
   name        String
-  slug        String   @unique  // Короткое имя (privox, techtrans...)
+  slug        String   @unique // Короткое имя (privox, techtrans...)
   description String?
   logoUrl     String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  users  User[]
-  groups Group[]
+  users        User[]
+  groups       Group[]
   activityLogs ActivityLog[]
 }
 
 model User {
-  id             String   @id @default(uuid())
-  email          String   @unique
-  password       String   // bcrypt hash
-  callsign       String   // Позывной (ALPHA-1, ДИСПЕТЧЕР-2)
-  displayName    String
-  role           UserRole @default(USER)
-  isActive       Boolean  @default(true)
+  id          String   @id @default(uuid())
+  email       String   @unique
+  password    String // bcrypt hash
+  callsign    String // Позывной (ALPHA-1, ДИСПЕТЧЕР-2)
+  displayName String
+  role        UserRole @default(USER)
+  isActive    Boolean  @default(true)
 
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  groupMembers GroupMember[]
+  groupMembers  GroupMember[]
   refreshTokens RefreshToken[]
-  activityLogs ActivityLog[]
+  activityLogs  ActivityLog[]
+  devices       Device[]
 
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  lastSeen    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  lastSeen  DateTime?
 
   // Для push уведомлений (Этап 3)
   deviceToken String?
   deviceType  DeviceType?
 
   @@index([organizationId])
+}
+
+model Device {
+  id         String         @id @default(uuid())
+  userId     String
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform   DevicePlatform
+  pushToken  String         @unique
+  deviceName String?
+  appVersion String?
+  enabled    Boolean        @default(true)
+  lastSeenAt DateTime       @default(now())
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  @@index([userId, enabled])
+  @@index([platform, enabled])
 }
 
 model ActivityLog {
@@ -76,31 +94,31 @@ model RefreshToken {
 }
 
 model Group {
-  id             String  @id @default(uuid())
+  id             String        @id @default(uuid())
   name           String
   description    String?
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   members        GroupMember[]
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  isPrivate      Boolean  @default(false)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  isPrivate      Boolean       @default(false)
   // Приоритет группы (выше = важнее, каналы экстренной связи)
-  priority       Int      @default(0)
+  priority       Int           @default(0)
   // Цвет для UI
-  color          String   @default("#3DDC84")
+  color          String        @default("#3DDC84")
 
   @@index([organizationId])
 }
 
 model GroupMember {
-  id       String @id @default(uuid())
+  id       String   @id @default(uuid())
   userId   String
   groupId  String
-  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  group    Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group    Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
   joinedAt DateTime @default(now())
-  canSpeak Boolean  @default(true)   // false = только слушатель
+  canSpeak Boolean  @default(true) // false = только слушатель
 
   @@unique([userId, groupId])
   @@index([groupId])
@@ -108,16 +126,21 @@ model GroupMember {
 }
 
 enum UserRole {
-  SUPERADMIN  // Владелец всей системы — видит всё
-  ADMIN       // Администратор организации
-  DISPATCHER  // Диспетчер — видит всё, говорит в любую группу
-  USER        // Обычный пользователь рации
+  SUPERADMIN // Владелец всей системы — видит всё
+  ADMIN // Администратор организации
+  DISPATCHER // Диспетчер — видит всё, говорит в любую группу
+  USER // Обычный пользователь рации
 }
 
 enum DeviceType {
   IOS
   ANDROID
   WEB
+}
+
+enum DevicePlatform {
+  ANDROID
+  IOS
 }
 
 enum ActivityLogType {

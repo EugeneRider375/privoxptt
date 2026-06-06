@@ -2,6 +2,7 @@ package tech.privox.ptt;
 
 import android.Manifest;
 import android.app.AlertDialog;
+import android.app.NotificationManager;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
@@ -28,6 +29,7 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     private static final int MIN_WEBVIEW_MAJOR_VERSION = 100;
     private static final int RECORD_AUDIO_REQUEST_CODE = 100;
+    private static volatile boolean appInForeground = false;
 
     // Inrico T320 side PTT button reports KEYCODE_TV_DATA_SERVICE (230) to the app.
     // Confirmed from the wrapper's own dispatchKeyEvent log on-device.
@@ -56,6 +58,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         requestWindowFeature(Window.FEATURE_NO_TITLE);
+        registerPlugin(PrivoxPushPlugin.class);
         super.onCreate(savedInstanceState);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
@@ -79,6 +82,18 @@ public class MainActivity extends BridgeActivity {
         startPrivoxService();
     }
 
+    public static boolean isAppInForeground() {
+        return appInForeground;
+    }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+        appInForeground = true;
+        NotificationManager manager = getSystemService(NotificationManager.class);
+        if (manager != null) manager.cancel(2001);
+    }
+
     @Override
     public void onResume() {
         super.onResume();
@@ -90,6 +105,12 @@ public class MainActivity extends BridgeActivity {
     public void onPause() {
         audioHandler.removeCallbacks(keepSpeakerOn);
         super.onPause();
+    }
+
+    @Override
+    public void onStop() {
+        appInForeground = false;
+        super.onStop();
     }
 
     private void forceSpeakerphone() {

@@ -6,6 +6,7 @@ import { usePTT } from '@/hooks/usePTT';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { groupsApi, authApi } from '@/api/client';
 import { useBattery } from '@/hooks/useBattery';
+import { unregisterNativePushDevice } from '@/hooks/useNativePush';
 import { PTTButton } from '@/components/ui/PTTButton';
 import { Waveform } from '@/components/ui/Waveform';
 import { AlertPanel } from '@/components/ui/AlertPanel';
@@ -94,6 +95,7 @@ export function UserRadioPage() {
 
   async function handleLogout() {
     const rt = localStorage.getItem('refreshToken') ?? '';
+    await unregisterNativePushDevice().catch(() => {});
     await authApi.logout(rt).catch(() => {});
     disconnectPrivoxSocket();
     clearAuth();
@@ -315,13 +317,25 @@ export function UserRadioPage() {
 
         {members.map((m) => {
           const isOnline = !!onlineUsers[m.userId];
+          const isReachable = isOnline || !!m.isReachable;
           const isTalking = activeGroup?.pttOwnerId === m.userId;
           const isSelf = m.userId === user?.id;
           const isCalling = callingUserId === m.userId;
           return (
             <div key={m.id} className="flex items-center gap-3 px-4 py-2 border-b border-ptt-border/30 last:border-0">
-              <div className={isTalking ? 'online-dot animate-pulse' : isOnline ? 'online-dot' : 'offline-dot'} />
-              <span className={`callsign text-sm ${isTalking ? 'text-ptt-green' : isOnline ? 'text-white' : 'text-ptt-muted'}`}>
+              <div
+                className={
+                  isTalking
+                    ? 'online-dot animate-pulse'
+                    : isOnline
+                      ? 'online-dot'
+                      : isReachable
+                        ? 'w-2 h-2 rounded-full bg-ptt-blue'
+                        : 'offline-dot'
+                }
+                title={isOnline ? 'Online' : isReachable ? 'Available by call' : 'Offline'}
+              />
+              <span className={`callsign text-sm ${isTalking ? 'text-ptt-green' : isOnline ? 'text-white' : isReachable ? 'text-ptt-blue' : 'text-ptt-muted'}`}>
                 {m.user.callsign}
               </span>
               <div className="ml-auto flex items-center gap-2">
@@ -330,9 +344,9 @@ export function UserRadioPage() {
                 {!isTalking && !isSelf && (
                   <button
                     onClick={() => handleCallUser(m.userId)}
-                    disabled={!isOnline || !!callingUserId}
+                    disabled={!isReachable || !!callingUserId}
                     className="text-ptt-blue hover:text-white disabled:text-ptt-muted disabled:opacity-40 transition-colors"
-                    title={isOnline ? `Call ${m.user.callsign}` : `${m.user.callsign} is offline`}
+                    title={isReachable ? `Call ${m.user.callsign}` : `${m.user.callsign} is offline`}
                   >
                     <PhoneCall className={`w-3.5 h-3.5 ${isCalling ? 'animate-pulse' : ''}`} />
                   </button>

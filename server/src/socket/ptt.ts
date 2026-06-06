@@ -12,6 +12,7 @@ import {
 } from '../database/redis';
 import { logger } from '../utils/logger';
 import { notifyDeviceCall } from '../udp-bridge';
+import { sendIncomingUserCallPush } from '../services/push';
 import type { AuthenticatedSocket } from './index';
 
 export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
@@ -248,24 +249,46 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
       }
 
       const targetOnline = await isUserOnline(targetUserId);
-      if (!targetOnline) {
-        callback?.({ ok: false, error: 'offline', message: 'User is offline' });
-        return;
-      }
+      const callId = randomUUID();
+      const createdAt = Date.now();
 
       io.to(`user:${targetUserId}`).emit('user-call-incoming', {
+        callId,
         fromUserId: userId,
         fromCallsign: callsign,
         fromDisplayName: displayName,
         groupId,
         groupName: access.group.name,
-        createdAt: Date.now(),
+        createdAt,
       });
 
       // Если цель — мини-рация (UDP-устройство), доставляем вызов на неё напрямую
-      notifyDeviceCall(targetUserId, displayName || callsign, access.group.name);
+      const deviceDelivered = notifyDeviceCall(targetUserId, displayName || callsign, access.group.name);
+      const push = await sendIncomingUserCallPush(targetUserId, {
+        callId,
+        fromUserId: userId,
+        fromCallsign: callsign,
+        fromDisplayName: displayName,
+        groupId,
+        groupName: access.group.name,
+        createdAt,
+      });
 
-      logger.info({ msg: 'User call requested', from: userId, to: targetUserId, groupId });
+      if (!targetOnline && !deviceDelivered && push.sent === 0) {
+        callback?.({ ok: false, error: 'offline', message: 'User is offline' });
+        return;
+      }
+
+      logger.info({
+        msg: 'User call requested',
+        callId,
+        from: userId,
+        to: targetUserId,
+        groupId,
+        socketOnline: targetOnline,
+        pushSent: push.sent,
+        deviceDelivered,
+      });
       callback?.({ ok: true });
     } catch (err) {
       logger.error({ msg: 'Ошибка user-call-request', err, userId, targetUserId, groupId });
