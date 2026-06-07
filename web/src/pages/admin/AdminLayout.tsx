@@ -102,8 +102,15 @@ export function AdminLayout() {
       </aside>
 
       <main className="flex-1 overflow-hidden">
-        <header className="flex items-center px-4 h-10 bg-ptt-panel border-b border-ptt-border">
+        <header className="flex items-center justify-between px-4 h-10 bg-ptt-panel border-b border-ptt-border">
           <span className="font-mono text-ptt-text text-xs tracking-widest">CONTROL PANEL · {user?.organization?.name}</span>
+          <button
+            onClick={() => navigate('/admin/messages')}
+            className="h-7 px-2.5 rounded border border-ptt-blue/60 bg-ptt-blue/10 text-ptt-blue hover:text-white transition-colors flex items-center gap-1.5"
+          >
+            <MessageSquare className="w-3.5 h-3.5" />
+            <span className="font-mono text-[10px]">MESSAGES</span>
+          </button>
         </header>
         <div className="h-[calc(100%-40px)] overflow-auto">
           <Routes>

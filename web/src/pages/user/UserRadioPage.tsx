@@ -205,9 +205,10 @@ export function UserRadioPage() {
           <button
             onClick={() => navigate('/messages')}
             title="Messages"
-            className="text-ptt-blue hover:text-white transition-colors"
+            className="h-7 px-2 rounded border border-ptt-blue/60 bg-ptt-blue/10 text-ptt-blue hover:text-white transition-colors flex items-center gap-1"
           >
-            <MessageSquare className="w-4 h-4" />
+            <MessageSquare className="w-3.5 h-3.5" />
+            <span className="font-mono text-[10px]">CHAT</span>
           </button>
           <button
             onClick={handleCallDispatcher}

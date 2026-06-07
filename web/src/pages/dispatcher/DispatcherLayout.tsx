@@ -120,6 +120,13 @@ export function DispatcherLayout() {
             <span className="font-mono text-ptt-text text-xs tracking-widest">DISPATCH CONSOLE</span>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate('/dispatcher/messages')}
+              className="h-7 px-2.5 rounded border border-ptt-blue/60 bg-ptt-blue/10 text-ptt-blue hover:text-white transition-colors flex items-center gap-1.5"
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span className="font-mono text-[10px]">MESSAGES</span>
+            </button>
             {alerts.length > 0 && (
               <div className="flex items-center gap-1">
                 <Bell className="w-4 h-4 text-ptt-warn animate-blink" />
