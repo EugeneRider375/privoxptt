@@ -55,9 +55,11 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
     const data = await messagesApi.conversations() as ChatConversation[];
     setConversations(data);
     setUnreadMessageCount(data.reduce((total, item) => total + item.unreadCount, 0));
-    setSelectedId((current) => current ?? data[0]?.id ?? null);
-    setSelectedType((current) => current ?? data[0]?.type ?? null);
-  }, []);
+    if (embedded) {
+      setSelectedId((current) => current ?? data[0]?.id ?? null);
+      setSelectedType((current) => current ?? data[0]?.type ?? null);
+    }
+  }, [embedded, setUnreadMessageCount]);
 
   useEffect(() => {
     setLoading(true);
