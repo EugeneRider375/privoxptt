@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { User, Group, UserLocation, Alert, PttStatus, DispatcherCall, DispatcherCallStatus } from '@/types';
+import type { User, Group, UserLocation, Alert, PttStatus, DispatcherCall, DispatcherCallStatus, UserCallStatusEvent } from '@/types';
 
 interface AppStore {
   // ─── Auth ──────────────────────────────────────────────
@@ -43,6 +43,10 @@ interface AppStore {
   dispatcherCalls: DispatcherCall[];
   addDispatcherCall: (call: Omit<DispatcherCall, 'status'> & { status?: DispatcherCallStatus }) => void;
   updateDispatcherCall: (callId: string, patch: Partial<DispatcherCall>) => void;
+
+  // ─── Исходящие пользовательские/групповые вызовы ────────
+  outgoingUserCalls: UserCallStatusEvent[];
+  updateOutgoingUserCall: (event: UserCallStatusEvent) => void;
 
   // ─── UI ────────────────────────────────────────────────
   sidebarOpen: boolean;
@@ -144,6 +148,17 @@ export const useStore = create<AppStore>()(
             c.callId === callId ? { ...c, ...patch } : c
           ),
         })),
+
+      // Исходящие пользовательские/групповые вызовы
+      outgoingUserCalls: [],
+      updateOutgoingUserCall: (event) =>
+        set((s) => {
+          const existing = s.outgoingUserCalls.some((call) => call.callId === event.callId);
+          const calls = existing
+            ? s.outgoingUserCalls.map((call) => call.callId === event.callId ? event : call)
+            : [event, ...s.outgoingUserCalls];
+          return { outgoingUserCalls: calls.slice(0, 100) };
+        }),
 
       // UI
       sidebarOpen: true,

@@ -55,6 +55,7 @@ src/
 │   └── groups.ts         # CRUD /api/groups + участники
 ├── services/
 │   └── push.ts           # Firebase Admin, high-priority wake calls
+│   └── calls.ts          # tracked individual/group calls and response statuses
 ├── socket/
 │   ├── index.ts          # Socket.io setup + JWT auth middleware
 │   ├── presence.ts       # Онлайн/офлайн статусы
@@ -109,6 +110,7 @@ src/
 |-------|------|----------|
 | POST | `/api/devices/register` | Зарегистрировать или обновить FCM/APNs-токен |
 | POST | `/api/devices/unregister` | Отключить токен при выходе |
+| POST | `/api/calls/respond` | Нативный ответ Android по одноразовому токену |
 
 ## Firebase Cloud Messaging
 
@@ -124,6 +126,10 @@ Docker image, APK или web assets.
 При индивидуальном вызове сервер одновременно использует Socket.IO и FCM.
 High-priority FCM data message имеет TTL 45 секунд. Недействительные токены
 автоматически помечаются `enabled=false`.
+
+Для `WAKE GROUP` сервер создаёт отдельный callId для каждого участника. Состояния
+`ringing`, `answered`, `declined`, `timeout` отправляются инициатору событием
+`user-call-status`. Повторный массовый вызов ограничен интервалом 30 секунд.
 
 ## Socket.io события
 

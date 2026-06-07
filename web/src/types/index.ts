@@ -123,6 +123,22 @@ export interface DispatcherCall {
 
 export type PttStatus = 'idle' | 'transmitting' | 'receiving' | 'locked';
 
+export type UserCallStatus = 'ringing' | 'answered' | 'declined' | 'timeout';
+export type UserCallKind = 'user' | 'group';
+
+export interface UserCallStatusEvent {
+  callId: string;
+  campaignId: string;
+  kind: UserCallKind;
+  targetUserId: string;
+  targetCallsign: string;
+  groupId: string;
+  groupName: string;
+  status: UserCallStatus;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface Alert {
   id: string;
   type: 'sos' | 'info' | 'warn' | 'error';
@@ -131,6 +147,9 @@ export interface Alert {
   callsign?: string;
   message: string;
   groupName?: string;
+  groupId?: string;
+  callId?: string;
+  callKind?: UserCallKind;
   timestamp: number;
   read: boolean;
 }

@@ -32,7 +32,7 @@ public class IncomingCallActivity extends Activity {
         }
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         setContentView(buildContent());
-        timeoutHandler.postDelayed(this::decline, 45_000);
+        timeoutHandler.postDelayed(this::timeout, 45_000);
     }
 
     private LinearLayout buildContent() {
@@ -43,7 +43,8 @@ public class IncomingCallActivity extends Activity {
         root.setPadding(padding, padding, padding, padding);
         root.setBackgroundColor(Color.rgb(10, 12, 10));
 
-        TextView label = text("INCOMING PRIVOX CALL", 14, Color.rgb(61, 220, 132));
+        String kind = getIntent().getStringExtra("call_kind");
+        TextView label = text("group".equals(kind) ? "PRIVOX GROUP WAKE" : "INCOMING PRIVOX CALL", 14, Color.rgb(61, 220, 132));
         TextView caller = text(getIntent().getStringExtra("from_callsign"), 32, Color.WHITE);
         TextView name = text(getIntent().getStringExtra("from_display_name"), 18, Color.LTGRAY);
         TextView group = text("GROUP: " + value(getIntent().getStringExtra("group_name")), 16, Color.rgb(74, 158, 255));
@@ -83,6 +84,11 @@ public class IncomingCallActivity extends Activity {
     }
 
     private void answer() {
+        report("answered");
+        getSharedPreferences(PrivoxPushPlugin.PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(PrivoxPushPlugin.KEY_RESPONSE_STATUS, "answered")
+            .apply();
         cancelNotification();
         Intent intent = new Intent(this, MainActivity.class)
             .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
@@ -91,6 +97,7 @@ public class IncomingCallActivity extends Activity {
     }
 
     private void decline() {
+        report("declined");
         getSharedPreferences(PrivoxPushPlugin.PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
             .clear()
@@ -101,6 +108,24 @@ public class IncomingCallActivity extends Activity {
         } else {
             finish();
         }
+    }
+
+    private void timeout() {
+        getSharedPreferences(PrivoxPushPlugin.PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .clear()
+            .apply();
+        cancelNotification();
+        finishAndRemoveTask();
+    }
+
+    private void report(String status) {
+        CallResponseReporter.report(
+            getIntent().getStringExtra("response_url"),
+            getIntent().getStringExtra("call_id"),
+            getIntent().getStringExtra("response_token"),
+            status
+        );
     }
 
     private void cancelNotification() {

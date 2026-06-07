@@ -12,6 +12,8 @@ export interface IncomingUserCallPush {
   groupId: string;
   groupName: string;
   createdAt: number;
+  responseToken: string;
+  kind: 'user' | 'group';
 }
 
 let firebaseReady = false;
@@ -61,6 +63,7 @@ export async function sendIncomingUserCallPush(
   });
   if (devices.length === 0) return { sent: 0, failed: 0 };
 
+  const responseBaseUrl = (config.SERVICE_URL_WEB ?? config.corsOrigins[0]).replace(/\/+$/, '');
   const message: MulticastMessage = {
     tokens: devices.map((device) => device.pushToken),
     data: {
@@ -72,6 +75,9 @@ export async function sendIncomingUserCallPush(
       groupId: payload.groupId,
       groupName: payload.groupName,
       createdAt: String(payload.createdAt),
+      responseToken: payload.responseToken,
+      responseUrl: `${responseBaseUrl}/api/calls/respond`,
+      kind: payload.kind,
     },
     android: {
       priority: 'high',

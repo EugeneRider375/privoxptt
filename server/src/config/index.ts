@@ -29,6 +29,7 @@ const envSchema = z.object({
   SUPERADMIN_CALLSIGN: z.string().default('ALPHA-0'),
 
   FIREBASE_SERVICE_ACCOUNT_JSON: z.string().optional(),
+  SERVICE_URL_WEB: z.string().url().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

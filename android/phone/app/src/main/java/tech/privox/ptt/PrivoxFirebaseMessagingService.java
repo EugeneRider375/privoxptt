@@ -38,6 +38,10 @@ public class PrivoxFirebaseMessagingService extends FirebaseMessagingService {
             .putString(PrivoxPushPlugin.KEY_FROM_DISPLAY_NAME, value(data, "fromDisplayName"))
             .putString(PrivoxPushPlugin.KEY_GROUP_ID, value(data, "groupId"))
             .putString(PrivoxPushPlugin.KEY_GROUP_NAME, value(data, "groupName"))
+            .putString(PrivoxPushPlugin.KEY_RESPONSE_URL, value(data, "responseUrl"))
+            .putString(PrivoxPushPlugin.KEY_RESPONSE_TOKEN, value(data, "responseToken"))
+            .putString(PrivoxPushPlugin.KEY_CALL_KIND, value(data, "kind"))
+            .remove(PrivoxPushPlugin.KEY_RESPONSE_STATUS)
             .putLong(PrivoxPushPlugin.KEY_CREATED_AT, System.currentTimeMillis())
             .apply();
     }
@@ -49,6 +53,10 @@ public class PrivoxFirebaseMessagingService extends FirebaseMessagingService {
             .putExtra("from_callsign", value(data, "fromCallsign"))
             .putExtra("from_display_name", value(data, "fromDisplayName"))
             .putExtra("group_name", value(data, "groupName"))
+            .putExtra("call_id", value(data, "callId"))
+            .putExtra("response_url", value(data, "responseUrl"))
+            .putExtra("response_token", value(data, "responseToken"))
+            .putExtra("call_kind", value(data, "kind"))
             .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         PendingIntent incomingScreenIntent = PendingIntent.getActivity(
             this, 203, incomingScreen, PendingIntent.FLAG_UPDATE_CURRENT | immutableFlag()

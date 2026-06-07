@@ -1,6 +1,7 @@
 import { X, AlertTriangle, Info, Radio, PhoneCall } from 'lucide-react';
 import clsx from 'clsx';
 import { useStore } from '@/store/useStore';
+import { respondToIncomingUserCall } from '@/hooks/useSocket';
 import type { Alert } from '@/types';
 
 const icons = {
@@ -41,6 +42,20 @@ function AlertItem({ alert }: { alert: Alert }) {
 
 function UserCallAlert({ alert }: { alert: Alert }) {
   const markRead = useStore((s) => s.markAlertRead);
+  const setActiveGroup = useStore((s) => s.setActiveGroup);
+
+  const respond = async (status: 'answered' | 'declined') => {
+    if (alert.callId) {
+      await respondToIncomingUserCall(alert.callId, status).catch(() => {});
+    }
+    markRead(alert.id);
+    if (status === 'answered' && alert.groupId) {
+      setActiveGroup(alert.groupId);
+      if (!window.location.pathname.startsWith('/radio')) {
+        window.location.assign('/radio');
+      }
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none p-4">
@@ -48,15 +63,25 @@ function UserCallAlert({ alert }: { alert: Alert }) {
         <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full border border-ptt-blue/60 bg-ptt-blue/10">
           <PhoneCall className="h-7 w-7 text-ptt-blue animate-pulse" />
         </div>
-        <p className="font-mono text-ptt-blue text-xs tracking-[0.25em]">INCOMING CALL</p>
+        <p className="font-mono text-ptt-blue text-xs tracking-[0.25em]">
+          {alert.callKind === 'group' ? 'GROUP WAKE CALL' : 'INCOMING CALL'}
+        </p>
         <p className="callsign text-xl mt-2">{alert.callsign ?? 'USER'}</p>
         <p className="font-rajdhani text-white text-lg mt-1">calls you in {alert.groupName ?? 'this group'}</p>
-        <button
-          onClick={() => markRead(alert.id)}
-          className="mt-5 w-full border border-ptt-green/60 text-ptt-green font-mono text-xs tracking-widest rounded py-2 hover:bg-ptt-green/10 transition-colors"
-        >
-          OK
-        </button>
+        <div className="mt-5 grid grid-cols-2 gap-3">
+          <button
+            onClick={() => respond('declined')}
+            className="border border-ptt-danger/60 text-ptt-danger font-mono text-xs tracking-widest rounded py-2 hover:bg-ptt-danger/10 transition-colors"
+          >
+            DECLINE
+          </button>
+          <button
+            onClick={() => respond('answered')}
+            className="border border-ptt-green/60 text-ptt-green font-mono text-xs tracking-widest rounded py-2 hover:bg-ptt-green/10 transition-colors"
+          >
+            ANSWER
+          </button>
+        </div>
       </div>
     </div>
   );

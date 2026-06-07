@@ -23,6 +23,23 @@ export function disconnectPrivoxSocket(): void {
   (window as any).__privoxSocket = null;
 }
 
+export function respondToIncomingUserCall(
+  callId: string,
+  status: 'answered' | 'declined',
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const socket = getPrivoxSocket();
+    if (!socket?.connected) {
+      reject(new Error('Socket is not connected'));
+      return;
+    }
+    socket.emit('user-call-response', { callId, status }, (resp?: { ok: boolean; error?: string }) => {
+      if (resp?.ok) resolve();
+      else reject(new Error(resp?.error ?? 'Unable to respond to call'));
+    });
+  });
+}
+
 function publishSocket(socket: Socket): void {
   (window as any).__privoxSocket = socket;
   window.dispatchEvent(new CustomEvent(PRIVOX_SOCKET_READY_EVENT, { detail: socket }));
@@ -114,7 +131,12 @@ export function useSocket() {
       fromUserId,
       fromCallsign,
       groupName,
+      groupId,
+      callId,
+      kind,
     }: {
+      callId: string;
+      kind: 'user' | 'group';
       fromUserId: string;
       fromCallsign: string;
       fromDisplayName: string;
@@ -128,11 +150,31 @@ export function useSocket() {
         userId: fromUserId,
         callsign: fromCallsign,
         groupName,
+        groupId,
+        callId,
+        callKind: kind,
         message: `${fromCallsign} calls you in ${groupName}`,
       });
       playUserCallTone().catch((err) => {
         console.warn('[Socket] User call tone blocked:', err);
       });
+    });
+
+    socket.on('user-call-status', (event) => {
+      const state = useStore.getState();
+      state.updateOutgoingUserCall(event);
+      if (event.kind === 'user' && event.status !== 'ringing') {
+        const label = event.status === 'answered'
+          ? 'answered'
+          : event.status === 'declined'
+            ? 'declined'
+            : 'did not answer';
+        state.addAlert({
+          type: event.status === 'answered' ? 'info' : 'warn',
+          callsign: event.targetCallsign,
+          message: `${event.targetCallsign} ${label}`,
+        });
+      }
     });
 
     socket.on('user-location', (loc) => {
@@ -232,7 +274,7 @@ export function useSocket() {
   }, []);
 
   const callUser = useCallback((targetUserId: string, groupId: string) => {
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<{ callId?: string }>((resolve, reject) => {
       const socket = socketRef.current;
       if (!socket) {
         reject(new Error('Socket is not connected'));
@@ -243,12 +285,50 @@ export function useSocket() {
         reject(new Error('User call timed out'));
       }, SOCKET_ACK_TIMEOUT_MS);
 
-      socket.emit('user-call-request', { targetUserId, groupId }, (resp?: { ok: boolean; error?: string; message?: string }) => {
+      socket.emit('user-call-request', { targetUserId, groupId }, (resp?: { ok: boolean; callId?: string; error?: string; message?: string }) => {
         window.clearTimeout(timeout);
         if (resp?.ok) {
-          resolve();
+          resolve({ callId: resp.callId });
         } else {
           reject(new Error(resp?.message ?? resp?.error ?? 'Failed to call user'));
+        }
+      });
+    });
+  }, []);
+
+  const wakeGroup = useCallback((groupId: string) => {
+    return new Promise<{
+      campaignId: string;
+      total: number;
+      delivered: number;
+      unreachable: number;
+    }>((resolve, reject) => {
+      const socket = socketRef.current;
+      if (!socket) {
+        reject(new Error('Socket is not connected'));
+        return;
+      }
+
+      const timeout = window.setTimeout(() => reject(new Error('Group wake timed out')), 20_000);
+      socket.emit('group-call-request', { groupId }, (resp?: {
+        ok: boolean;
+        campaignId?: string;
+        total?: number;
+        delivered?: number;
+        unreachable?: number;
+        error?: string;
+        message?: string;
+      }) => {
+        window.clearTimeout(timeout);
+        if (resp?.ok && resp.campaignId) {
+          resolve({
+            campaignId: resp.campaignId,
+            total: resp.total ?? 0,
+            delivered: resp.delivered ?? 0,
+            unreachable: resp.unreachable ?? 0,
+          });
+        } else {
+          reject(new Error(resp?.message ?? resp?.error ?? 'Failed to wake group'));
         }
       });
     });
@@ -313,6 +393,7 @@ export function useSocket() {
     sendLocation,
     sendSos,
     callUser,
+    wakeGroup,
     callDispatcher,
     acceptDispatcherCall,
   };

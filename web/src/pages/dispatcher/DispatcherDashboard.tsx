@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Radio, Mic, MicOff, PhoneCall, Check, Clock } from 'lucide-react';
+import { Radio, Mic, MicOff, PhoneCall, Check, Clock, BellRing } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { PRIVOX_DATA_CHANGED_EVENT, useSocket } from '@/hooks/useSocket';
 import { usePTT } from '@/hooks/usePTT';
@@ -18,14 +18,23 @@ export function DispatcherDashboard() {
   const pttCallsign = useStore((s) => s.pttCallsign);
   const onlineUsers = useStore((s) => s.onlineUsers);
   const dispatcherCalls = useStore((s) => s.dispatcherCalls);
+  const outgoingUserCalls = useStore((s) => s.outgoingUserCalls);
 
   const user = useStore((s) => s.user);
-  const { joinGroup, leaveGroup, acceptDispatcherCall, callUser } = useSocket();
+  const { joinGroup, leaveGroup, acceptDispatcherCall, callUser, wakeGroup } = useSocket();
   const { startPtt, stopPtt } = usePTT(activeGroupId);
 
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [callingUserId, setCallingUserId] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
+  const [wakingGroup, setWakingGroup] = useState(false);
+  const [wakeSummary, setWakeSummary] = useState<{
+    campaignId: string;
+    groupName: string;
+    total: number;
+    delivered: number;
+    unreachable: number;
+  } | null>(null);
 
   async function handleCallUser(targetUserId: string, callsign: string) {
     if (!activeGroupId || callingUserId) return;
@@ -37,6 +46,26 @@ export function DispatcherDashboard() {
       useStore.getState().addAlert({ type: 'warn', message: err instanceof Error ? err.message : 'Failed to call user' });
     } finally {
       setCallingUserId(null);
+    }
+  }
+
+  async function handleWakeGroup() {
+    if (!activeGroupId || !activeGroup || wakingGroup) return;
+    setWakingGroup(true);
+    try {
+      const result = await wakeGroup(activeGroupId);
+      setWakeSummary({ ...result, groupName: activeGroup.name });
+      useStore.getState().addAlert({
+        type: 'info',
+        message: `Wake sent to ${result.delivered}/${result.total} members in ${activeGroup.name}`,
+      });
+    } catch (err) {
+      useStore.getState().addAlert({
+        type: 'warn',
+        message: err instanceof Error ? err.message : 'Failed to wake group',
+      });
+    } finally {
+      setWakingGroup(false);
     }
   }
 
@@ -123,6 +152,15 @@ export function DispatcherDashboard() {
   }
 
   const onlineCount = Object.keys(onlineUsers).length;
+  const wakeCalls = wakeSummary
+    ? outgoingUserCalls.filter((call) => call.campaignId === wakeSummary.campaignId)
+    : [];
+  const wakeCounts = {
+    ringing: wakeCalls.filter((call) => call.status === 'ringing').length,
+    answered: wakeCalls.filter((call) => call.status === 'answered').length,
+    declined: wakeCalls.filter((call) => call.status === 'declined').length,
+    timeout: wakeCalls.filter((call) => call.status === 'timeout').length,
+  };
 
   return (
     <div className="h-full grid grid-cols-[220px_1fr_220px] gap-0 overflow-hidden">
@@ -217,7 +255,30 @@ export function DispatcherDashboard() {
               )}
             </>
           )}
+          <button
+            onClick={handleWakeGroup}
+            disabled={!activeGroupId || wakingGroup}
+            title="Wake all reachable members in this group"
+            className="ml-auto flex items-center gap-2 border border-ptt-blue/60 text-ptt-blue hover:bg-ptt-blue/10 disabled:opacity-40 disabled:cursor-not-allowed rounded px-3 py-1.5 font-mono text-xs tracking-widest transition-colors"
+          >
+            <BellRing className={`w-4 h-4 ${wakingGroup ? 'animate-pulse' : ''}`} />
+            {wakingGroup ? 'WAKING' : 'WAKE GROUP'}
+          </button>
         </div>
+
+        {wakeSummary && (
+          <div className="px-6 py-2 border-b border-ptt-border bg-ptt-blue/5 flex items-center gap-4 font-mono text-xs">
+            <span className="text-ptt-blue truncate">WAKE: {wakeSummary.groupName}</span>
+            <span className="text-ptt-text">sent {wakeSummary.delivered}/{wakeSummary.total}</span>
+            <span className="text-ptt-blue">ringing {wakeCounts.ringing}</span>
+            <span className="text-ptt-green">answered {wakeCounts.answered}</span>
+            <span className="text-ptt-warn">declined {wakeCounts.declined}</span>
+            <span className="text-ptt-muted">timeout {wakeCounts.timeout}</span>
+            {wakeSummary.unreachable > 0 && (
+              <span className="text-ptt-danger">offline {wakeSummary.unreachable}</span>
+            )}
+          </div>
+        )}
 
         <div className="px-6 py-4 border-b border-ptt-border min-h-[72px] flex items-center gap-4">
           {pttStatus !== 'idle' ? (

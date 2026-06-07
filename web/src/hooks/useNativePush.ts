@@ -9,6 +9,8 @@ interface PendingCall {
   fromDisplayName?: string;
   groupId?: string;
   groupName?: string;
+  responseStatus?: string;
+  kind?: 'user' | 'group';
 }
 
 interface PrivoxPushPlugin {
@@ -52,11 +54,20 @@ export function useNativePush(): void {
       window.setTimeout(() => {
         window.dispatchEvent(new Event(PRIVOX_MEDIA_RECOVER_EVENT));
       }, 0);
+      if (call.responseStatus === 'answered') {
+        if (!window.location.pathname.startsWith('/radio')) {
+          window.location.assign('/radio');
+        }
+        return;
+      }
       state.addAlert({
         type: 'info',
         variant: 'user-call',
         callsign: call.fromCallsign,
         groupName: call.groupName,
+        groupId: call.groupId,
+        callId: call.callId,
+        callKind: call.kind ?? 'user',
         message: `${call.fromCallsign || 'PRIVOX user'} calls you in ${call.groupName || 'a group'}`,
       });
 

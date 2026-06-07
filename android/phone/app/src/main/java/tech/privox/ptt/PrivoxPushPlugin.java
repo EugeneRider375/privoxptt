@@ -19,6 +19,10 @@ public class PrivoxPushPlugin extends Plugin {
     static final String KEY_GROUP_ID = "group_id";
     static final String KEY_GROUP_NAME = "group_name";
     static final String KEY_CREATED_AT = "created_at";
+    static final String KEY_RESPONSE_URL = "response_url";
+    static final String KEY_RESPONSE_TOKEN = "response_token";
+    static final String KEY_RESPONSE_STATUS = "response_status";
+    static final String KEY_CALL_KIND = "call_kind";
 
     @PluginMethod
     public void getToken(PluginCall call) {
@@ -45,6 +49,8 @@ public class PrivoxPushPlugin extends Plugin {
             result.put("fromDisplayName", prefs.getString(KEY_FROM_DISPLAY_NAME, ""));
             result.put("groupId", prefs.getString(KEY_GROUP_ID, ""));
             result.put("groupName", prefs.getString(KEY_GROUP_NAME, ""));
+            result.put("responseStatus", prefs.getString(KEY_RESPONSE_STATUS, ""));
+            result.put("kind", prefs.getString(KEY_CALL_KIND, "user"));
         }
         prefs.edit().clear().apply();
         call.resolve(result);

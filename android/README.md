@@ -141,8 +141,8 @@ Edit `app/build.gradle` in the relevant project:
 
 ```groovy
 defaultConfig {
-    versionCode 4      // increment for every release uploaded to a store
-    versionName "1.3"  // displayed to users
+    versionCode 5      // increment for every release uploaded to a store
+    versionName "1.4"  // displayed to users
 }
 ```
 
@@ -453,6 +453,11 @@ There is no public Android API to disable this throttling from Java code. The st
 7. Decline stops the ringtone, clears the pending call, and closes the separate
    incoming-call task without opening the main app.
 
+Version 1.4 also supports dispatcher **WAKE GROUP** calls. The server creates an
+individual tracked call for each group member. Native Answer/Decline actions
+report their result directly to `/api/calls/respond`; the dispatcher sees
+`ringing`, `answered`, `declined`, or `timeout`.
+
 FCM is used for explicit user/group wake calls, not as an audio transport and
 not for every PTT transmission.
 
@@ -465,6 +470,7 @@ not for every PTT transmission.
 | `PrivoxIncomingCallRinger` | plays/stops the native incoming-call ringtone |
 | `IncomingCallActivity` | lock-screen Answer/Decline UI |
 | `PrivoxCallActionReceiver` | handles Decline from the notification |
+| `CallResponseReporter` | reports native Answer/Decline using the one-time call token |
 
 `google-services.json` is installed locally in both `phone/app/` and `t320/app/`
 and remains gitignored.

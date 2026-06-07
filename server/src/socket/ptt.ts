@@ -12,8 +12,12 @@ import {
 } from '../database/redis';
 import { logger } from '../utils/logger';
 import { notifyDeviceCall } from '../udp-bridge';
-import { sendIncomingUserCallPush } from '../services/push';
+import { hasReachablePushDevice, sendIncomingUserCallPush } from '../services/push';
+import { createTrackedCall, respondToCallAsUser, type UserCallKind } from '../services/calls';
 import type { AuthenticatedSocket } from './index';
+
+const groupWakeCooldowns = new Map<string, number>();
+const GROUP_WAKE_COOLDOWN_MS = 30_000;
 
 export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
   const { userId, callsign, displayName, organizationId, role } = socket.data;
@@ -39,6 +43,77 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
     }
 
     return { ok: false, group: null };
+  };
+
+  const deliverUserCall = async ({
+    targetUserId,
+    targetCallsign,
+    groupId,
+    groupName,
+    kind,
+    campaignId,
+  }: {
+    targetUserId: string;
+    targetCallsign: string;
+    groupId: string;
+    groupName: string;
+    kind: UserCallKind;
+    campaignId?: string;
+  }) => {
+    const [targetOnline, hasPush] = await Promise.all([
+      isUserOnline(targetUserId),
+      hasReachablePushDevice(targetUserId),
+    ]);
+    const deviceDelivered = notifyDeviceCall(targetUserId, displayName || callsign, groupName);
+
+    if (!targetOnline && !hasPush && !deviceDelivered) {
+      return { delivered: false, socketOnline: false, pushSent: 0, deviceDelivered };
+    }
+
+    const call = createTrackedCall(io, {
+      campaignId,
+      kind,
+      callerUserId: userId,
+      targetUserId,
+      targetCallsign,
+      groupId,
+      groupName,
+    });
+
+    io.to(`user:${targetUserId}`).emit('user-call-incoming', {
+      callId: call.callId,
+      campaignId: call.campaignId,
+      kind,
+      fromUserId: userId,
+      fromCallsign: callsign,
+      fromDisplayName: displayName,
+      groupId,
+      groupName,
+      createdAt: call.createdAt,
+    });
+
+    const push = hasPush
+      ? await sendIncomingUserCallPush(targetUserId, {
+          callId: call.callId,
+          fromUserId: userId,
+          fromCallsign: callsign,
+          fromDisplayName: displayName,
+          groupId,
+          groupName,
+          createdAt: call.createdAt,
+          responseToken: call.responseToken,
+          kind,
+        })
+      : { sent: 0, failed: 0 };
+
+    return {
+      delivered: targetOnline || hasPush || deviceDelivered,
+      callId: call.callId,
+      campaignId: call.campaignId,
+      socketOnline: targetOnline,
+      pushSent: push.sent,
+      deviceDelivered,
+    };
   };
   const refreshHeldLocks = async () => {
     for (const groupId of heldPttGroups) {
@@ -210,7 +285,7 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
   // ─── Визуальный вызов участника в группу ──────────────────
   socket.on('user-call-request', async (
     { targetUserId, groupId }: { targetUserId: string; groupId: string },
-    callback?: (data: { ok: boolean; error?: string; message?: string }) => void
+    callback?: (data: { ok: boolean; callId?: string; error?: string; message?: string }) => void
   ) => {
     try {
       if (targetUserId === userId) {
@@ -248,52 +323,126 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
         return;
       }
 
-      const targetOnline = await isUserOnline(targetUserId);
-      const callId = randomUUID();
-      const createdAt = Date.now();
-
-      io.to(`user:${targetUserId}`).emit('user-call-incoming', {
-        callId,
-        fromUserId: userId,
-        fromCallsign: callsign,
-        fromDisplayName: displayName,
+      const delivery = await deliverUserCall({
+        targetUserId,
+        targetCallsign: targetMember.user.callsign,
         groupId,
         groupName: access.group.name,
-        createdAt,
+        kind: 'user',
       });
 
-      // Если цель — мини-рация (UDP-устройство), доставляем вызов на неё напрямую
-      const deviceDelivered = notifyDeviceCall(targetUserId, displayName || callsign, access.group.name);
-      const push = await sendIncomingUserCallPush(targetUserId, {
-        callId,
-        fromUserId: userId,
-        fromCallsign: callsign,
-        fromDisplayName: displayName,
-        groupId,
-        groupName: access.group.name,
-        createdAt,
-      });
-
-      if (!targetOnline && !deviceDelivered && push.sent === 0) {
+      if (!delivery.delivered) {
         callback?.({ ok: false, error: 'offline', message: 'User is offline' });
         return;
       }
 
       logger.info({
         msg: 'User call requested',
-        callId,
+        callId: delivery.callId,
         from: userId,
         to: targetUserId,
         groupId,
-        socketOnline: targetOnline,
-        pushSent: push.sent,
-        deviceDelivered,
+        socketOnline: delivery.socketOnline,
+        pushSent: delivery.pushSent,
+        deviceDelivered: delivery.deviceDelivered,
       });
-      callback?.({ ok: true });
+      callback?.({ ok: true, callId: delivery.callId });
     } catch (err) {
       logger.error({ msg: 'Ошибка user-call-request', err, userId, targetUserId, groupId });
       callback?.({ ok: false, error: 'server_error', message: 'Failed to call user' });
     }
+  });
+
+  socket.on('group-call-request', async (
+    { groupId }: { groupId: string },
+    callback?: (data: {
+      ok: boolean;
+      campaignId?: string;
+      total?: number;
+      delivered?: number;
+      unreachable?: number;
+      error?: string;
+      message?: string;
+    }) => void
+  ) => {
+    try {
+      if (!isPrivileged) {
+        callback?.({ ok: false, error: 'forbidden', message: 'Only dispatchers and administrators can wake a group' });
+        return;
+      }
+
+      const access = await canAccessGroup(groupId);
+      if (!access.ok || !access.group) {
+        callback?.({ ok: false, error: 'forbidden', message: 'Access denied' });
+        return;
+      }
+
+      const cooldownKey = `${userId}:${groupId}`;
+      const lastWake = groupWakeCooldowns.get(cooldownKey) ?? 0;
+      const remainingMs = GROUP_WAKE_COOLDOWN_MS - (Date.now() - lastWake);
+      if (remainingMs > 0) {
+        callback?.({
+          ok: false,
+          error: 'cooldown',
+          message: `Please wait ${Math.ceil(remainingMs / 1000)} seconds before waking this group again`,
+        });
+        return;
+      }
+      groupWakeCooldowns.set(cooldownKey, Date.now());
+
+      const members = await prisma.groupMember.findMany({
+        where: {
+          groupId,
+          userId: { not: userId },
+          user: { isActive: true },
+        },
+        select: {
+          userId: true,
+          user: { select: { callsign: true } },
+        },
+      });
+
+      const campaignId = randomUUID();
+      const results = await Promise.all(members.map((member) =>
+        deliverUserCall({
+          targetUserId: member.userId,
+          targetCallsign: member.user.callsign,
+          groupId,
+          groupName: access.group!.name,
+          kind: 'group',
+          campaignId,
+        })
+      ));
+      const delivered = results.filter((result) => result.delivered).length;
+
+      logger.info({
+        msg: 'Group wake requested',
+        campaignId,
+        from: userId,
+        groupId,
+        total: members.length,
+        delivered,
+        unreachable: members.length - delivered,
+      });
+      callback?.({
+        ok: true,
+        campaignId,
+        total: members.length,
+        delivered,
+        unreachable: members.length - delivered,
+      });
+    } catch (err) {
+      logger.error({ msg: 'Group wake failed', err, userId, groupId });
+      callback?.({ ok: false, error: 'server_error', message: 'Failed to wake group' });
+    }
+  });
+
+  socket.on('user-call-response', (
+    { callId, status }: { callId: string; status: 'answered' | 'declined' },
+    callback?: (data: { ok: boolean; error?: string }) => void
+  ) => {
+    const accepted = respondToCallAsUser(io, callId, userId, status);
+    callback?.(accepted ? { ok: true } : { ok: false, error: 'call_not_found_or_expired' });
   });
 
   // ─── WebRTC сигналинг ─────────────────────────────────────
