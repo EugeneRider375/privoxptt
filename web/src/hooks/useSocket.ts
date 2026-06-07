@@ -1,14 +1,13 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useStore } from '@/store/useStore';
-import type { ChatMessage, DispatcherCall } from '@/types';
+import type { DispatcherCall } from '@/types';
 import { playUserCallTone } from '@/utils/callTone';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || '';
 const SOCKET_ACK_TIMEOUT_MS = 6_000;
 export const PRIVOX_SOCKET_READY_EVENT = 'privox-socket-ready';
 export const PRIVOX_DATA_CHANGED_EVENT = 'privox-data-changed';
-export const PRIVOX_MESSAGE_NEW_EVENT = 'privox-message-new';
 
 let globalSocket: Socket | null = null;
 
@@ -229,17 +228,6 @@ export function useSocket() {
 
     socket.on('org-data-changed', (event) => {
       window.dispatchEvent(new CustomEvent(PRIVOX_DATA_CHANGED_EVENT, { detail: event }));
-    });
-
-    socket.on('message:new', (message: ChatMessage) => {
-      window.dispatchEvent(new CustomEvent(PRIVOX_MESSAGE_NEW_EVENT, { detail: message }));
-      if (message.senderId !== useStore.getState().user?.id) {
-        useStore.getState().addAlert({
-          type: 'info',
-          callsign: message.sender.callsign,
-          message: `New message: ${message.body.slice(0, 80)}`,
-        });
-      }
     });
 
     return () => {

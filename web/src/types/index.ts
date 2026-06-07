@@ -163,26 +163,3 @@ export interface ActivityLogEntry {
   createdAt: string;
   organization?: Pick<Organization, 'name' | 'slug'>;
 }
-
-export interface ChatMessage {
-  id: string;
-  organizationId: string;
-  senderId: string;
-  recipientId: string | null;
-  groupId: string | null;
-  body: string;
-  createdAt: string;
-  readCount: number;
-  sender: Pick<User, 'id' | 'callsign' | 'displayName' | 'role'>;
-}
-
-export interface ChatConversation {
-  type: 'group' | 'direct';
-  id: string;
-  title: string;
-  subtitle?: string;
-  color?: string;
-  role?: UserRole;
-  unreadCount: number;
-  lastMessage: ChatMessage | null;
-}

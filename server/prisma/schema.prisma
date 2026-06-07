@@ -19,7 +19,6 @@ model Organization {
   users        User[]
   groups       Group[]
   activityLogs ActivityLog[]
-  messages     Message[]
 }
 
 model User {
@@ -34,13 +33,10 @@ model User {
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  groupMembers     GroupMember[]
-  refreshTokens    RefreshToken[]
-  activityLogs     ActivityLog[]
-  devices          Device[]
-  sentMessages     Message[]      @relation("MessageSender")
-  receivedMessages Message[]      @relation("MessageRecipient")
-  messageReads     MessageRead[]
+  groupMembers  GroupMember[]
+  refreshTokens RefreshToken[]
+  activityLogs  ActivityLog[]
+  devices       Device[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -104,7 +100,6 @@ model Group {
   organizationId String
   organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   members        GroupMember[]
-  messages       Message[]
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   isPrivate      Boolean       @default(false)
@@ -128,37 +123,6 @@ model GroupMember {
   @@unique([userId, groupId])
   @@index([groupId])
   @@index([userId])
-}
-
-model Message {
-  id             String        @id @default(uuid())
-  organizationId String
-  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  senderId       String
-  sender         User          @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
-  recipientId    String?
-  recipient      User?         @relation("MessageRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
-  groupId        String?
-  group          Group?        @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  body           String
-  createdAt      DateTime      @default(now())
-  reads          MessageRead[]
-
-  @@index([organizationId, createdAt])
-  @@index([groupId, createdAt])
-  @@index([senderId, recipientId, createdAt])
-  @@index([recipientId, senderId, createdAt])
-}
-
-model MessageRead {
-  messageId String
-  userId    String
-  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  readAt    DateTime @default(now())
-
-  @@id([messageId, userId])
-  @@index([userId, readAt])
 }
 
 enum UserRole {

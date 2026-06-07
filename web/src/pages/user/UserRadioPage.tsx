@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { LogOut, ChevronDown, Users, Radio, Signal, AlertTriangle, PhoneCall, MessageSquare, BatteryCharging, BatteryFull, BatteryMedium, BatteryLow, BatteryWarning } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { LogOut, ChevronDown, Users, Radio, Signal, AlertTriangle, PhoneCall, BatteryCharging, BatteryFull, BatteryMedium, BatteryLow, BatteryWarning } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { PRIVOX_DATA_CHANGED_EVENT, disconnectPrivoxSocket, useSocket } from '@/hooks/useSocket';
 import { usePTT } from '@/hooks/usePTT';
@@ -16,7 +15,6 @@ import { isRadioDevice } from '@/utils/device';
 import type { Group, GroupMember } from '@/types';
 
 export function UserRadioPage() {
-  const navigate = useNavigate();
   const user = useStore((s) => s.user);
   const groups = useStore((s) => s.groups);
   const setGroups = useStore((s) => s.setGroups);
@@ -202,13 +200,6 @@ export function UserRadioPage() {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => navigate('/messages')}
-            title="Messages"
-            className="text-ptt-blue hover:text-white transition-colors"
-          >
-            <MessageSquare className="w-4 h-4" />
-          </button>
           <button
             onClick={handleCallDispatcher}
             disabled={!activeGroupId || callingDispatcher}

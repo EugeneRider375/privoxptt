@@ -1,5 +1,5 @@
 import { Routes, Route, NavLink, useNavigate } from 'react-router-dom';
-import { Radio, Users, Layers, Building2, LogOut, ChevronLeft, ChevronRight, ClipboardList, MessageSquare } from 'lucide-react';
+import { Radio, Users, Layers, Building2, LogOut, ChevronLeft, ChevronRight, ClipboardList } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { authApi } from '@/api/client';
 import { unregisterNativePushDevice } from '@/hooks/useNativePush';
@@ -10,14 +10,12 @@ import { AdminGroups } from './AdminGroups';
 import { AdminOrgs } from './AdminOrgs';
 import { ActivityLogPage } from '../activity/ActivityLogPage';
 import { DispatcherDashboard } from '../dispatcher/DispatcherDashboard';
-import { MessengerPage } from '../messages/MessengerPage';
 import { disconnectPrivoxSocket, useSocket } from '@/hooks/useSocket';
 import clsx from 'clsx';
 
 const NAV = [
   { to: '/admin',          icon: Radio,      label: 'Console',       roles: ['SUPERADMIN','ADMIN','DISPATCHER'] },
   { to: '/admin/activity', icon: ClipboardList, label: 'Log',        roles: ['SUPERADMIN','ADMIN','DISPATCHER'] },
-  { to: '/admin/messages', icon: MessageSquare, label: 'Messages',   roles: ['SUPERADMIN','ADMIN','DISPATCHER'] },
   { to: '/admin/users',    icon: Users,       label: 'Users',         roles: ['SUPERADMIN','ADMIN'] },
   { to: '/admin/groups',   icon: Layers,      label: 'Groups',        roles: ['SUPERADMIN','ADMIN'] },
   { to: '/admin/orgs',     icon: Building2,   label: 'Organizations', roles: ['SUPERADMIN'] },
@@ -109,7 +107,6 @@ export function AdminLayout() {
           <Routes>
             <Route index element={<DispatcherDashboard />} />
             <Route path="activity" element={<ActivityLogPage />} />
-            <Route path="messages" element={<MessengerPage embedded />} />
             <Route path="users" element={<AdminUsers />} />
             <Route path="groups" element={<AdminGroups />} />
             <Route path="orgs" element={<AdminOrgs />} />
