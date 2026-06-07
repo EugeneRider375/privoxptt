@@ -172,8 +172,6 @@ export function UserRadioPage() {
 
   return (
     <div className="h-full flex flex-col bg-ptt-dark text-white max-w-md mx-auto relative">
-      <AlertPanel />
-
       {/* Статус бар */}
       <div className="flex items-center justify-between px-4 py-2 bg-ptt-panel border-b border-ptt-border">
         <div className="flex items-center gap-2">
@@ -302,6 +300,8 @@ export function UserRadioPage() {
 
       {/* Центр — кнопка PTT */}
       <div className="flex-1 flex flex-col items-center justify-center gap-6 py-8">
+        <AlertPanel inline />
+
         <PTTButton
           status={pttStatus}
           onStart={startPtt}

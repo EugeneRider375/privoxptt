@@ -1,4 +1,5 @@
-import { X, AlertTriangle, Info, Radio, PhoneCall, MessageSquare } from 'lucide-react';
+import { useState } from 'react';
+import { X, AlertTriangle, Info, Radio, PhoneCall, MessageSquare, Bell, ChevronDown } from 'lucide-react';
 import clsx from 'clsx';
 import { useStore } from '@/store/useStore';
 import { respondToIncomingUserCall } from '@/hooks/useSocket';
@@ -93,10 +94,11 @@ function UserCallAlert({ alert }: { alert: Alert }) {
   );
 }
 
-export function AlertPanel() {
+export function AlertPanel({ inline = false }: { inline?: boolean }) {
   const allAlerts = useStore((s) => s.alerts);
   const alerts = allAlerts.filter((a) => !a.read && a.variant !== 'user-call');
   const userCall = allAlerts.find((a) => !a.read && a.variant === 'user-call');
+  const [expanded, setExpanded] = useState(false);
 
   if (alerts.length === 0 && !userCall) return null;
 
@@ -104,8 +106,33 @@ export function AlertPanel() {
     <>
       {userCall && <UserCallAlert alert={userCall} />}
       {alerts.length > 0 && (
-        <div className="fixed top-4 right-4 z-50 w-80 space-y-1 max-h-64 overflow-y-auto">
-          {alerts.map((a) => <AlertItem key={a.id} alert={a} />)}
+        <div className={clsx(
+          'z-50',
+          inline ? 'relative w-[88%] max-w-sm' : 'fixed top-12 right-4 w-80 max-w-[calc(100vw-2rem)]',
+        )}>
+          <button
+            onClick={() => setExpanded((value) => !value)}
+            className={clsx(
+              'w-full h-9 px-3 rounded border flex items-center gap-2 font-mono text-xs tracking-wider shadow-lg transition-colors',
+              alerts.some((alert) => alert.variant === 'message')
+                ? 'border-ptt-warn bg-ptt-warn/20 text-ptt-warn shadow-ptt-warn/10'
+                : 'border-ptt-blue/50 bg-ptt-panel text-ptt-blue shadow-black/30',
+            )}
+          >
+            <Bell className="w-4 h-4 shrink-0" />
+            <span className="flex-1 text-left">
+              {alerts.length} {alerts.length === 1 ? 'NOTIFICATION' : 'NOTIFICATIONS'}
+            </span>
+            <ChevronDown className={clsx('w-4 h-4 transition-transform', expanded && 'rotate-180')} />
+          </button>
+          {expanded && (
+            <div className={clsx(
+              'mt-1 space-y-1 overflow-y-auto rounded bg-ptt-dark/95 p-1 border border-ptt-border shadow-2xl',
+              inline ? 'absolute left-0 right-0 top-full max-h-52' : 'max-h-72',
+            )}>
+              {alerts.map((alert) => <AlertItem key={alert.id} alert={alert} />)}
+            </div>
+          )}
         </div>
       )}
     </>
