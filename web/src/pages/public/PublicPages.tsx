@@ -618,7 +618,7 @@ export function DocsPage() {
         />
         <div className="mx-auto mt-10 max-w-5xl space-y-4">
           {docs.map((section, index) => (
-            <details key={section.title} open={index < 3} className="group rounded-lg border border-slate-200 bg-slate-50 p-5 shadow-sm">
+            <details key={section.title} className="group rounded-lg border border-slate-200 bg-slate-50 p-5 shadow-sm">
               <summary className="cursor-pointer list-none">
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -626,7 +626,8 @@ export function DocsPage() {
                     <h2 className="mt-2 text-xl font-bold text-slate-950">{section.title}</h2>
                   </div>
                   <span className="mt-1 rounded-md border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-500 group-open:text-sky-700">
-                    Open
+                    <span className="group-open:hidden">Open</span>
+                    <span className="hidden group-open:inline">Close</span>
                   </span>
                 </div>
               </summary>
@@ -675,12 +676,13 @@ export function FaqPage() {
         <SectionHeader eyebrow="FAQ" title="Frequently asked questions" />
         <div className="mx-auto mt-10 max-w-4xl space-y-4">
           {faqs.map(([question, answer], index) => (
-            <details key={question} open={index < 4} className="group rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+            <details key={question} className="group rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
               <summary className="cursor-pointer list-none">
                 <div className="flex items-start justify-between gap-4">
                   <h2 className="text-lg font-bold text-slate-950">{question}</h2>
                   <span className="rounded-md border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-500 group-open:text-sky-700">
-                    Open
+                    <span className="group-open:hidden">Open</span>
+                    <span className="hidden group-open:inline">Close</span>
                   </span>
                 </div>
               </summary>
