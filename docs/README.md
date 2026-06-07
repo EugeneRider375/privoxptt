@@ -7,6 +7,7 @@
 - [Desktop web guide (Russian)](WEB_DESKTOP_GUIDE_RU.md)
 - [Inrico T320 guide (Russian)](RADIO_T320_GUIDE_RU.md)
 - [Inrico T320 guide (English)](RADIO_T320_GUIDE_EN.md)
+- [Messenger guide (Russian)](MESSENGER_RU.md)
 
 ## Technical documentation
 

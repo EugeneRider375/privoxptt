@@ -129,3 +129,14 @@ export const devicesApi = {
   unregister: (pushToken: string) =>
     api.post('/devices/unregister', { pushToken }).then((r) => r.data),
 };
+
+// ─── Messenger ────────────────────────────────────────────
+export const messagesApi = {
+  conversations: () => api.get('/messages/conversations').then((r) => r.data),
+  history: (target: { groupId?: string; userId?: string }, cursor?: string) =>
+    api.get('/messages', { params: { ...target, cursor, limit: 100 } }).then((r) => r.data),
+  send: (data: { body: string; groupId?: string; userId?: string }) =>
+    api.post('/messages', data).then((r) => r.data),
+  markRead: (target: { groupId?: string; userId?: string }) =>
+    api.post('/messages/read', target).then((r) => r.data),
+};
