@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Routes, Route, NavLink, useNavigate } from 'react-router-dom';
 import {
-  Radio, Users, Map, Bell, Settings, LogOut,
+  Radio, Users, Map, Bell, Settings, LogOut, MessageSquare,
   ChevronLeft, ChevronRight, LayoutDashboard, ClipboardList,
 } from 'lucide-react';
 import { useStore } from '@/store/useStore';
@@ -13,12 +13,14 @@ import { DispatcherDashboard } from './DispatcherDashboard';
 import { DispatcherMap } from './DispatcherMap';
 import { DispatcherSettings } from './DispatcherSettings';
 import { ActivityLogPage } from '../activity/ActivityLogPage';
+import { MessengerPage } from '../messages/MessengerPage';
 import { disconnectPrivoxSocket, useSocket } from '@/hooks/useSocket';
 import clsx from 'clsx';
 
 const NAV = [
   { to: '/dispatcher',         icon: LayoutDashboard, label: 'Console' },
   { to: '/dispatcher/activity',icon: ClipboardList,    label: 'Log' },
+  { to: '/dispatcher/messages',icon: MessageSquare,   label: 'Messages' },
   { to: '/dispatcher/map',     icon: Map,              label: 'Map' },
   { to: '/dispatcher/settings',icon: Settings,         label: 'Settings' },
 ];
@@ -133,6 +135,7 @@ export function DispatcherLayout() {
           <Routes>
             <Route index element={<DispatcherDashboard />} />
             <Route path="activity" element={<ActivityLogPage />} />
+            <Route path="messages" element={<MessengerPage embedded />} />
             <Route path="map" element={<DispatcherMap />} />
             <Route path="settings" element={<DispatcherSettings />} />
           </Routes>

@@ -20,6 +20,7 @@ import { groupsRouter } from './routes/groups';
 import { activityRouter } from './routes/activity';
 import { devicesRouter } from './routes/devices';
 import { callsRouter } from './routes/calls';
+import { messagesRouter } from './routes/messages';
 import { errorHandler, notFound } from './middleware/errorHandler';
 
 async function bootstrap() {
@@ -78,6 +79,7 @@ async function bootstrap() {
   app.use('/api/activity', activityRouter);
   app.use('/api/devices', devicesRouter);
   app.use('/api/calls', callsRouter);
+  app.use('/api/messages', messagesRouter);
 
   // ─── 404 и обработка ошибок ───────────────────────────────
   app.use(notFound);

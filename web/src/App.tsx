@@ -8,6 +8,7 @@ import { AdminLayout } from '@/pages/admin/AdminLayout';
 import { DownloadPage, DocsPage, FaqPage, HomePage, StatusPage, SupportPage } from '@/pages/public/PublicPages';
 import { unlockAudio } from '@/hooks/useWebRTC';
 import { useNativePush } from '@/hooks/useNativePush';
+import { MessengerPage } from '@/pages/messages/MessengerPage';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null };
@@ -79,6 +80,7 @@ export default function App() {
           <Route path="/app" element={<RequireAuth><RoleRouter /></RequireAuth>} />
 
           <Route path="/radio/*" element={<RequireAuth><ErrorBoundary><UserRadioPage /></ErrorBoundary></RequireAuth>} />
+          <Route path="/messages" element={<RequireAuth><ErrorBoundary><MessengerPage /></ErrorBoundary></RequireAuth>} />
           <Route path="/dispatcher/*" element={<RequireAuth><ErrorBoundary><DispatcherLayout /></ErrorBoundary></RequireAuth>} />
           <Route path="/admin/*" element={<RequireAuth><ErrorBoundary><AdminLayout /></ErrorBoundary></RequireAuth>} />
 
