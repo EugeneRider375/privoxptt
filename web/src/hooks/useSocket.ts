@@ -3,6 +3,8 @@ import { io, Socket } from 'socket.io-client';
 import { useStore } from '@/store/useStore';
 import type { ChatMessage, DispatcherCall } from '@/types';
 import { playUserCallTone } from '@/utils/callTone';
+import { playMessageTone } from '@/utils/messageTone';
+import { messagesApi } from '@/api/client';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || '';
 const SOCKET_ACK_TIMEOUT_MS = 6_000;
@@ -80,6 +82,12 @@ export function useSocket() {
       console.log('[Socket] Connected:', socket.id);
       const heartbeat = setInterval(() => socket.emit('heartbeat'), 30_000);
       socket.on('disconnect', () => clearInterval(heartbeat));
+      messagesApi.conversations()
+        .then((conversations: Array<{ unreadCount: number }>) => {
+          const unread = conversations.reduce((total, item) => total + item.unreadCount, 0);
+          useStore.getState().setUnreadMessageCount(unread);
+        })
+        .catch(() => {});
     });
 
     socket.on('connect_error', (err) => {
@@ -234,10 +242,16 @@ export function useSocket() {
     socket.on('message:new', (message: ChatMessage) => {
       window.dispatchEvent(new CustomEvent(PRIVOX_MESSAGE_NEW_EVENT, { detail: message }));
       if (message.senderId !== useStore.getState().user?.id) {
-        useStore.getState().addAlert({
+        const state = useStore.getState();
+        state.incrementUnreadMessageCount();
+        state.addAlert({
           type: 'info',
+          variant: 'message',
           callsign: message.sender.callsign,
           message: `New message: ${message.body.slice(0, 80)}`,
+        });
+        playMessageTone().catch((err) => {
+          console.warn('[Socket] Message tone blocked:', err);
         });
       }
     });

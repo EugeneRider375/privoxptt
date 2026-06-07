@@ -1,4 +1,4 @@
-import { X, AlertTriangle, Info, Radio, PhoneCall } from 'lucide-react';
+import { X, AlertTriangle, Info, Radio, PhoneCall, MessageSquare } from 'lucide-react';
 import clsx from 'clsx';
 import { useStore } from '@/store/useStore';
 import { respondToIncomingUserCall } from '@/hooks/useSocket';
@@ -20,10 +20,16 @@ const colors = {
 
 function AlertItem({ alert }: { alert: Alert }) {
   const markRead = useStore((s) => s.markAlertRead);
+  const isMessage = alert.variant === 'message';
 
   return (
-    <div className={clsx('flex items-start gap-2 p-2 rounded border font-mono text-xs', colors[alert.type])}>
-      {icons[alert.type]}
+    <div className={clsx(
+      'flex items-start gap-2 p-2 rounded border font-mono text-xs',
+      isMessage
+        ? 'border-ptt-warn bg-ptt-warn/20 shadow-lg shadow-ptt-warn/20'
+        : colors[alert.type],
+    )}>
+      {isMessage ? <MessageSquare className="w-4 h-4 text-ptt-warn animate-pulse" /> : icons[alert.type]}
       <div className="flex-1 min-w-0">
         {alert.callsign && (
           <span className="text-ptt-green tracking-widest mr-2">{alert.callsign}</span>

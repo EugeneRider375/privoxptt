@@ -142,7 +142,7 @@ export interface UserCallStatusEvent {
 export interface Alert {
   id: string;
   type: 'sos' | 'info' | 'warn' | 'error';
-  variant?: 'toast' | 'user-call';
+  variant?: 'toast' | 'user-call' | 'message';
   userId?: string;
   callsign?: string;
   message: string;

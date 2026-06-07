@@ -35,6 +35,7 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
   useSocket();
   const navigate = useNavigate();
   const user = useStore((state) => state.user);
+  const setUnreadMessageCount = useStore((state) => state.setUnreadMessageCount);
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState<'group' | 'direct' | null>(null);
@@ -53,6 +54,7 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
   const loadConversations = useCallback(async () => {
     const data = await messagesApi.conversations() as ChatConversation[];
     setConversations(data);
+    setUnreadMessageCount(data.reduce((total, item) => total + item.unreadCount, 0));
     setSelectedId((current) => current ?? data[0]?.id ?? null);
     setSelectedType((current) => current ?? data[0]?.type ?? null);
   }, []);
@@ -76,14 +78,18 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
         return messagesApi.markRead(targetFor(selected));
       })
       .then(() => {
-        setConversations((items) => items.map((item) =>
-          item.id === selected.id && item.type === selected.type
-            ? { ...item, unreadCount: 0 }
-            : item
-        ));
+        setConversations((items) => {
+          const next = items.map((item) =>
+            item.id === selected.id && item.type === selected.type
+              ? { ...item, unreadCount: 0 }
+              : item
+          );
+          setUnreadMessageCount(next.reduce((total, item) => total + item.unreadCount, 0));
+          return next;
+        });
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Unable to load messages'));
-  }, [selected?.id, selected?.type]);
+  }, [selected?.id, selected?.type, setUnreadMessageCount]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: 'end' });
@@ -93,15 +99,19 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
     const onMessage = (event: Event) => {
       const message = (event as CustomEvent<ChatMessage>).detail;
       if (!message || !user) return;
-      setConversations((items) => items.map((item) => {
-        if (!belongsToConversation(message, item, user.id)) return item;
-        const isOpen = item.id === selectedId && item.type === selectedType;
-        return {
-          ...item,
-          lastMessage: message,
-          unreadCount: isOpen || message.senderId === user.id ? 0 : item.unreadCount + 1,
-        };
-      }));
+      setConversations((items) => {
+        const next = items.map((item) => {
+          if (!belongsToConversation(message, item, user.id)) return item;
+          const isOpen = item.id === selectedId && item.type === selectedType;
+          return {
+            ...item,
+            lastMessage: message,
+            unreadCount: isOpen || message.senderId === user.id ? 0 : item.unreadCount + 1,
+          };
+        });
+        setUnreadMessageCount(next.reduce((total, item) => total + item.unreadCount, 0));
+        return next;
+      });
       if (selected && belongsToConversation(message, selected, user.id)) {
         setMessages((items) => items.some((item) => item.id === message.id) ? items : [...items, message]);
         if (message.senderId !== user.id) {
@@ -111,7 +121,7 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
     };
     window.addEventListener(PRIVOX_MESSAGE_NEW_EVENT, onMessage);
     return () => window.removeEventListener(PRIVOX_MESSAGE_NEW_EVENT, onMessage);
-  }, [selected, selectedId, selectedType, user]);
+  }, [selected, selectedId, selectedType, setUnreadMessageCount, user]);
 
   async function sendMessage(event: FormEvent) {
     event.preventDefault();

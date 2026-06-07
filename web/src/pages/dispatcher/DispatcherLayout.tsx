@@ -30,6 +30,7 @@ export function DispatcherLayout() {
   const sidebarOpen = useStore((s) => s.sidebarOpen);
   const allAlerts = useStore((s) => s.alerts);
   const alerts = allAlerts.filter((a) => !a.read);
+  const unreadMessageCount = useStore((s) => s.unreadMessageCount);
   const navigate = useNavigate();
 
   useSocket();
@@ -122,10 +123,19 @@ export function DispatcherLayout() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => navigate('/dispatcher/messages')}
-              className="h-7 px-2.5 rounded border border-ptt-blue/60 bg-ptt-blue/10 text-ptt-blue hover:text-white transition-colors flex items-center gap-1.5"
+              className={`relative h-7 px-2.5 rounded border transition-colors flex items-center gap-1.5 ${
+                unreadMessageCount > 0
+                  ? 'border-ptt-warn bg-ptt-warn/20 text-ptt-warn animate-pulse'
+                  : 'border-ptt-blue/60 bg-ptt-blue/10 text-ptt-blue hover:text-white'
+              }`}
             >
               <MessageSquare className="w-3.5 h-3.5" />
               <span className="font-mono text-[10px]">MESSAGES</span>
+              {unreadMessageCount > 0 && (
+                <span className="absolute -top-2 -right-2 min-w-5 h-5 px-1 rounded-full bg-ptt-danger text-white font-mono text-[10px] flex items-center justify-center">
+                  {unreadMessageCount > 99 ? '99+' : unreadMessageCount}
+                </span>
+              )}
             </button>
             {alerts.length > 0 && (
               <div className="flex items-center gap-1">

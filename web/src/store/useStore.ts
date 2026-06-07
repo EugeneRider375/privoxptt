@@ -48,6 +48,11 @@ interface AppStore {
   outgoingUserCalls: UserCallStatusEvent[];
   updateOutgoingUserCall: (event: UserCallStatusEvent) => void;
 
+  // ─── Сообщения ─────────────────────────────────────────
+  unreadMessageCount: number;
+  setUnreadMessageCount: (count: number) => void;
+  incrementUnreadMessageCount: () => void;
+
   // ─── UI ────────────────────────────────────────────────
   sidebarOpen: boolean;
   toggleSidebar: () => void;
@@ -69,7 +74,7 @@ export const useStore = create<AppStore>()(
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('privoxptt');
-        set({ user: null, accessToken: null, refreshToken: null });
+        set({ user: null, accessToken: null, refreshToken: null, unreadMessageCount: 0 });
       },
 
       // Группы
@@ -159,6 +164,12 @@ export const useStore = create<AppStore>()(
             : [event, ...s.outgoingUserCalls];
           return { outgoingUserCalls: calls.slice(0, 100) };
         }),
+
+      // Сообщения
+      unreadMessageCount: 0,
+      setUnreadMessageCount: (count) => set({ unreadMessageCount: Math.max(0, count) }),
+      incrementUnreadMessageCount: () =>
+        set((s) => ({ unreadMessageCount: s.unreadMessageCount + 1 })),
 
       // UI
       sidebarOpen: true,

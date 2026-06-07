@@ -26,6 +26,7 @@ const NAV = [
 export function AdminLayout() {
   const user = useStore((s) => s.user);
   const sidebarOpen = useStore((s) => s.sidebarOpen);
+  const unreadMessageCount = useStore((s) => s.unreadMessageCount);
   const navigate = useNavigate();
 
   useSocket();
@@ -106,10 +107,19 @@ export function AdminLayout() {
           <span className="font-mono text-ptt-text text-xs tracking-widest">CONTROL PANEL · {user?.organization?.name}</span>
           <button
             onClick={() => navigate('/admin/messages')}
-            className="h-7 px-2.5 rounded border border-ptt-blue/60 bg-ptt-blue/10 text-ptt-blue hover:text-white transition-colors flex items-center gap-1.5"
+            className={`relative h-7 px-2.5 rounded border transition-colors flex items-center gap-1.5 ${
+              unreadMessageCount > 0
+                ? 'border-ptt-warn bg-ptt-warn/20 text-ptt-warn animate-pulse'
+                : 'border-ptt-blue/60 bg-ptt-blue/10 text-ptt-blue hover:text-white'
+            }`}
           >
             <MessageSquare className="w-3.5 h-3.5" />
             <span className="font-mono text-[10px]">MESSAGES</span>
+            {unreadMessageCount > 0 && (
+              <span className="absolute -top-2 -right-2 min-w-5 h-5 px-1 rounded-full bg-ptt-danger text-white font-mono text-[10px] flex items-center justify-center">
+                {unreadMessageCount > 99 ? '99+' : unreadMessageCount}
+              </span>
+            )}
           </button>
         </header>
         <div className="h-[calc(100%-40px)] overflow-auto">

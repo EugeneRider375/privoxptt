@@ -18,6 +18,7 @@ import type { Group, GroupMember } from '@/types';
 export function UserRadioPage() {
   const navigate = useNavigate();
   const user = useStore((s) => s.user);
+  const unreadMessageCount = useStore((s) => s.unreadMessageCount);
   const groups = useStore((s) => s.groups);
   const setGroups = useStore((s) => s.setGroups);
   const activeGroupId = useStore((s) => s.activeGroupId);
@@ -205,10 +206,19 @@ export function UserRadioPage() {
           <button
             onClick={() => navigate('/messages')}
             title="Messages"
-            className="h-7 px-2 rounded border border-ptt-blue/60 bg-ptt-blue/10 text-ptt-blue hover:text-white transition-colors flex items-center gap-1"
+            className={`relative h-7 px-2 rounded border transition-colors flex items-center gap-1 ${
+              unreadMessageCount > 0
+                ? 'border-ptt-warn bg-ptt-warn/20 text-ptt-warn animate-pulse'
+                : 'border-ptt-blue/60 bg-ptt-blue/10 text-ptt-blue hover:text-white'
+            }`}
           >
             <MessageSquare className="w-3.5 h-3.5" />
             <span className="font-mono text-[10px]">CHAT</span>
+            {unreadMessageCount > 0 && (
+              <span className="absolute -top-2 -right-2 min-w-5 h-5 px-1 rounded-full bg-ptt-danger text-white font-mono text-[10px] flex items-center justify-center shadow-lg shadow-ptt-danger/40">
+                {unreadMessageCount > 99 ? '99+' : unreadMessageCount}
+              </span>
+            )}
           </button>
           <button
             onClick={handleCallDispatcher}
