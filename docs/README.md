@@ -2,6 +2,7 @@
 
 ## User guides
 
+- [Android smartphone guide (Russian)](PHONE_ANDROID_GUIDE_RU.md)
 - [Inrico T320 guide (Russian)](RADIO_T320_GUIDE_RU.md)
 - [Inrico T320 guide (English)](RADIO_T320_GUIDE_EN.md)
 
