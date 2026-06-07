@@ -101,10 +101,21 @@ async function assertGroupAccess(
 async function assertDirectAccess(targetUserId: string, userId: string, organizationId: string) {
   if (targetUserId === userId) throw new AppError(400, 'You cannot message yourself');
   const target = await prisma.user.findFirst({
-    where: { id: targetUserId, organizationId, isActive: true },
+    where: {
+      id: targetUserId,
+      organizationId,
+      isActive: true,
+      groupMembers: {
+        some: {
+          group: {
+            members: { some: { userId } },
+          },
+        },
+      },
+    },
     select: { id: true, callsign: true, displayName: true, role: true },
   });
-  if (!target) throw new AppError(404, 'User not found');
+  if (!target) throw new AppError(403, 'Direct messages require a shared group');
   return target;
 }
 
@@ -124,7 +135,18 @@ messagesRouter.get('/conversations', async (req: Request, res: Response, next: N
     const [groups, users] = await Promise.all([
       accessibleGroups(userId, organizationId, role),
       prisma.user.findMany({
-        where: { organizationId, isActive: true, id: { not: userId } },
+        where: {
+          organizationId,
+          isActive: true,
+          id: { not: userId },
+          groupMembers: {
+            some: {
+              group: {
+                members: { some: { userId } },
+              },
+            },
+          },
+        },
         select: { id: true, callsign: true, displayName: true, role: true },
         orderBy: { callsign: 'asc' },
       }),
