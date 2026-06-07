@@ -103,14 +103,14 @@ const docs = [
     items: ['Open dispatcher console', 'Monitor online users and active channel state', 'Use map view when location permission is enabled', 'Check SOS/user call behavior during tests'],
   },
   {
-    title: 'Android PoC application',
-    text: 'The Android app is currently a Capacitor wrapper around the production web app.',
-    items: ['Opens https://ptt.privox.tech/app', 'Uses existing login and groups', 'Requests microphone and location permissions', 'Keeps screen awake during active tests', 'Background operation with locked screen is not guaranteed yet'],
+    title: 'Android application',
+    text: 'The Android app combines the production web interface with native background calling and Firebase wake-up support.',
+    items: ['Uses existing login and groups', 'Supports PTT, individual calls, and CALL GROUP', 'Wakes a sleeping phone through Firebase', 'Shows native ANSWER and DECLINE controls', 'Uses a foreground service for background availability'],
   },
   {
     title: 'iPhone and desktop web',
     text: 'iPhone users can use the web version in Safari while native iOS distribution is planned later.',
-    items: ['Open /app in Safari on iPhone', 'Use Share -> Add to Home Screen for a home icon', 'On desktop, use a modern browser and allow microphone access', 'Chrome, Edge, and Safari are recommended for testing'],
+    items: ['Open /app in Safari on iPhone', 'Use Share -> Add to Home Screen for a home icon', 'Keep the web app open for incoming calls', 'Locked-screen iPhone wake-up requires a future native iOS/APNs app', 'On desktop, use a modern browser and allow microphone access'],
   },
   {
     title: 'Test checklist',
@@ -118,9 +118,9 @@ const docs = [
     items: ['Login works', 'Microphone permission appears', 'Transmit and receive work', 'Dispatcher map shows location when allowed', 'Screen does not sleep during active Android test', 'Logout/login works after restart'],
   },
   {
-    title: 'Known PoC limitations',
-    text: 'These items are intentionally outside the current Android PoC stage.',
-    items: ['No guaranteed locked-screen/background calling yet', 'No foreground service yet', 'No hardware PTT button yet', 'No Bluetooth headset certification yet', 'No Google Play distribution yet'],
+    title: 'Current limitations',
+    text: 'These items are not part of the current production test build.',
+    items: ['No native iOS/APNs wake-up yet', 'No Bluetooth headset certification yet', 'No Google Play or App Store distribution yet', 'PRIVOX Mini Radio cannot switch groups automatically after a call yet'],
   },
   {
     title: 'Inrico T320 digital radio',
@@ -199,8 +199,9 @@ const faqs = [
   ['What is PRIVOX PTT?', 'PRIVOX PTT is a secure push-to-talk communication system for teams, dispatchers, and future PoC devices. Users press, speak, and release, similar to radio communication over the internet.'],
   ['Do I need the Android app?', 'No. The web version works today in a modern browser. The Android APK is useful for mobile field testing and faster access from the phone launcher.'],
   ['Can iPhone users test PRIVOX PTT?', 'Yes. iPhone users should open the web app in Safari and can add it to the Home Screen from the Safari Share menu. A native iOS app can be considered later.'],
-  ['What does the Android PoC support now?', 'It opens the existing web app, uses existing login and groups, requests microphone and location permissions, supports PTT with the screen on, and keeps the screen awake during tests.'],
-  ['Does Android work with the screen locked?', 'Not reliably at this PoC stage. Locked-screen/background calling requires a native Android foreground service and will be a separate development phase.'],
+  ['What does the Android app support now?', 'It supports PTT, individual calls, CALL GROUP, Firebase wake-up, native ANSWER and DECLINE controls, and background availability through a foreground service.'],
+  ['Does Android work with the screen locked?', 'Yes. A high-priority Firebase call can wake a registered sleeping Android phone and show the native incoming-call screen. Network access, notifications, and unrestricted battery settings must remain enabled.'],
+  ['Does iPhone receive calls with the screen locked?', 'Not reliably in the current web version. Keep PRIVOX PTT open for active use. Guaranteed locked-screen wake-up will require a native iOS application with Apple Push Notification Service.'],
   ['Why does Android ask to install an APK from the browser?', 'The current build is a trusted tester APK, not a Google Play release. Android will ask for confirmation before installing apps downloaded from a website.'],
   ['Why did an older Android phone show render errors?', 'Older devices may have an outdated Android System WebView. Update Android System WebView from Google Play, restart PRIVOX PTT, and test again.'],
   ['Who creates organizations?', 'A superadmin creates organizations and can assign users to them. Organization admins then manage users and groups inside their own organization.'],
@@ -510,6 +511,9 @@ export function DownloadPage() {
             <a href={webAppUrl} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-md bg-sky-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-sky-700">
               Open web app <ExternalLink className="h-4 w-4" />
             </a>
+            <Link to="/docs" className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md border border-sky-200 bg-white px-4 py-3 font-semibold text-sky-700 transition hover:bg-sky-50">
+              Setup guide <BookOpen className="h-4 w-4" />
+            </Link>
           </div>
           <div className="rounded-lg border border-indigo-200 bg-white p-6 shadow-sm">
             <Radio className="h-8 w-8 text-indigo-600" />

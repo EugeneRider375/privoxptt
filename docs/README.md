@@ -3,6 +3,8 @@
 ## User guides
 
 - [Android smartphone guide (Russian)](PHONE_ANDROID_GUIDE_RU.md)
+- [iPhone web guide (Russian)](IPHONE_WEB_GUIDE_RU.md)
+- [Desktop web guide (Russian)](WEB_DESKTOP_GUIDE_RU.md)
 - [Inrico T320 guide (Russian)](RADIO_T320_GUIDE_RU.md)
 - [Inrico T320 guide (English)](RADIO_T320_GUIDE_EN.md)
 
