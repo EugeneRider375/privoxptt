@@ -44,7 +44,7 @@ public class IncomingCallActivity extends Activity {
         root.setBackgroundColor(Color.rgb(10, 12, 10));
 
         String kind = getIntent().getStringExtra("call_kind");
-        TextView label = text("group".equals(kind) ? "PRIVOX GROUP WAKE" : "INCOMING PRIVOX CALL", 14, Color.rgb(61, 220, 132));
+        TextView label = text("group".equals(kind) ? "PRIVOX GROUP CALL" : "INCOMING PRIVOX CALL", 14, Color.rgb(61, 220, 132));
         TextView caller = text(getIntent().getStringExtra("from_callsign"), 32, Color.WHITE);
         TextView name = text(getIntent().getStringExtra("from_display_name"), 18, Color.LTGRAY);
         TextView group = text("GROUP: " + value(getIntent().getStringExtra("group_name")), 16, Color.rgb(74, 158, 255));

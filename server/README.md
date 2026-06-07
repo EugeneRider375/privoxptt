@@ -127,7 +127,7 @@ Docker image, APK или web assets.
 High-priority FCM data message имеет TTL 45 секунд. Недействительные токены
 автоматически помечаются `enabled=false`.
 
-Для `WAKE GROUP` сервер создаёт отдельный callId для каждого участника. Состояния
+Для `CALL GROUP` сервер создаёт отдельный callId для каждого участника. Состояния
 `ringing`, `answered`, `declined`, `timeout` отправляются инициатору событием
 `user-call-status`. Повторный массовый вызов ограничен интервалом 30 секунд.
 

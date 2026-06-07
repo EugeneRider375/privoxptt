@@ -453,7 +453,7 @@ There is no public Android API to disable this throttling from Java code. The st
 7. Decline stops the ringtone, clears the pending call, and closes the separate
    incoming-call task without opening the main app.
 
-Version 1.4 also supports dispatcher **WAKE GROUP** calls. The server creates an
+Version 1.5 also supports dispatcher **CALL GROUP** calls. The server creates an
 individual tracked call for each group member. Native Answer/Decline actions
 report their result directly to `/api/calls/respond`; the dispatcher sees
 `ringing`, `answered`, `declined`, or `timeout`.

@@ -115,7 +115,7 @@ MediaSoup/WebRTC-транспорты некоторых WebView оставал�
 ## Следующие проверки
 
 1. Установить APK 1.4 на телефоны и Inrico T320.
-2. Проверить **WAKE GROUP** с online, sleeping и offline участниками.
+2. Проверить **CALL GROUP** с online, sleeping и offline участниками.
 3. Проверить статусы `ringing`, `answered`, `declined`, `timeout`.
 4. Выполнить PTT и индивидуальный вызов при переходе Wi-Fi ↔ мобильная сеть.
 5. Проверить восстановление после перезагрузки телефонов.

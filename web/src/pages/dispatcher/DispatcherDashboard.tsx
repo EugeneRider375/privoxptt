@@ -57,12 +57,12 @@ export function DispatcherDashboard() {
       setWakeSummary({ ...result, groupName: activeGroup.name });
       useStore.getState().addAlert({
         type: 'info',
-        message: `Wake sent to ${result.delivered}/${result.total} members in ${activeGroup.name}`,
+        message: `Group call sent to ${result.delivered}/${result.total} members in ${activeGroup.name}`,
       });
     } catch (err) {
       useStore.getState().addAlert({
         type: 'warn',
-        message: err instanceof Error ? err.message : 'Failed to wake group',
+        message: err instanceof Error ? err.message : 'Failed to call group',
       });
     } finally {
       setWakingGroup(false);
@@ -258,17 +258,17 @@ export function DispatcherDashboard() {
           <button
             onClick={handleWakeGroup}
             disabled={!activeGroupId || wakingGroup}
-            title="Wake all reachable members in this group"
+            title="Call all reachable members and invite them into this group"
             className="ml-auto flex items-center gap-2 border border-ptt-blue/60 text-ptt-blue hover:bg-ptt-blue/10 disabled:opacity-40 disabled:cursor-not-allowed rounded px-3 py-1.5 font-mono text-xs tracking-widest transition-colors"
           >
             <BellRing className={`w-4 h-4 ${wakingGroup ? 'animate-pulse' : ''}`} />
-            {wakingGroup ? 'WAKING' : 'WAKE GROUP'}
+            {wakingGroup ? 'CALLING' : 'CALL GROUP'}
           </button>
         </div>
 
         {wakeSummary && (
           <div className="px-6 py-2 border-b border-ptt-border bg-ptt-blue/5 flex items-center gap-4 font-mono text-xs">
-            <span className="text-ptt-blue truncate">WAKE: {wakeSummary.groupName}</span>
+            <span className="text-ptt-blue truncate">GROUP CALL: {wakeSummary.groupName}</span>
             <span className="text-ptt-text">sent {wakeSummary.delivered}/{wakeSummary.total}</span>
             <span className="text-ptt-blue">ringing {wakeCounts.ringing}</span>
             <span className="text-ptt-green">answered {wakeCounts.answered}</span>

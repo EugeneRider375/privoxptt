@@ -44,7 +44,7 @@ public class IncomingCallActivity extends Activity {
         root.setBackgroundColor(Color.rgb(10, 12, 10));
 
         String kind = getIntent().getStringExtra("call_kind");
-        TextView label = text("group".equals(kind) ? "GROUP WAKE" : "INCOMING CALL", 12, Color.rgb(61, 220, 132));
+        TextView label = text("group".equals(kind) ? "GROUP CALL" : "INCOMING CALL", 12, Color.rgb(61, 220, 132));
         TextView caller = text(getIntent().getStringExtra("from_callsign"), 23, Color.WHITE);
         TextView name = text(getIntent().getStringExtra("from_display_name"), 14, Color.LTGRAY);
         TextView group = text("GROUP: " + value(getIntent().getStringExtra("group_name")), 13, Color.rgb(74, 158, 255));

@@ -64,7 +64,7 @@ function UserCallAlert({ alert }: { alert: Alert }) {
           <PhoneCall className="h-7 w-7 text-ptt-blue animate-pulse" />
         </div>
         <p className="font-mono text-ptt-blue text-xs tracking-[0.25em]">
-          {alert.callKind === 'group' ? 'GROUP WAKE CALL' : 'INCOMING CALL'}
+          {alert.callKind === 'group' ? 'GROUP CALL' : 'INCOMING CALL'}
         </p>
         <p className="callsign text-xl mt-2">{alert.callsign ?? 'USER'}</p>
         <p className="font-rajdhani text-white text-lg mt-1">calls you in {alert.groupName ?? 'this group'}</p>

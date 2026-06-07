@@ -309,7 +309,7 @@ export function useSocket() {
         return;
       }
 
-      const timeout = window.setTimeout(() => reject(new Error('Group wake timed out')), 20_000);
+      const timeout = window.setTimeout(() => reject(new Error('Group call timed out')), 20_000);
       socket.emit('group-call-request', { groupId }, (resp?: {
         ok: boolean;
         campaignId?: string;
@@ -328,7 +328,7 @@ export function useSocket() {
             unreachable: resp.unreachable ?? 0,
           });
         } else {
-          reject(new Error(resp?.message ?? resp?.error ?? 'Failed to wake group'));
+          reject(new Error(resp?.message ?? resp?.error ?? 'Failed to call group'));
         }
       });
     });

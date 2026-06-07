@@ -15,8 +15,8 @@
 
 ## Current Android release
 
-- Phone APK: `1.4` (`versionCode 5`)
-- Inrico T320 APK: `1.4` (`versionCode 5`)
+- Phone APK: `1.5` (`versionCode 6`)
+- Inrico T320 APK: `1.5` (`versionCode 6`)
 - Package: `tech.privox.ptt`
 
 Phone and T320 APKs are different builds. Always install the APK from the
