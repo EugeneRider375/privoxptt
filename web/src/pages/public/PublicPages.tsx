@@ -113,6 +113,66 @@ const docs = [
     items: ['Open /app in Safari on iPhone', 'Use Share -> Add to Home Screen for a home icon', 'Keep the web app open for incoming calls', 'Locked-screen iPhone wake-up requires a future native iOS/APNs app', 'On desktop, use a modern browser and allow microphone access'],
   },
   {
+    title: 'Android app — user guide',
+    text: 'Step-by-step instructions for the PRIVOX PTT Android app. Works over Wi-Fi or mobile data. PTT works like a radio: press to speak, release to listen.',
+    steps: [
+      'Open PRIVOX PTT and allow microphone, notification, and full-screen call permissions when prompted.',
+      'Allow unrestricted battery usage when prompted — this keeps the app reachable while the screen is off.',
+      'Enter the login and password given by your administrator and tap Sign in. Credentials are saved — you will not need to log in again after a normal restart.',
+      'Tap the active group name at the top of the screen to open the group list and select your group.',
+      'Press and hold the large microphone button. Speak after TRANSMITTING appears. Release the button to stop transmitting and listen to others.',
+      'To call one person: find them in the participant list with a green or blue phone icon and tap it. Green means online now; blue means the phone is asleep but can be woken by the call.',
+      'Incoming call: the screen lights up with the caller name and group. Tap ANSWER to open PRIVOX PTT and join the group, or DECLINE to dismiss without opening the app.',
+      'To stay available: lock the screen normally — do not tap Log out. Use Log out only when switching accounts.',
+    ],
+    items: [
+      'No audio: check microphone permission in Android settings and confirm the correct group is selected.',
+      'No ringtone on incoming call: check that notifications and full-screen call permissions are enabled for PRIVOX PTT.',
+      'App not reachable when screen is off: set battery to Unrestricted in Android settings for PRIVOX PTT.',
+      'Connection lost after switching networks: wait a few seconds for automatic reconnection, then press PTT.',
+      'Status colours take up to 60 seconds to update across all devices — this is normal.',
+    ],
+  },
+  {
+    title: 'iPhone — user guide',
+    text: 'PRIVOX PTT runs as a web app in Safari on iPhone. No App Store installation is needed. Works over Wi-Fi or mobile data.',
+    steps: [
+      'Open Safari and go to https://ptt.privox.tech/app — do not use Safari private mode, as login will not be saved.',
+      'Enter your login and password and tap Sign in. Allow microphone access when Safari asks.',
+      'To add a home screen icon: tap the Share button (square with arrow), scroll to Add to Home Screen, and tap Add. Open the app from that icon in the future.',
+      'Tap the group name at the top to select your group before transmitting.',
+      'Press and hold the large microphone button. Speak after TRANSMITTING appears. Release to listen.',
+      'To call one person: tap the phone icon next to their name in the participant list.',
+      'Incoming call while the app is open: tap ANSWER to join the group, or DECLINE to dismiss.',
+      'Keep PRIVOX PTT open and the screen unlocked during duty. The current web version cannot wake a locked iPhone — a future native iOS app will add this.',
+    ],
+    items: [
+      'No microphone: in Safari, open website settings for ptt.privox.tech and allow microphone access.',
+      'No sound: raise media volume with the side buttons and disconnect any Bluetooth device.',
+      'Missed call with screen locked: this is a current iOS web limitation — keep the app open on screen.',
+      'Old interface after update: fully close and reopen the app, or force-reload in Safari.',
+    ],
+  },
+  {
+    title: 'Desktop browser — user guide',
+    text: 'PRIVOX PTT works directly in a modern browser on any computer. No installation needed. Recommended browsers: Chrome, Edge, or Safari.',
+    steps: [
+      'Open https://ptt.privox.tech/app in Chrome, Edge, or Safari.',
+      'Enter your login and password and tap Sign in. Allow the browser to use the microphone when prompted.',
+      'Select a group from the list on the screen. The active group name is shown at the top.',
+      'Press and hold the PTT button, or hold the Space bar (when not in a text field) to transmit. Release to stop.',
+      'To call one person: click the phone icon next to their name. Green = online, blue = sleeping Android reachable via push, grey = unavailable.',
+      'Dispatchers can click CALL GROUP to ring all members of a group at once — even those currently in other groups.',
+      'After the called participant taps ANSWER, their device switches to the called group automatically.',
+    ],
+    items: [
+      'No microphone: click the lock or microphone icon in the browser address bar and allow access.',
+      'Old interface: press Ctrl+Shift+R on Windows or Cmd+Shift+R on macOS to force-reload.',
+      'Connection lost after switching networks: wait a few seconds, then press PTT once to resume.',
+      'Close any other app that may be holding the microphone (video calls, recording software).',
+    ],
+  },
+  {
     title: 'Test checklist',
     text: 'Use this list before reporting that a test account is ready.',
     items: ['Login works', 'Microphone permission appears', 'Transmit and receive work', 'Dispatcher map shows location when allowed', 'Screen does not sleep during active Android test', 'Logout/login works after restart'],
@@ -633,14 +693,26 @@ export function DocsPage() {
               </summary>
               <div className="mt-4 border-t border-slate-200 pt-4">
                 <p className="leading-7 text-slate-600">{section.text}</p>
-                <ul className="mt-4 space-y-2 text-sm leading-6 text-slate-600">
-                  {section.items.map((item) => (
-                    <li key={item} className="flex gap-2">
-                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
+                {'steps' in section && section.steps && (
+                  <ol className="mt-4 space-y-2 text-sm leading-6 text-slate-600">
+                    {section.steps.map((step, i) => (
+                      <li key={step} className="flex gap-3">
+                        <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-sky-100 text-xs font-bold text-sky-700">{i + 1}</span>
+                        <span>{step}</span>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+                {'items' in section && section.items && (
+                  <ul className={`space-y-2 text-sm leading-6 text-slate-600 ${'steps' in section && section.steps ? 'mt-4 border-t border-slate-100 pt-4' : 'mt-4'}`}>
+                    {section.items.map((item) => (
+                      <li key={item} className="flex gap-2">
+                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             </details>
           ))}
