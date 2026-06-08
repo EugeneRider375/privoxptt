@@ -45,7 +45,9 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pageVisible, setPageVisible] = useState(() => document.visibilityState === 'visible');
   const endRef = useRef<HTMLDivElement>(null);
+  const composingRef = useRef(false);
 
   const selected = useMemo(
     () => conversations.find((item) => item.id === selectedId && item.type === selectedType) ?? null,
@@ -70,30 +72,42 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
   }, [loadConversations]);
 
   useEffect(() => {
+    const onVisibilityChange = () => setPageVisible(document.visibilityState === 'visible');
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, []);
+
+  const markConversationRead = useCallback(async (conversation: ChatConversation) => {
+    const target = targetFor(conversation);
+    await messagesApi.markRead(target);
+    await clearNativeMessageNotifications(target).catch(() => {});
+    setConversations((items) => {
+      const next = items.map((item) =>
+        item.id === conversation.id && item.type === conversation.type
+          ? { ...item, unreadCount: 0 }
+          : item
+      );
+      setUnreadMessageCount(next.reduce((total, item) => total + item.unreadCount, 0));
+      return next;
+    });
+  }, [setUnreadMessageCount]);
+
+  useEffect(() => {
     if (!selected) {
       setMessages([]);
       return;
     }
     setError(null);
     messagesApi.history(targetFor(selected))
-      .then((result) => {
-        setMessages(result.messages);
-        return messagesApi.markRead(targetFor(selected));
-      })
-      .then(() => {
-        clearNativeMessageNotifications(targetFor(selected)).catch(() => {});
-        setConversations((items) => {
-          const next = items.map((item) =>
-            item.id === selected.id && item.type === selected.type
-              ? { ...item, unreadCount: 0 }
-              : item
-          );
-          setUnreadMessageCount(next.reduce((total, item) => total + item.unreadCount, 0));
-          return next;
-        });
-      })
+      .then((result) => setMessages(result.messages))
       .catch((err) => setError(err instanceof Error ? err.message : 'Unable to load messages'));
-  }, [selected?.id, selected?.type, setUnreadMessageCount]);
+  }, [selected?.id, selected?.type]);
+
+  useEffect(() => {
+    if (!selected || !pageVisible) return;
+    markConversationRead(selected)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Unable to mark messages as read'));
+  }, [markConversationRead, pageVisible, selected?.id, selected?.type]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: 'end' });
@@ -106,7 +120,9 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
       setConversations((items) => {
         const next = items.map((item) => {
           if (!belongsToConversation(message, item, user.id)) return item;
-          const isOpen = item.id === selectedId && item.type === selectedType;
+          const isOpen = document.visibilityState === 'visible'
+            && item.id === selectedId
+            && item.type === selectedType;
           return {
             ...item,
             lastMessage: message,
@@ -118,21 +134,19 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
       });
       if (selected && belongsToConversation(message, selected, user.id)) {
         setMessages((items) => items.some((item) => item.id === message.id) ? items : [...items, message]);
-        if (message.senderId !== user.id) {
-          const target = targetFor(selected);
-          messagesApi.markRead(target)
-            .then(() => clearNativeMessageNotifications(target))
-            .catch(() => {});
+        if (message.senderId !== user.id && document.visibilityState === 'visible') {
+          markConversationRead(selected).catch(() => {});
         }
       }
     };
     window.addEventListener(PRIVOX_MESSAGE_NEW_EVENT, onMessage);
     return () => window.removeEventListener(PRIVOX_MESSAGE_NEW_EVENT, onMessage);
-  }, [selected, selectedId, selectedType, setUnreadMessageCount, user]);
+  }, [markConversationRead, selected, selectedId, selectedType, setUnreadMessageCount, user]);
 
-  async function sendMessage(event: FormEvent) {
+  async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const body = draft.trim();
+    const textarea = event.currentTarget.elements.namedItem('message');
+    const body = textarea instanceof HTMLTextAreaElement ? textarea.value.trim() : draft.trim();
     if (!selected || !body || sending) return;
     setSending(true);
     setError(null);
@@ -264,10 +278,21 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
             {error && <p className="px-4 py-2 text-xs text-ptt-danger border-t border-ptt-border">{error}</p>}
             <form onSubmit={sendMessage} className="p-3 border-t border-ptt-border bg-ptt-panel flex gap-2">
               <textarea
+                name="message"
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
+                onInput={(event) => setDraft(event.currentTarget.value)}
+                onCompositionStart={() => {
+                  composingRef.current = true;
+                }}
+                onCompositionEnd={(event) => {
+                  composingRef.current = false;
+                  setDraft(event.currentTarget.value);
+                }}
                 onKeyDown={(event) => {
-                  if (event.key === 'Enter' && !event.shiftKey) {
+                  const isComposing = composingRef.current
+                    || (event.nativeEvent as KeyboardEvent).isComposing;
+                  if (event.key === 'Enter' && !event.shiftKey && !isComposing) {
                     event.preventDefault();
                     event.currentTarget.form?.requestSubmit();
                   }
@@ -279,7 +304,7 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
               />
               <button
                 type="submit"
-                disabled={!draft.trim() || sending}
+                disabled={sending}
                 className="w-11 h-10 rounded bg-ptt-green text-ptt-dark flex items-center justify-center disabled:opacity-40"
               >
                 <Send className="w-4 h-4" />
