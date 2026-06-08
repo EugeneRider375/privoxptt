@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { ArrowLeft, Hash, MessageSquare, Send, UserRound } from 'lucide-react';
+import { ArrowLeft, Hash, MessageSquare, Send, Trash2, UserRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { messagesApi } from '@/api/client';
 import { clearNativeMessageNotifications } from '@/hooks/useNativePush';
-import { PRIVOX_MESSAGE_NEW_EVENT, useSocket } from '@/hooks/useSocket';
+import {
+  PRIVOX_MESSAGE_CLEARED_EVENT,
+  PRIVOX_MESSAGE_NEW_EVENT,
+  useSocket,
+} from '@/hooks/useSocket';
 import { useStore } from '@/store/useStore';
 import type { ChatConversation, ChatMessage } from '@/types';
 
@@ -44,6 +48,7 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
   const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pageVisible, setPageVisible] = useState(() => document.visibilityState === 'visible');
   const endRef = useRef<HTMLDivElement>(null);
@@ -53,6 +58,10 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
     () => conversations.find((item) => item.id === selectedId && item.type === selectedType) ?? null,
     [conversations, selectedId, selectedType],
   );
+  const canClearSelected = selected?.type === 'direct'
+    || user?.role === 'SUPERADMIN'
+    || user?.role === 'ADMIN'
+    || user?.role === 'DISPATCHER';
 
   const loadConversations = useCallback(async () => {
     const data = await messagesApi.conversations() as ChatConversation[];
@@ -143,6 +152,31 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
     return () => window.removeEventListener(PRIVOX_MESSAGE_NEW_EVENT, onMessage);
   }, [markConversationRead, selected, selectedId, selectedType, setUnreadMessageCount, user]);
 
+  useEffect(() => {
+    const onCleared = (event: Event) => {
+      const target = (event as CustomEvent<{ groupId?: string; userId?: string }>).detail;
+      if (!target) return;
+      const matches = (conversation: ChatConversation) =>
+        conversation.type === 'group'
+          ? conversation.id === target.groupId
+          : conversation.id === target.userId;
+
+      setConversations((items) => {
+        const next = items.map((item) =>
+          matches(item) ? { ...item, lastMessage: null, unreadCount: 0 } : item
+        );
+        setUnreadMessageCount(next.reduce((total, item) => total + item.unreadCount, 0));
+        return next;
+      });
+      if (selected && matches(selected)) {
+        setMessages([]);
+        clearNativeMessageNotifications(target).catch(() => {});
+      }
+    };
+    window.addEventListener(PRIVOX_MESSAGE_CLEARED_EVENT, onCleared);
+    return () => window.removeEventListener(PRIVOX_MESSAGE_CLEARED_EVENT, onCleared);
+  }, [selected, setUnreadMessageCount]);
+
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const textarea = event.currentTarget.elements.namedItem('message');
@@ -163,6 +197,36 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
       setError(err instanceof Error ? err.message : 'Unable to send message');
     } finally {
       setSending(false);
+    }
+  }
+
+  async function clearHistory() {
+    if (!selected || !canClearSelected || clearing) return;
+    const scope = selected.type === 'group' ? 'all group members' : 'both participants';
+    if (!confirm(`Delete the entire history with "${selected.title}" for ${scope}? This cannot be undone.`)) {
+      return;
+    }
+
+    setClearing(true);
+    setError(null);
+    try {
+      const target = targetFor(selected);
+      await messagesApi.clearHistory(target);
+      await clearNativeMessageNotifications(target).catch(() => {});
+      setMessages([]);
+      setConversations((items) => {
+        const next = items.map((item) =>
+          item.id === selected.id && item.type === selected.type
+            ? { ...item, lastMessage: null, unreadCount: 0 }
+            : item
+        );
+        setUnreadMessageCount(next.reduce((total, item) => total + item.unreadCount, 0));
+        return next;
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to clear message history');
+    } finally {
+      setClearing(false);
     }
   }
 
@@ -240,12 +304,23 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
               {selected.type === 'group'
                 ? <Hash className="w-5 h-5" style={{ color: selected.color }} />
                 : <UserRound className="w-5 h-5 text-ptt-blue" />}
-              <div>
+              <div className="min-w-0 flex-1">
                 <p className="font-rajdhani font-bold">{selected.title}</p>
                 <p className="font-mono text-[10px] text-ptt-muted">
                   {selected.type === 'group' ? 'GROUP CHAT' : selected.subtitle}
                 </p>
               </div>
+              {canClearSelected && (
+                <button
+                  type="button"
+                  onClick={clearHistory}
+                  disabled={clearing}
+                  title="Delete message history for everyone"
+                  className="ml-auto p-2 text-ptt-muted hover:text-ptt-danger disabled:opacity-40"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
             </header>
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
               {messages.length === 0 && (

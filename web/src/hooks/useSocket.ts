@@ -11,6 +11,7 @@ const SOCKET_ACK_TIMEOUT_MS = 6_000;
 export const PRIVOX_SOCKET_READY_EVENT = 'privox-socket-ready';
 export const PRIVOX_DATA_CHANGED_EVENT = 'privox-data-changed';
 export const PRIVOX_MESSAGE_NEW_EVENT = 'privox-message-new';
+export const PRIVOX_MESSAGE_CLEARED_EVENT = 'privox-message-cleared';
 
 let globalSocket: Socket | null = null;
 
@@ -254,6 +255,16 @@ export function useSocket() {
           console.warn('[Socket] Message tone blocked:', err);
         });
       }
+    });
+
+    socket.on('message:cleared', (event: { groupId?: string; userId?: string }) => {
+      window.dispatchEvent(new CustomEvent(PRIVOX_MESSAGE_CLEARED_EVENT, { detail: event }));
+      messagesApi.conversations()
+        .then((conversations: Array<{ unreadCount: number }>) => {
+          const unread = conversations.reduce((total, item) => total + item.unreadCount, 0);
+          useStore.getState().setUnreadMessageCount(unread);
+        })
+        .catch(() => {});
     });
 
     return () => {

@@ -139,4 +139,6 @@ export const messagesApi = {
     api.post('/messages', data).then((r) => r.data),
   markRead: (target: { groupId?: string; userId?: string }) =>
     api.post('/messages/read', target).then((r) => r.data),
+  clearHistory: (target: { groupId?: string; userId?: string }) =>
+    api.post('/messages/clear', target).then((r) => r.data),
 };

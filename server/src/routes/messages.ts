@@ -368,3 +368,62 @@ messagesRouter.post('/read', async (req: Request, res: Response, next: NextFunct
     next(err);
   }
 });
+
+messagesRouter.post('/clear', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const target = targetSchema.parse(req.body);
+    const { userId, organizationId, role } = req.user!;
+    let recipientIds: string[];
+
+    if (target.groupId) {
+      await assertGroupAccess(target.groupId, userId, organizationId, role);
+      if (!privilegedRoles.includes(role)) {
+        throw new AppError(403, 'Only a dispatcher or administrator can clear group history');
+      }
+      const recipients = await prisma.user.findMany({
+        where: {
+          organizationId,
+          isActive: true,
+          OR: [
+            { groupMembers: { some: { groupId: target.groupId } } },
+            { role: { in: privilegedRoles } },
+          ],
+        },
+        select: { id: true },
+      });
+      recipientIds = recipients.map((recipient) => recipient.id);
+    } else {
+      await assertDirectAccess(target.userId!, userId, organizationId, role);
+      recipientIds = [userId, target.userId!];
+    }
+
+    const deleted = await prisma.message.deleteMany({
+      where: {
+        organizationId,
+        ...conversationWhere(userId, target),
+      },
+    });
+
+    const io = req.app.get('io') as Server | undefined;
+    for (const recipientId of new Set(recipientIds)) {
+      const event = target.groupId
+        ? { groupId: target.groupId, deletedCount: deleted.count }
+        : {
+            userId: recipientId === userId ? target.userId : userId,
+            deletedCount: deleted.count,
+          };
+      io?.to(`user:${recipientId}`).emit('message:cleared', event);
+    }
+
+    logger.info({
+      msg: 'Message history cleared',
+      userId,
+      organizationId,
+      target,
+      deletedCount: deleted.count,
+    });
+    res.json({ ok: true, deletedCount: deleted.count });
+  } catch (err) {
+    next(err);
+  }
+});
