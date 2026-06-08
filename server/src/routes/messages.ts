@@ -100,24 +100,43 @@ async function assertGroupAccess(
   return group;
 }
 
-async function assertDirectAccess(targetUserId: string, userId: string, organizationId: string) {
+function directContactFilter(userId: string, organizationId: string, role: UserRole) {
+  return privilegedRoles.includes(role)
+    ? {
+        groupMembers: {
+          some: {
+            group: { organizationId },
+          },
+        },
+      }
+    : {
+        groupMembers: {
+          some: {
+            group: {
+              members: { some: { userId } },
+            },
+          },
+        },
+      };
+}
+
+async function assertDirectAccess(
+  targetUserId: string,
+  userId: string,
+  organizationId: string,
+  role: UserRole,
+) {
   if (targetUserId === userId) throw new AppError(400, 'You cannot message yourself');
   const target = await prisma.user.findFirst({
     where: {
       id: targetUserId,
       organizationId,
       isActive: true,
-      groupMembers: {
-        some: {
-          group: {
-            members: { some: { userId } },
-          },
-        },
-      },
+      ...directContactFilter(userId, organizationId, role),
     },
     select: { id: true, callsign: true, displayName: true, role: true },
   });
-  if (!target) throw new AppError(403, 'Direct messages require a shared group');
+  if (!target) throw new AppError(403, 'Direct messages require access to a shared group');
   return target;
 }
 
@@ -141,13 +160,7 @@ messagesRouter.get('/conversations', async (req: Request, res: Response, next: N
           organizationId,
           isActive: true,
           id: { not: userId },
-          groupMembers: {
-            some: {
-              group: {
-                members: { some: { userId } },
-              },
-            },
-          },
+          ...directContactFilter(userId, organizationId, role),
         },
         select: { id: true, callsign: true, displayName: true, role: true },
         orderBy: { callsign: 'asc' },
@@ -219,7 +232,7 @@ messagesRouter.get('/', async (req: Request, res: Response, next: NextFunction) 
     if (target.groupId) {
       await assertGroupAccess(target.groupId, userId, organizationId, role);
     } else {
-      await assertDirectAccess(target.userId!, userId, organizationId);
+      await assertDirectAccess(target.userId!, userId, organizationId, role);
     }
 
     const messages = await prisma.message.findMany({
@@ -267,7 +280,7 @@ messagesRouter.post('/', async (req: Request, res: Response, next: NextFunction)
       });
       recipientIds = recipients.map((recipient) => recipient.id);
     } else {
-      const recipient = await assertDirectAccess(data.userId!, userId, organizationId);
+      const recipient = await assertDirectAccess(data.userId!, userId, organizationId, role);
       recipientIds = [userId, recipient.id];
     }
 
@@ -332,7 +345,7 @@ messagesRouter.post('/read', async (req: Request, res: Response, next: NextFunct
     if (target.groupId) {
       await assertGroupAccess(target.groupId, userId, organizationId, role);
     } else {
-      await assertDirectAccess(target.userId!, userId, organizationId);
+      await assertDirectAccess(target.userId!, userId, organizationId, role);
     }
 
     const unread = await prisma.message.findMany({
