@@ -171,6 +171,11 @@ export interface ChatMessage {
   recipientId: string | null;
   groupId: string | null;
   body: string;
+  attachment: {
+    name: string;
+    type: string;
+    size: number;
+  } | null;
   createdAt: string;
   readCount: number;
   sender: Pick<User, 'id' | 'callsign' | 'displayName' | 'role'>;

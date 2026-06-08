@@ -1,7 +1,10 @@
-import { Router, type NextFunction, type Request, type Response } from 'express';
+import { Router, raw, type NextFunction, type Request, type Response } from 'express';
 import type { Server } from 'socket.io';
 import { UserRole } from '@prisma/client';
 import { z } from 'zod';
+import { randomUUID } from 'crypto';
+import { mkdir, readFile, unlink, writeFile } from 'fs/promises';
+import path from 'path';
 import { prisma } from '../database/prisma';
 import { authenticate } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
@@ -10,6 +13,24 @@ import { logger } from '../utils/logger';
 
 export const messagesRouter = Router();
 messagesRouter.use(authenticate);
+
+const uploadsDir = process.env.MESSAGE_UPLOAD_DIR ?? '/app/uploads/messages';
+const maxAttachmentSize = 10 * 1024 * 1024;
+const allowedAttachmentTypes = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'image/heic',
+  'image/heif',
+  'application/pdf',
+  'text/plain',
+  'text/csv',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+]);
 
 const privilegedRoles: UserRole[] = [
   UserRole.SUPERADMIN,
@@ -52,6 +73,10 @@ function serializeMessage(message: {
   recipientId: string | null;
   groupId: string | null;
   body: string;
+  attachmentName: string | null;
+  attachmentType: string | null;
+  attachmentSize: number | null;
+  attachmentPath: string | null;
   createdAt: Date;
   sender: {
     id: string;
@@ -68,10 +93,82 @@ function serializeMessage(message: {
     recipientId: message.recipientId,
     groupId: message.groupId,
     body: message.body,
+    attachment: message.attachmentPath ? {
+      name: message.attachmentName ?? 'attachment',
+      type: message.attachmentType ?? 'application/octet-stream',
+      size: message.attachmentSize ?? 0,
+    } : null,
     createdAt: message.createdAt.toISOString(),
     sender: message.sender,
     readCount: message._count.reads,
   };
+}
+
+async function resolveRecipients(
+  target: z.infer<typeof targetSchema>,
+  userId: string,
+  organizationId: string,
+  role: UserRole,
+) {
+  if (target.groupId) {
+    const group = await assertGroupAccess(target.groupId, userId, organizationId, role);
+    const recipients = await prisma.user.findMany({
+      where: {
+        organizationId,
+        isActive: true,
+        OR: [
+          { groupMembers: { some: { groupId: target.groupId } } },
+          { role: { in: privilegedRoles } },
+        ],
+      },
+      select: { id: true },
+    });
+    return { recipientIds: recipients.map((recipient) => recipient.id), groupName: group.name };
+  }
+  const recipient = await assertDirectAccess(target.userId!, userId, organizationId, role);
+  return { recipientIds: [userId, recipient.id], groupName: undefined };
+}
+
+async function publishMessage(
+  req: Request,
+  message: ReturnType<typeof serializeMessage>,
+  recipientIds: string[],
+  groupName?: string,
+) {
+  const io = req.app.get('io') as Server | undefined;
+  for (const recipientId of new Set(recipientIds)) {
+    io?.to(`user:${recipientId}`).emit('message:new', message);
+  }
+  const pushRecipientIds = [...new Set(recipientIds)].filter(
+    (recipientId) => recipientId !== req.user!.userId,
+  );
+  await Promise.all(pushRecipientIds.map(async (recipientId) => {
+    const unreadCount = await prisma.message.count({
+      where: {
+        organizationId: req.user!.organizationId,
+        senderId: { not: recipientId },
+        ...(message.groupId
+          ? { groupId: message.groupId }
+          : {
+              OR: [
+                { senderId: recipientId, recipientId: req.user!.userId },
+                { senderId: req.user!.userId, recipientId },
+              ],
+            }),
+        reads: { none: { userId: recipientId } },
+      },
+    });
+    await sendIncomingMessagePush(recipientId, {
+      messageId: message.id,
+      senderId: message.senderId,
+      senderCallsign: message.sender.callsign,
+      senderDisplayName: message.sender.displayName,
+      body: message.attachment?.name ?? message.body,
+      groupId: message.groupId ?? undefined,
+      groupName,
+      unreadCount,
+    });
+  }));
 }
 
 async function accessibleGroups(userId: string, organizationId: string, role: UserRole) {
@@ -261,28 +358,7 @@ messagesRouter.post('/', async (req: Request, res: Response, next: NextFunction)
   try {
     const data = sendSchema.parse(req.body);
     const { userId, organizationId, role } = req.user!;
-    let recipientIds: string[];
-    let groupName: string | undefined;
-
-    if (data.groupId) {
-      const group = await assertGroupAccess(data.groupId, userId, organizationId, role);
-      groupName = group.name;
-      const recipients = await prisma.user.findMany({
-        where: {
-          organizationId,
-          isActive: true,
-          OR: [
-            { groupMembers: { some: { groupId: data.groupId } } },
-            { role: { in: privilegedRoles } },
-          ],
-        },
-        select: { id: true },
-      });
-      recipientIds = recipients.map((recipient) => recipient.id);
-    } else {
-      const recipient = await assertDirectAccess(data.userId!, userId, organizationId, role);
-      recipientIds = [userId, recipient.id];
-    }
+    const { recipientIds, groupName } = await resolveRecipients(data, userId, organizationId, role);
 
     const created = await prisma.message.create({
       data: {
@@ -296,43 +372,92 @@ messagesRouter.post('/', async (req: Request, res: Response, next: NextFunction)
       include: messageInclude,
     });
     const payload = serializeMessage(created);
-    const io = req.app.get('io') as Server | undefined;
-    for (const recipientId of new Set(recipientIds)) {
-      io?.to(`user:${recipientId}`).emit('message:new', payload);
-    }
-
-    const pushRecipientIds = [...new Set(recipientIds)].filter((recipientId) => recipientId !== userId);
-    void Promise.all(pushRecipientIds.map(async (recipientId) => {
-      const unreadCount = await prisma.message.count({
-        where: {
-          organizationId,
-          senderId: { not: recipientId },
-          ...(data.groupId
-            ? { groupId: data.groupId }
-            : {
-                OR: [
-                  { senderId: recipientId, recipientId: userId },
-                  { senderId: userId, recipientId },
-                ],
-              }),
-          reads: { none: { userId: recipientId } },
-        },
-      });
-      await sendIncomingMessagePush(recipientId, {
-        messageId: created.id,
-        senderId: created.senderId,
-        senderCallsign: created.sender.callsign,
-        senderDisplayName: created.sender.displayName,
-        body: created.body,
-        groupId: created.groupId ?? undefined,
-        groupName,
-        unreadCount,
-      });
-    })).catch((err) => {
+    void publishMessage(req, payload, recipientIds, groupName).catch((err) => {
       logger.error({ msg: 'Unable to send message push notifications', messageId: created.id, err });
     });
 
     res.status(201).json(payload);
+  } catch (err) {
+    next(err);
+  }
+});
+
+messagesRouter.post(
+  '/attachments',
+  raw({ type: () => true, limit: maxAttachmentSize }),
+  async (req: Request, res: Response, next: NextFunction) => {
+    let storedPath: string | null = null;
+    try {
+      const target = targetSchema.parse(req.query);
+      const { userId, organizationId, role } = req.user!;
+      const contentType = String(req.headers['content-type'] ?? '').split(';')[0].toLowerCase();
+      if (!allowedAttachmentTypes.has(contentType)) {
+        throw new AppError(415, 'This file type is not allowed');
+      }
+      if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+        throw new AppError(400, 'File is empty');
+      }
+      const encodedName = String(req.headers['x-file-name'] ?? '');
+      const decodedName = decodeURIComponent(encodedName);
+      const originalName = path.basename(decodedName.replaceAll('\\', '/')).slice(0, 180);
+      if (!originalName) throw new AppError(400, 'File name is required');
+
+      const { recipientIds, groupName } = await resolveRecipients(
+        target, userId, organizationId, role,
+      );
+      await mkdir(uploadsDir, { recursive: true });
+      const fileId = randomUUID();
+      storedPath = path.join(uploadsDir, fileId);
+      await writeFile(storedPath, req.body);
+
+      const created = await prisma.message.create({
+        data: {
+          organizationId,
+          senderId: userId,
+          recipientId: target.userId,
+          groupId: target.groupId,
+          body: '',
+          attachmentName: originalName,
+          attachmentType: contentType,
+          attachmentSize: req.body.length,
+          attachmentPath: storedPath,
+          reads: { create: { userId } },
+        },
+        include: messageInclude,
+      });
+      const payload = serializeMessage(created);
+      void publishMessage(req, payload, recipientIds, groupName).catch((err) => {
+        logger.error({ msg: 'Unable to publish attachment message', messageId: created.id, err });
+      });
+      res.status(201).json(payload);
+    } catch (err) {
+      if (storedPath) await unlink(storedPath).catch(() => {});
+      next(err);
+    }
+  },
+);
+
+messagesRouter.get('/:messageId/attachment', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { userId, organizationId, role } = req.user!;
+    const message = await prisma.message.findFirst({
+      where: { id: String(req.params.messageId), organizationId },
+    });
+    if (!message?.attachmentPath) throw new AppError(404, 'Attachment not found');
+    if (message.groupId) {
+      await assertGroupAccess(message.groupId, userId, organizationId, role);
+    } else {
+      const otherUserId = message.senderId === userId ? message.recipientId : message.senderId;
+      if (!otherUserId) throw new AppError(403, 'Attachment access denied');
+      await assertDirectAccess(otherUserId, userId, organizationId, role);
+    }
+    const content = await readFile(message.attachmentPath);
+    res.setHeader('Content-Type', message.attachmentType ?? 'application/octet-stream');
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename*=UTF-8''${encodeURIComponent(message.attachmentName ?? 'attachment')}`,
+    );
+    res.send(content);
   } catch (err) {
     next(err);
   }
@@ -397,12 +522,19 @@ messagesRouter.post('/clear', async (req: Request, res: Response, next: NextFunc
       recipientIds = [userId, target.userId!];
     }
 
+    const attachments = await prisma.message.findMany({
+      where: { organizationId, ...conversationWhere(userId, target), attachmentPath: { not: null } },
+      select: { attachmentPath: true },
+    });
     const deleted = await prisma.message.deleteMany({
       where: {
         organizationId,
         ...conversationWhere(userId, target),
       },
     });
+    await Promise.all(attachments.map(({ attachmentPath }) =>
+      attachmentPath ? unlink(attachmentPath).catch(() => {}) : Promise.resolve()
+    ));
 
     const io = req.app.get('io') as Server | undefined;
     for (const recipientId of new Set(recipientIds)) {

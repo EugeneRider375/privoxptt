@@ -141,6 +141,10 @@ model Message {
   groupId        String?
   group          Group?        @relation(fields: [groupId], references: [id], onDelete: Cascade)
   body           String
+  attachmentName String?
+  attachmentType String?
+  attachmentSize Int?
+  attachmentPath String?
   createdAt      DateTime      @default(now())
   reads          MessageRead[]
 

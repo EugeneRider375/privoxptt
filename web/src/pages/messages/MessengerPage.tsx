@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { ArrowLeft, Hash, MessageSquare, Send, Trash2, UserRound } from 'lucide-react';
+import { ArrowLeft, Download, FileText, Hash, Image, MessageSquare, Paperclip, Send, Trash2, UserRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { messagesApi } from '@/api/client';
 import { clearNativeMessageNotifications } from '@/hooks/useNativePush';
@@ -36,6 +36,78 @@ function timeLabel(value: string) {
   }).format(new Date(value));
 }
 
+function fileSizeLabel(size: number) {
+  return size >= 1024 * 1024
+    ? `${(size / (1024 * 1024)).toFixed(1)} MB`
+    : `${Math.max(1, Math.round(size / 1024))} KB`;
+}
+
+function MessageAttachment({ message }: { message: ChatMessage }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const attachment = message.attachment;
+  const isImage = attachment?.type.startsWith('image/');
+
+  useEffect(() => {
+    if (!attachment || !isImage) return;
+    let disposed = false;
+    let objectUrl: string | null = null;
+    messagesApi.attachment(message.id).then((blob) => {
+      if (disposed) return;
+      objectUrl = URL.createObjectURL(blob);
+      setUrl(objectUrl);
+    }).catch(() => {});
+    return () => {
+      disposed = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [attachment, isImage, message.id]);
+
+  if (!attachment) return null;
+
+  const download = async () => {
+    setLoading(true);
+    try {
+      const blob = await messagesApi.attachment(message.id);
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = attachment.name;
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      {isImage && url && (
+        <button type="button" onClick={download} className="block">
+          <img
+            src={url}
+            alt={attachment.name}
+            className="max-h-64 max-w-full rounded object-contain"
+          />
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={download}
+        disabled={loading}
+        className="w-full flex items-center gap-2 text-left text-xs text-ptt-blue disabled:opacity-50"
+      >
+        {isImage ? <Image className="w-4 h-4 shrink-0" /> : <FileText className="w-4 h-4 shrink-0" />}
+        <span className="min-w-0 flex-1">
+          <span className="block truncate">{attachment.name}</span>
+          <span className="text-[9px] text-ptt-muted">{fileSizeLabel(attachment.size)}</span>
+        </span>
+        <Download className="w-4 h-4 shrink-0" />
+      </button>
+    </div>
+  );
+}
+
 export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
   useSocket();
   const navigate = useNavigate();
@@ -49,9 +121,11 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pageVisible, setPageVisible] = useState(() => document.visibilityState === 'visible');
   const endRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const composingRef = useRef(false);
 
   const selected = useMemo(
@@ -230,6 +304,30 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
     }
   }
 
+  async function sendAttachment(file: File) {
+    if (!selected || uploading) return;
+    if (file.size > 10 * 1024 * 1024) {
+      setError('File is larger than 10 MB');
+      return;
+    }
+    setUploading(true);
+    setError(null);
+    try {
+      const created = await messagesApi.sendAttachment(file, targetFor(selected)) as ChatMessage;
+      setMessages((items) => items.some((item) => item.id === created.id) ? items : [...items, created]);
+      setConversations((items) => items.map((item) =>
+        item.id === selected.id && item.type === selected.type
+          ? { ...item, lastMessage: created }
+          : item
+      ));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to send attachment');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+
   const content = (
     <div className="h-full min-h-0 grid md:grid-cols-[280px_1fr] bg-ptt-dark text-white">
       <aside className={`${selected ? 'hidden md:flex' : 'flex'} min-h-0 flex-col border-r border-ptt-border bg-ptt-panel`}>
@@ -274,7 +372,10 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
                 <div className="min-w-0 flex-1">
                   <p className="font-rajdhani font-semibold truncate">{conversation.title}</p>
                   <p className="font-mono text-[10px] text-ptt-muted truncate">
-                    {conversation.lastMessage?.body ?? conversation.subtitle ?? 'No messages yet'}
+                    {conversation.lastMessage?.attachment?.name
+                      ?? conversation.lastMessage?.body
+                      ?? conversation.subtitle
+                      ?? 'No messages yet'}
                   </p>
                 </div>
                 {conversation.unreadCount > 0 && (
@@ -340,7 +441,10 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
                       {!own && (
                         <p className="font-mono text-[10px] text-ptt-blue mb-1">{message.sender.callsign}</p>
                       )}
-                      <p className="font-rajdhani text-sm whitespace-pre-wrap break-words">{message.body}</p>
+                      {message.body && (
+                        <p className="font-rajdhani text-sm whitespace-pre-wrap break-words">{message.body}</p>
+                      )}
+                      <MessageAttachment message={message} />
                       <p className="mt-1 text-right font-mono text-[9px] text-ptt-muted">
                         {timeLabel(message.createdAt)}
                       </p>
@@ -352,6 +456,25 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
             </div>
             {error && <p className="px-4 py-2 text-xs text-ptt-danger border-t border-ptt-border">{error}</p>}
             <form onSubmit={sendMessage} className="p-3 border-t border-ptt-border bg-ptt-panel flex gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,text/plain,text/csv,.doc,.docx,.xls,.xlsx"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) void sendAttachment(file);
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading || sending}
+                title="Attach photo or file"
+                className="w-10 h-10 shrink-0 flex items-center justify-center text-ptt-muted hover:text-ptt-green disabled:opacity-40"
+              >
+                <Paperclip className="w-4 h-4" />
+              </button>
               <textarea
                 name="message"
                 value={draft}
@@ -379,7 +502,7 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
               />
               <button
                 type="submit"
-                disabled={sending}
+                disabled={sending || uploading}
                 className="w-11 h-10 rounded bg-ptt-green text-ptt-dark flex items-center justify-center disabled:opacity-40"
               >
                 <Send className="w-4 h-4" />

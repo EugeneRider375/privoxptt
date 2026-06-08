@@ -137,8 +137,42 @@ export const messagesApi = {
     api.get('/messages', { params: { ...target, cursor, limit: 100 } }).then((r) => r.data),
   send: (data: { body: string; groupId?: string; userId?: string }) =>
     api.post('/messages', data).then((r) => r.data),
+  sendAttachment: (file: File, target: { groupId?: string; userId?: string }) =>
+    api.post('/messages/attachments', file, {
+      params: target,
+      headers: {
+        'Content-Type': file.type || attachmentTypeFromName(file.name),
+        'X-File-Name': encodeURIComponent(file.name),
+      },
+      timeout: 30_000,
+    }).then((r) => r.data),
+  attachment: (messageId: string) =>
+    api.get(`/messages/${messageId}/attachment`, {
+      responseType: 'blob',
+      timeout: 30_000,
+    }).then((r) => r.data as Blob),
   markRead: (target: { groupId?: string; userId?: string }) =>
     api.post('/messages/read', target).then((r) => r.data),
   clearHistory: (target: { groupId?: string; userId?: string }) =>
     api.post('/messages/clear', target).then((r) => r.data),
 };
+
+function attachmentTypeFromName(name: string): string {
+  const extension = name.split('.').pop()?.toLowerCase();
+  return ({
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    webp: 'image/webp',
+    gif: 'image/gif',
+    heic: 'image/heic',
+    heif: 'image/heif',
+    pdf: 'application/pdf',
+    txt: 'text/plain',
+    csv: 'text/csv',
+    doc: 'application/msword',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xls: 'application/vnd.ms-excel',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  } as Record<string, string>)[extension ?? ''] ?? 'application/octet-stream';
+}

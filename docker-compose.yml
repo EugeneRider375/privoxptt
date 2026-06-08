@@ -45,6 +45,7 @@ services:
       - privoxptt-net
     volumes:
       - server-logs:/app/logs
+      - message-uploads:/app/uploads
 
   db:
     image: postgres:16-alpine
@@ -101,3 +102,4 @@ volumes:
   pgdata:
   redisdata:
   server-logs:
+  message-uploads:

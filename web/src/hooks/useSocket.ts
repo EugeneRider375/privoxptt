@@ -249,7 +249,7 @@ export function useSocket() {
           type: 'info',
           variant: 'message',
           callsign: message.sender.callsign,
-          message: `New message: ${message.body.slice(0, 80)}`,
+          message: `New message: ${(message.attachment?.name ?? message.body).slice(0, 80)}`,
         });
         playMessageTone().catch((err) => {
           console.warn('[Socket] Message tone blocked:', err);
