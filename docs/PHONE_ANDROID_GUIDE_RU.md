@@ -1,6 +1,6 @@
 # PRIVOX PTT — Android-смартфон. Инструкция пользователя
 
-Актуально для **PRIVOX PTT 1.6** (`versionCode 7`) на Android 10 и Android 15.
+Актуально для **PRIVOX PTT 1.8** (`versionCode 9`) на Android 10 и Android 15.
 
 Приложение работает через интернет: по Wi-Fi или мобильной сети. Групповая
 передача построена по принципу рации: нажмите кнопку PTT, говорите и отпустите
@@ -157,4 +157,4 @@ PTT остаётся рацией: после принятия нужно наж
 
 ---
 
-*PRIVOX PTT Android 1.6 · пакет `tech.privox.ptt`*
+*PRIVOX PTT Android 1.8 · пакет `tech.privox.ptt`*

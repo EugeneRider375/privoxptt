@@ -19,7 +19,7 @@ import com.google.firebase.messaging.RemoteMessage;
 import java.util.Map;
 
 public class PrivoxFirebaseMessagingService extends FirebaseMessagingService {
-    private static final String CALL_CHANNEL_ID = "privox_incoming_calls_v2";
+    private static final String CALL_CHANNEL_ID = "privox_incoming_calls_v4";
     private static final String MESSAGE_CHANNEL_ID = "privox_messages_v1";
     private static final int CALL_NOTIFICATION_ID = 2001;
     static final int MESSAGE_NOTIFICATION_ID = 3001;

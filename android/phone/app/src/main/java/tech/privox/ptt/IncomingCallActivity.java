@@ -32,6 +32,7 @@ public class IncomingCallActivity extends Activity {
         }
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         setContentView(buildContent());
+        PrivoxIncomingCallRinger.start(this);
         timeoutHandler.postDelayed(this::timeout, 45_000);
     }
 
