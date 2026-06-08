@@ -6,6 +6,9 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.media.AudioAttributes;
+import android.media.RingtoneManager;
+import android.net.Uri;
 import android.os.Build;
 
 import androidx.core.app.NotificationCompat;
@@ -16,18 +19,26 @@ import com.google.firebase.messaging.RemoteMessage;
 import java.util.Map;
 
 public class PrivoxFirebaseMessagingService extends FirebaseMessagingService {
-    private static final String CHANNEL_ID = "privox_incoming_calls_v2";
-    private static final int NOTIFICATION_ID = 2001;
+    private static final String CALL_CHANNEL_ID = "privox_incoming_calls_v2";
+    private static final String MESSAGE_CHANNEL_ID = "privox_messages_v1";
+    private static final int CALL_NOTIFICATION_ID = 2001;
+    static final int MESSAGE_NOTIFICATION_ID = 3001;
 
     @Override
     public void onMessageReceived(RemoteMessage message) {
         Map<String, String> data = message.getData();
-        if (!"incoming_user_call".equals(data.get("type"))) return;
-        if (MainActivity.isAppInForeground()) return;
+        String type = data.get("type");
+        if ("incoming_user_call".equals(type)) {
+            if (MainActivity.isAppInForeground()) return;
+            savePendingCall(data);
+            showIncomingCall(data);
+            PrivoxIncomingCallRinger.start(this);
+            return;
+        }
 
-        savePendingCall(data);
-        showIncomingCall(data);
-        PrivoxIncomingCallRinger.start(this);
+        if ("new_message".equals(type) && !MainActivity.isAppInForeground()) {
+            showIncomingMessage(data);
+        }
     }
 
     private void savePendingCall(Map<String, String> data) {
@@ -65,7 +76,7 @@ public class PrivoxFirebaseMessagingService extends FirebaseMessagingService {
         String callsign = value(data, "fromCallsign");
         String groupName = value(data, "groupName");
 
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CALL_CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(callsign.isEmpty() ? "PRIVOX PTT call" : callsign)
             .setContentText(groupName.isEmpty() ? "Incoming call" : "Calls you in " + groupName)
@@ -79,13 +90,13 @@ public class PrivoxFirebaseMessagingService extends FirebaseMessagingService {
             .setTimeoutAfter(45_000);
 
         NotificationManager manager = getSystemService(NotificationManager.class);
-        if (manager != null) manager.notify(NOTIFICATION_ID, builder.build());
+        if (manager != null) manager.notify(CALL_NOTIFICATION_ID, builder.build());
     }
 
     private void createCallChannel() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
         NotificationChannel channel = new NotificationChannel(
-            CHANNEL_ID, "PRIVOX incoming calls", NotificationManager.IMPORTANCE_HIGH
+            CALL_CHANNEL_ID, "PRIVOX incoming calls", NotificationManager.IMPORTANCE_HIGH
         );
         channel.setDescription("Incoming PRIVOX PTT user and group calls");
         channel.enableVibration(true);
@@ -96,12 +107,84 @@ public class PrivoxFirebaseMessagingService extends FirebaseMessagingService {
         if (manager != null) manager.createNotificationChannel(channel);
     }
 
+    private void showIncomingMessage(Map<String, String> data) {
+        createMessageChannel();
+
+        String conversationTag = conversationTag(data);
+        Intent openApp = new Intent(this, MainActivity.class)
+            .setAction("tech.privox.ptt.OPEN_MESSAGE." + conversationTag)
+            .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        PendingIntent openAppIntent = PendingIntent.getActivity(
+            this, conversationTag.hashCode(), openApp, PendingIntent.FLAG_UPDATE_CURRENT | immutableFlag()
+        );
+
+        String callsign = value(data, "senderCallsign");
+        String groupName = value(data, "groupName");
+        String body = value(data, "body");
+        int unreadCount = intValue(data, "unreadCount", 1);
+        String title = groupName.isEmpty()
+            ? (callsign.isEmpty() ? "New PRIVOX message" : callsign)
+            : groupName + " · " + callsign;
+
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, MESSAGE_CHANNEL_ID)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setAutoCancel(false)
+            .setOnlyAlertOnce(false)
+            .setNumber(unreadCount)
+            .setBadgeIconType(NotificationCompat.BADGE_ICON_SMALL)
+            .setContentIntent(openAppIntent);
+
+        NotificationManager manager = getSystemService(NotificationManager.class);
+        if (manager != null) manager.notify(conversationTag, MESSAGE_NOTIFICATION_ID, builder.build());
+    }
+
+    private void createMessageChannel() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
+        Uri sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+        AudioAttributes audioAttributes = new AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build();
+        NotificationChannel channel = new NotificationChannel(
+            MESSAGE_CHANNEL_ID, "PRIVOX messages", NotificationManager.IMPORTANCE_HIGH
+        );
+        channel.setDescription("New PRIVOX text messages");
+        channel.enableVibration(true);
+        channel.setVibrationPattern(new long[]{0, 250, 150, 250});
+        channel.setSound(sound, audioAttributes);
+        channel.setShowBadge(true);
+        channel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
+        NotificationManager manager = getSystemService(NotificationManager.class);
+        if (manager != null) manager.createNotificationChannel(channel);
+    }
+
+    static String conversationTag(Map<String, String> data) {
+        String groupId = value(data, "groupId");
+        return groupId.isEmpty()
+            ? "privox_message_direct_" + value(data, "senderId")
+            : "privox_message_group_" + groupId;
+    }
+
     private static int immutableFlag() {
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0;
     }
 
-    private static String value(Map<String, String> data, String key) {
+    static String value(Map<String, String> data, String key) {
         String value = data.get(key);
         return value == null ? "" : value;
+    }
+
+    private static int intValue(Map<String, String> data, String key, int fallback) {
+        try {
+            return Integer.parseInt(value(data, key));
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
     }
 }

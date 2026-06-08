@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { ArrowLeft, Hash, MessageSquare, Send, UserRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { messagesApi } from '@/api/client';
+import { clearNativeMessageNotifications } from '@/hooks/useNativePush';
 import { PRIVOX_MESSAGE_NEW_EVENT, useSocket } from '@/hooks/useSocket';
 import { useStore } from '@/store/useStore';
 import type { ChatConversation, ChatMessage } from '@/types';
@@ -80,6 +81,7 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
         return messagesApi.markRead(targetFor(selected));
       })
       .then(() => {
+        clearNativeMessageNotifications(targetFor(selected)).catch(() => {});
         setConversations((items) => {
           const next = items.map((item) =>
             item.id === selected.id && item.type === selected.type
@@ -117,7 +119,10 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
       if (selected && belongsToConversation(message, selected, user.id)) {
         setMessages((items) => items.some((item) => item.id === message.id) ? items : [...items, message]);
         if (message.senderId !== user.id) {
-          messagesApi.markRead(targetFor(selected)).catch(() => {});
+          const target = targetFor(selected);
+          messagesApi.markRead(target)
+            .then(() => clearNativeMessageNotifications(target))
+            .catch(() => {});
         }
       }
     };

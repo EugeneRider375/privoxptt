@@ -16,6 +16,17 @@ export interface IncomingUserCallPush {
   kind: 'user' | 'group';
 }
 
+export interface IncomingMessagePush {
+  messageId: string;
+  senderId: string;
+  senderCallsign: string;
+  senderDisplayName: string;
+  body: string;
+  groupId?: string;
+  groupName?: string;
+  unreadCount: number;
+}
+
 let firebaseReady = false;
 
 function initFirebase(): boolean {
@@ -116,6 +127,75 @@ export async function sendIncomingUserCallPush(
     msg: 'Incoming user call push sent',
     userId,
     callId: payload.callId,
+    sent: response.successCount,
+    failed: response.failureCount,
+  });
+
+  return { sent: response.successCount, failed: response.failureCount };
+}
+
+export async function sendIncomingMessagePush(
+  userId: string,
+  payload: IncomingMessagePush,
+): Promise<{ sent: number; failed: number }> {
+  if (!initFirebase()) return { sent: 0, failed: 0 };
+
+  const devices = await prisma.device.findMany({
+    where: { userId, platform: 'ANDROID', enabled: true },
+    select: { id: true, pushToken: true },
+  });
+  if (devices.length === 0) return { sent: 0, failed: 0 };
+
+  const message: MulticastMessage = {
+    tokens: devices.map((device) => device.pushToken),
+    data: {
+      type: 'new_message',
+      messageId: payload.messageId,
+      senderId: payload.senderId,
+      senderCallsign: payload.senderCallsign,
+      senderDisplayName: payload.senderDisplayName,
+      body: payload.body.slice(0, 500),
+      groupId: payload.groupId ?? '',
+      groupName: payload.groupName ?? '',
+      unreadCount: String(Math.max(1, payload.unreadCount)),
+    },
+    android: {
+      priority: 'high',
+      ttl: 7 * 24 * 60 * 60 * 1000,
+    },
+  };
+
+  let response;
+  try {
+    response = await getMessaging().sendEachForMulticast(message);
+  } catch (err) {
+    logger.error({ msg: 'Incoming message push failed', userId, messageId: payload.messageId, err });
+    return { sent: 0, failed: devices.length };
+  }
+
+  const invalidDeviceIds: string[] = [];
+  response.responses.forEach((result, index) => {
+    if (result.success) return;
+    const code = result.error?.code ?? '';
+    if (
+      code === 'messaging/registration-token-not-registered' ||
+      code === 'messaging/invalid-registration-token'
+    ) {
+      invalidDeviceIds.push(devices[index].id);
+    }
+  });
+
+  if (invalidDeviceIds.length > 0) {
+    await prisma.device.updateMany({
+      where: { id: { in: invalidDeviceIds } },
+      data: { enabled: false },
+    });
+  }
+
+  logger.info({
+    msg: 'Incoming message push sent',
+    userId,
+    messageId: payload.messageId,
     sent: response.successCount,
     failed: response.failureCount,
   });

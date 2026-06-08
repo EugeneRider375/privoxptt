@@ -1,5 +1,6 @@
 package tech.privox.ptt;
 
+import android.app.NotificationManager;
 import android.content.Context;
 import android.content.SharedPreferences;
 
@@ -54,5 +55,24 @@ public class PrivoxPushPlugin extends Plugin {
         }
         prefs.edit().clear().apply();
         call.resolve(result);
+    }
+
+    @PluginMethod
+    public void clearMessageNotifications(PluginCall call) {
+        String groupId = call.getString("groupId", "");
+        String userId = call.getString("userId", "");
+        if (groupId.isEmpty() && userId.isEmpty()) {
+            call.reject("groupId or userId is required");
+            return;
+        }
+
+        String tag = groupId.isEmpty()
+            ? "privox_message_direct_" + userId
+            : "privox_message_group_" + groupId;
+        NotificationManager manager = getContext().getSystemService(NotificationManager.class);
+        if (manager != null) {
+            manager.cancel(tag, PrivoxFirebaseMessagingService.MESSAGE_NOTIFICATION_ID);
+        }
+        call.resolve();
     }
 }

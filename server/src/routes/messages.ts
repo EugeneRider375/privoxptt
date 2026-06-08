@@ -5,6 +5,8 @@ import { z } from 'zod';
 import { prisma } from '../database/prisma';
 import { authenticate } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
+import { sendIncomingMessagePush } from '../services/push';
+import { logger } from '../utils/logger';
 
 export const messagesRouter = Router();
 messagesRouter.use(authenticate);
@@ -247,9 +249,11 @@ messagesRouter.post('/', async (req: Request, res: Response, next: NextFunction)
     const data = sendSchema.parse(req.body);
     const { userId, organizationId, role } = req.user!;
     let recipientIds: string[];
+    let groupName: string | undefined;
 
     if (data.groupId) {
-      await assertGroupAccess(data.groupId, userId, organizationId, role);
+      const group = await assertGroupAccess(data.groupId, userId, organizationId, role);
+      groupName = group.name;
       const recipients = await prisma.user.findMany({
         where: {
           organizationId,
@@ -283,6 +287,38 @@ messagesRouter.post('/', async (req: Request, res: Response, next: NextFunction)
     for (const recipientId of new Set(recipientIds)) {
       io?.to(`user:${recipientId}`).emit('message:new', payload);
     }
+
+    const pushRecipientIds = [...new Set(recipientIds)].filter((recipientId) => recipientId !== userId);
+    void Promise.all(pushRecipientIds.map(async (recipientId) => {
+      const unreadCount = await prisma.message.count({
+        where: {
+          organizationId,
+          senderId: { not: recipientId },
+          ...(data.groupId
+            ? { groupId: data.groupId }
+            : {
+                OR: [
+                  { senderId: recipientId, recipientId: userId },
+                  { senderId: userId, recipientId },
+                ],
+              }),
+          reads: { none: { userId: recipientId } },
+        },
+      });
+      await sendIncomingMessagePush(recipientId, {
+        messageId: created.id,
+        senderId: created.senderId,
+        senderCallsign: created.sender.callsign,
+        senderDisplayName: created.sender.displayName,
+        body: created.body,
+        groupId: created.groupId ?? undefined,
+        groupName,
+        unreadCount,
+      });
+    })).catch((err) => {
+      logger.error({ msg: 'Unable to send message push notifications', messageId: created.id, err });
+    });
+
     res.status(201).json(payload);
   } catch (err) {
     next(err);

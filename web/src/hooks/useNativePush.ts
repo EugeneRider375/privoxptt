@@ -16,6 +16,7 @@ interface PendingCall {
 interface PrivoxPushPlugin {
   getToken: () => Promise<{ token: string }>;
   consumePendingCall: () => Promise<PendingCall>;
+  clearMessageNotifications: (target: { groupId?: string; userId?: string }) => Promise<void>;
 }
 
 function getNativePushPlugin(): PrivoxPushPlugin | null {
@@ -33,6 +34,14 @@ export async function unregisterNativePushDevice(): Promise<void> {
   if (token) {
     await devicesApi.unregister(token);
   }
+}
+
+export async function clearNativeMessageNotifications(
+  target: { groupId?: string; userId?: string },
+): Promise<void> {
+  const plugin = getNativePushPlugin();
+  if (!plugin) return;
+  await plugin.clearMessageNotifications(target);
 }
 
 export function useNativePush(): void {
