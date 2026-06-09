@@ -139,9 +139,21 @@ export interface UserCallStatusEvent {
   updatedAt: number;
 }
 
+export interface SensorState {
+  id: string;
+  name: string;
+  kind: 'FRIDGE' | 'OUTDOOR' | 'INDOOR';
+  status: 'OK' | 'ALERT' | 'STALE';
+  temperature: number | null;
+  humidity: number | null;
+  lat?: number | null;
+  lng?: number | null;
+  lastSeenAt: string | null;
+}
+
 export interface Alert {
   id: string;
-  type: 'sos' | 'info' | 'warn' | 'error';
+  type: 'sos' | 'info' | 'warn' | 'error' | 'sensor';
   variant?: 'toast' | 'user-call' | 'message';
   userId?: string;
   callsign?: string;

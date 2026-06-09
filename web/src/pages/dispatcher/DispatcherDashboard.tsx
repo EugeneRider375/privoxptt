@@ -6,6 +6,7 @@ import { usePTT } from '@/hooks/usePTT';
 import { groupsApi } from '@/api/client';
 import { PTTButton } from '@/components/ui/PTTButton';
 import { Waveform } from '@/components/ui/Waveform';
+import { SensorPanel } from '@/components/dispatcher/SensorPanel';
 import type { Group, GroupMember } from '@/types';
 import clsx from 'clsx';
 
@@ -232,6 +233,8 @@ export function DispatcherDashboard() {
             );
           })}
         </div>
+
+        <SensorPanel />
 
         <div className="px-3 py-2 border-t border-ptt-border bg-ptt-dark">
           <div className="flex items-center gap-2">

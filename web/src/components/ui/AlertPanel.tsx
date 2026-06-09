@@ -1,22 +1,24 @@
 import { useState } from 'react';
-import { X, AlertTriangle, Info, Radio, PhoneCall, MessageSquare, Bell, ChevronDown } from 'lucide-react';
+import { X, AlertTriangle, Info, Radio, PhoneCall, MessageSquare, Bell, ChevronDown, Thermometer } from 'lucide-react';
 import clsx from 'clsx';
 import { useStore } from '@/store/useStore';
 import { respondToIncomingUserCall } from '@/hooks/useSocket';
 import type { Alert } from '@/types';
 
 const icons = {
-  sos:   <Radio className="w-4 h-4 text-ptt-danger animate-blink" />,
-  warn:  <AlertTriangle className="w-4 h-4 text-ptt-warn" />,
-  error: <AlertTriangle className="w-4 h-4 text-ptt-danger" />,
-  info:  <Info className="w-4 h-4 text-ptt-blue" />,
+  sos:    <Radio className="w-4 h-4 text-ptt-danger animate-blink" />,
+  warn:   <AlertTriangle className="w-4 h-4 text-ptt-warn" />,
+  error:  <AlertTriangle className="w-4 h-4 text-ptt-danger" />,
+  info:   <Info className="w-4 h-4 text-ptt-blue" />,
+  sensor: <Thermometer className="w-4 h-4 text-ptt-danger animate-blink" />,
 };
 
 const colors = {
-  sos:   'border-ptt-danger/50 bg-ptt-danger/10',
-  warn:  'border-ptt-warn/40 bg-ptt-warn/10',
-  error: 'border-ptt-danger/40 bg-ptt-danger/10',
-  info:  'border-ptt-blue/30 bg-ptt-blue/5',
+  sos:    'border-ptt-danger/50 bg-ptt-danger/10',
+  warn:   'border-ptt-warn/40 bg-ptt-warn/10',
+  error:  'border-ptt-danger/40 bg-ptt-danger/10',
+  info:   'border-ptt-blue/30 bg-ptt-blue/5',
+  sensor: 'border-ptt-danger/50 bg-ptt-danger/10',
 };
 
 function AlertItem({ alert }: { alert: Alert }) {
