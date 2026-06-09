@@ -144,7 +144,7 @@ export const messagesApi = {
         'Content-Type': file.type || attachmentTypeFromName(file.name),
         'X-File-Name': encodeURIComponent(file.name),
       },
-      timeout: 30_000,
+      timeout: 120_000,
     }).then((r) => r.data),
   attachment: (messageId: string) =>
     api.get(`/messages/${messageId}/attachment`, {

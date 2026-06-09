@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { ArrowLeft, Download, FileText, Hash, Image, MessageSquare, Paperclip, Send, Trash2, UserRound } from 'lucide-react';
+import { isAxiosError } from 'axios';
+import { ArrowLeft, Camera, Download, FileText, Hash, Image, MessageSquare, Paperclip, Send, Trash2, UserRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { messagesApi } from '@/api/client';
 import { clearNativeMessageNotifications } from '@/hooks/useNativePush';
@@ -40,6 +41,13 @@ function fileSizeLabel(size: number) {
   return size >= 1024 * 1024
     ? `${(size / (1024 * 1024)).toFixed(1)} MB`
     : `${Math.max(1, Math.round(size / 1024))} KB`;
+}
+
+function requestErrorMessage(error: unknown, fallback: string) {
+  if (isAxiosError<{ error?: string }>(error)) {
+    return error.response?.data?.error ?? error.message ?? fallback;
+  }
+  return error instanceof Error ? error.message : fallback;
 }
 
 function MessageAttachment({ message }: { message: ChatMessage }) {
@@ -126,6 +134,7 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
   const [pageVisible, setPageVisible] = useState(() => document.visibilityState === 'visible');
   const endRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const composingRef = useRef(false);
 
   const selected = useMemo(
@@ -321,10 +330,11 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
           : item
       ));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to send attachment');
+      setError(requestErrorMessage(err, 'Unable to send attachment'));
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
+      if (cameraInputRef.current) cameraInputRef.current.value = '';
     }
   }
 
@@ -460,7 +470,18 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
                 ref={fileInputRef}
                 type="file"
                 className="hidden"
-                accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,text/plain,text/csv,.doc,.docx,.xls,.xlsx"
+                accept="image/*,application/pdf,text/plain,text/csv,.doc,.docx,.xls,.xlsx"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) void sendAttachment(file);
+                }}
+              />
+              <input
+                ref={cameraInputRef}
+                type="file"
+                className="hidden"
+                accept="image/*"
+                capture="environment"
                 onChange={(event) => {
                   const file = event.target.files?.[0];
                   if (file) void sendAttachment(file);
@@ -474,6 +495,15 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
                 className="w-10 h-10 shrink-0 flex items-center justify-center text-ptt-muted hover:text-ptt-green disabled:opacity-40"
               >
                 <Paperclip className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => cameraInputRef.current?.click()}
+                disabled={uploading || sending}
+                title="Take a photo"
+                className="w-10 h-10 shrink-0 flex items-center justify-center text-ptt-muted hover:text-ptt-green disabled:opacity-40"
+              >
+                <Camera className="w-4 h-4" />
               </button>
               <textarea
                 name="message"

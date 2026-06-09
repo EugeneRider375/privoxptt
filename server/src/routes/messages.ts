@@ -32,6 +32,34 @@ const allowedAttachmentTypes = new Set([
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 ]);
 
+const attachmentTypesByExtension: Record<string, string> = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  gif: 'image/gif',
+  heic: 'image/heic',
+  heif: 'image/heif',
+  pdf: 'application/pdf',
+  txt: 'text/plain',
+  csv: 'text/csv',
+  doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xls: 'application/vnd.ms-excel',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+};
+
+function attachmentType(headerValue: string, fileName: string) {
+  const normalizedHeader = headerValue === 'image/jpg'
+    ? 'image/jpeg'
+    : headerValue === 'image/x-png'
+      ? 'image/png'
+      : headerValue;
+  if (allowedAttachmentTypes.has(normalizedHeader)) return normalizedHeader;
+  const extension = fileName.split('.').pop()?.toLowerCase() ?? '';
+  return attachmentTypesByExtension[extension];
+}
+
 const privilegedRoles: UserRole[] = [
   UserRole.SUPERADMIN,
   UserRole.ADMIN,
@@ -390,10 +418,6 @@ messagesRouter.post(
     try {
       const target = targetSchema.parse(req.query);
       const { userId, organizationId, role } = req.user!;
-      const contentType = String(req.headers['content-type'] ?? '').split(';')[0].toLowerCase();
-      if (!allowedAttachmentTypes.has(contentType)) {
-        throw new AppError(415, 'This file type is not allowed');
-      }
       if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
         throw new AppError(400, 'File is empty');
       }
@@ -401,6 +425,13 @@ messagesRouter.post(
       const decodedName = decodeURIComponent(encodedName);
       const originalName = path.basename(decodedName.replaceAll('\\', '/')).slice(0, 180);
       if (!originalName) throw new AppError(400, 'File name is required');
+      const contentType = attachmentType(
+        String(req.headers['content-type'] ?? '').split(';')[0].toLowerCase(),
+        originalName,
+      );
+      if (!contentType) {
+        throw new AppError(415, 'This file type is not allowed');
+      }
 
       const { recipientIds, groupName } = await resolveRecipients(
         target, userId, organizationId, role,
