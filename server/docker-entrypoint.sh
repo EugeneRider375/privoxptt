@@ -39,5 +39,35 @@ async function seed() {
 seed().catch(console.error).finally(() => prisma.\$disconnect());
 "
 
+echo "Запуск seed датчиков (Frigo + HomeClimate)..."
+node -e "
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
+
+const sensors = [
+  { name: 'Холодильник', kind: 'FRIDGE', adapter: 'FRIGO', sourceUrl: 'https://frigo.privox.tech/api/stats', externalId: null, thresholds: { temperature: { min: 2, max: 8 } }, groupId: 'group-emergency' },
+  { name: 'Улица', kind: 'OUTDOOR', adapter: 'HOMECLIMATE', sourceUrl: 'https://temperature.privox.tech/api/latest', externalId: '1', thresholds: {}, groupId: 'group-general' },
+  { name: 'Дом', kind: 'INDOOR', adapter: 'HOMECLIMATE', sourceUrl: 'https://temperature.privox.tech/api/latest', externalId: '2', thresholds: { temperature: { min: 10 }, humidity: { max: 70 } }, groupId: 'group-emergency' },
+];
+
+async function seedSensors() {
+  const org = await prisma.organization.findUnique({ where: { slug: 'privox' } });
+  if (!org) { console.log('Org privox не найдена, пропускаем сид датчиков'); return; }
+  for (const s of sensors) {
+    const existing = await prisma.sensor.findFirst({ where: { organizationId: org.id, name: s.name } });
+    if (existing) { console.log('Датчик уже есть:', s.name); continue; }
+    let groupId = null;
+    if (s.groupId) {
+      const g = await prisma.group.findUnique({ where: { id: s.groupId } });
+      groupId = g ? s.groupId : null;
+    }
+    await prisma.sensor.create({ data: { organizationId: org.id, name: s.name, kind: s.kind, adapter: s.adapter, sourceUrl: s.sourceUrl, externalId: s.externalId, thresholds: s.thresholds, groupId } });
+    console.log('Датчик создан:', s.name);
+  }
+}
+
+seedSensors().catch(console.error).finally(() => prisma.\$disconnect());
+"
+
 echo "Запуск PrivoxPTT сервера..."
 exec node dist/index.js

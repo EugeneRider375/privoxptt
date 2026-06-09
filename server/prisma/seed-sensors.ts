@@ -6,7 +6,7 @@ import { PrismaClient, type Prisma } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-const ORG_ID = '7daec819-e700-4ae1-8929-a04fea1f6de7';
+const ORG_SLUG = 'privox';
 const GROUP_EMERGENCY = 'group-emergency';
 const GROUP_GENERAL = 'group-general';
 
@@ -51,6 +51,13 @@ const sensors: SeedSensor[] = [
 ];
 
 async function main() {
+  const org = await prisma.organization.findUnique({ where: { slug: ORG_SLUG } });
+  if (!org) {
+    console.error(`Организация со slug='${ORG_SLUG}' не найдена`);
+    process.exit(1);
+  }
+  const ORG_ID = org.id;
+
   for (const s of sensors) {
     const existing = await prisma.sensor.findFirst({
       where: { organizationId: ORG_ID, name: s.name },
