@@ -29,6 +29,7 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     private static final int MIN_WEBVIEW_MAJOR_VERSION = 100;
     private static final int RECORD_AUDIO_REQUEST_CODE = 100;
+    private static final int CAMERA_REQUEST_CODE = 102;
     private static volatile boolean appInForeground = false;
 
     // Inrico T320 side PTT button reports KEYCODE_TV_DATA_SERVICE (230) to the app.
@@ -78,6 +79,7 @@ public class MainActivity extends BridgeActivity {
         audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
         enableFullscreenMode();
         requestMicrophonePermission();
+        requestCameraPermission();
         warnIfWebViewIsOutdated();
         startPrivoxService();
     }
@@ -175,6 +177,18 @@ public class MainActivity extends BridgeActivity {
             this,
             new String[] { Manifest.permission.RECORD_AUDIO },
             RECORD_AUDIO_REQUEST_CODE
+        );
+    }
+
+    private void requestCameraPermission() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+
+        ActivityCompat.requestPermissions(
+            this,
+            new String[] { Manifest.permission.CAMERA },
+            CAMERA_REQUEST_CODE
         );
     }
 

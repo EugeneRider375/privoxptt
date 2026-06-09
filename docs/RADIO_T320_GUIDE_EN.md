@@ -1,5 +1,7 @@
 # PRIVOX PTT — Radio (Inrico T320). User Guide
 
+Current for **PRIVOX PTT T320 1.6** (`versionCode 7`).
+
 This radio runs on the **PRIVOX PTT** system: it talks over the internet (WiFi or
 SIM), just like a walkie‑talkie — press the button to talk, release to listen.
 On a channel (group) everyone in that group hears you.
@@ -106,7 +108,19 @@ You can call an online member or wake a sleeping Android phone:
 
 ---
 
-## 9. Troubleshooting
+## 9. Messages and photos
+
+Open **CHAT**, then select a group or user.
+
+- the paperclip opens existing photos and documents;
+- the camera icon takes a new photo with the T320 built-in camera;
+- the maximum file size is 10 MB.
+
+Allow camera access when version 1.6 asks for it on first launch.
+
+---
+
+## 10. Troubleshooting
 
 - **Too quiet (in or out)** — check the volume knob.
 - **Won't sign in / asks every time** — check the internet (WiFi/SIM) and that the
