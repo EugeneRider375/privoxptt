@@ -202,3 +202,82 @@ export async function sendIncomingMessagePush(
 
   return { sent: response.successCount, failed: response.failureCount };
 }
+
+export interface SensorAlertPush {
+  sensorId: string;
+  sensorName: string;
+  status: 'ALERT' | 'STALE';
+  message: string;
+}
+
+// Push о тревоге датчика на телефоны участников группы.
+// Показывается системным уведомлением (notification), отдельный обработчик
+// в Android-приложении не требуется.
+export async function sendSensorAlertPushToUsers(
+  userIds: string[],
+  payload: SensorAlertPush,
+): Promise<{ sent: number; failed: number }> {
+  if (!initFirebase()) return { sent: 0, failed: 0 };
+  if (userIds.length === 0) return { sent: 0, failed: 0 };
+
+  const devices = await prisma.device.findMany({
+    where: { userId: { in: userIds }, platform: 'ANDROID', enabled: true },
+    select: { id: true, pushToken: true },
+  });
+  if (devices.length === 0) return { sent: 0, failed: 0 };
+
+  const message: MulticastMessage = {
+    tokens: devices.map((device) => device.pushToken),
+    notification: {
+      title: `⚠️ ${payload.sensorName}`,
+      body: payload.message,
+    },
+    data: {
+      type: 'sensor_alert',
+      sensorId: payload.sensorId,
+      sensorName: payload.sensorName,
+      status: payload.status,
+      message: payload.message,
+    },
+    android: {
+      priority: 'high',
+      ttl: 60 * 60 * 1000,
+    },
+  };
+
+  let response;
+  try {
+    response = await getMessaging().sendEachForMulticast(message);
+  } catch (err) {
+    logger.error({ msg: 'Sensor alert push failed', sensorId: payload.sensorId, err });
+    return { sent: 0, failed: devices.length };
+  }
+
+  const invalidDeviceIds: string[] = [];
+  response.responses.forEach((result, index) => {
+    if (result.success) return;
+    const code = result.error?.code ?? '';
+    if (
+      code === 'messaging/registration-token-not-registered' ||
+      code === 'messaging/invalid-registration-token'
+    ) {
+      invalidDeviceIds.push(devices[index].id);
+    }
+  });
+
+  if (invalidDeviceIds.length > 0) {
+    await prisma.device.updateMany({
+      where: { id: { in: invalidDeviceIds } },
+      data: { enabled: false },
+    });
+  }
+
+  logger.info({
+    msg: 'Sensor alert push sent',
+    sensorId: payload.sensorId,
+    sent: response.successCount,
+    failed: response.failureCount,
+  });
+
+  return { sent: response.successCount, failed: response.failureCount };
+}

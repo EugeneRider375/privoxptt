@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { User, Group, UserLocation, Alert, PttStatus, DispatcherCall, DispatcherCallStatus, UserCallStatusEvent } from '@/types';
+import type { User, Group, UserLocation, Alert, PttStatus, DispatcherCall, DispatcherCallStatus, UserCallStatusEvent, SensorState } from '@/types';
 
 interface AppStore {
   // ─── Auth ──────────────────────────────────────────────
@@ -32,6 +32,10 @@ interface AppStore {
   // ─── Местоположение ────────────────────────────────────
   locations: Record<string, UserLocation>;
   updateLocation: (loc: UserLocation) => void;
+
+  // ─── Датчики ───────────────────────────────────────────
+  sensors: Record<string, SensorState>;
+  upsertSensor: (sensor: SensorState) => void;
 
   // ─── Алерты ────────────────────────────────────────────
   alerts: Alert[];
@@ -112,6 +116,11 @@ export const useStore = create<AppStore>()(
       locations: {},
       updateLocation: (loc) =>
         set((s) => ({ locations: { ...s.locations, [loc.userId]: loc } })),
+
+      // Датчики
+      sensors: {},
+      upsertSensor: (sensor) =>
+        set((s) => ({ sensors: { ...s.sensors, [sensor.id]: sensor } })),
 
       // Алерты
       alerts: [],

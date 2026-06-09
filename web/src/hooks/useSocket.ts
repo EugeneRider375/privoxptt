@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useStore } from '@/store/useStore';
-import type { ChatMessage, DispatcherCall } from '@/types';
+import type { ChatMessage, DispatcherCall, SensorState } from '@/types';
 import { playUserCallTone } from '@/utils/callTone';
 import { playMessageTone } from '@/utils/messageTone';
 import { messagesApi } from '@/api/client';
@@ -193,6 +193,44 @@ export function useSocket() {
 
     socket.on('sos-alert', ({ userId, callsign, message }) => {
       useStore.getState().addAlert({ type: 'sos', userId, callsign, message: `SOS: ${callsign} - ${message}` });
+    });
+
+    // ─── Датчики: живое значение (всегда) ───────────────────
+    socket.on('sensor-update', (s: SensorState) => {
+      useStore.getState().upsertSensor(s);
+    });
+
+    // ─── Датчики: тревога (на переходе OK→ALERT/STALE) ──────
+    socket.on('sensor-alert', (a: {
+      sensorId: string;
+      name: string;
+      kind: SensorState['kind'];
+      status: 'ALERT' | 'STALE';
+      message: string;
+      temperature: number | null;
+      humidity: number | null;
+      groupId: string | null;
+      lat: number | null;
+      lng: number | null;
+      at: string;
+    }) => {
+      const state = useStore.getState();
+      state.upsertSensor({
+        id: a.sensorId,
+        name: a.name,
+        kind: a.kind,
+        status: a.status,
+        temperature: a.temperature,
+        humidity: a.humidity,
+        lat: a.lat,
+        lng: a.lng,
+        lastSeenAt: a.at,
+      });
+      state.addAlert({
+        type: 'sensor',
+        message: `${a.name}: ${a.message}`,
+        groupId: a.groupId ?? undefined,
+      });
     });
 
     socket.on('dispatcher-call-incoming', (call: Omit<DispatcherCall, 'status'>) => {

@@ -20,6 +20,7 @@ model Organization {
   groups       Group[]
   activityLogs ActivityLog[]
   messages     Message[]
+  sensors      Sensor[]
 }
 
 model User {
@@ -105,6 +106,7 @@ model Group {
   organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   members        GroupMember[]
   messages       Message[]
+  sensors        Sensor[]
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   isPrivate      Boolean       @default(false)
@@ -165,6 +167,50 @@ model MessageRead {
   @@index([userId, readAt])
 }
 
+// Внешний датчик (Frigo, HomeClimate), который сервер опрашивает по HTTP.
+// Прошивки и бэкенды датчиков НЕ трогаются — мы только тянем их публичные API.
+model Sensor {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  name       String // "Холодильник", "Улица", "Дом"
+  kind       SensorKind // FRIDGE | OUTDOOR | INDOOR
+  adapter    SensorAdapter // как парсить ответ источника
+  sourceUrl  String // откуда тянем (frigo.privox.tech/api/stats)
+  externalId String? // для HomeClimate: "1" или "2" (sensor_id)
+
+  thresholds Json // правила тревог: { "temperature": {"min":2,"max":8}, "humidity": {"max":70} }
+  lat        Float? // для маркера на карте
+  lng        Float?
+
+  groupId String? // в какую группу слать push при тревоге
+  group   Group?  @relation(fields: [groupId], references: [id], onDelete: SetNull)
+
+  lastValue  Json? // последнее нормализованное значение { temperature, humidity }
+  lastSeenAt DateTime? // время последнего успешного замера от источника
+  status     SensorStatus @default(STALE) // OK | ALERT | STALE
+  enabled    Boolean      @default(true)
+
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  readings  SensorReading[]
+
+  @@index([organizationId, enabled])
+}
+
+model SensorReading {
+  id          String   @id @default(uuid())
+  sensorId    String
+  sensor      Sensor   @relation(fields: [sensorId], references: [id], onDelete: Cascade)
+  temperature Float?
+  humidity    Float?
+  raw         Json? // полный ответ источника
+  createdAt   DateTime @default(now())
+
+  @@index([sensorId, createdAt])
+}
+
 enum UserRole {
   SUPERADMIN // Владелец всей системы — видит всё
   ADMIN // Администратор организации
@@ -186,4 +232,21 @@ enum DevicePlatform {
 enum ActivityLogType {
   USER_ONLINE
   USER_OFFLINE
+}
+
+enum SensorKind {
+  FRIDGE
+  OUTDOOR
+  INDOOR
+}
+
+enum SensorAdapter {
+  FRIGO
+  HOMECLIMATE
+}
+
+enum SensorStatus {
+  OK
+  ALERT
+  STALE
 }
