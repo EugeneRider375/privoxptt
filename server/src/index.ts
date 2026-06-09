@@ -13,6 +13,7 @@ import { setupSocketIO } from './socket';
 import { mediasoupManager } from './mediasoup/server';
 
 import { startUdpBridge } from './udp-bridge';
+import { startSensorPoller } from './services/sensorPoller';
 import { authRouter } from './routes/auth';
 import { organizationsRouter } from './routes/organizations';
 import { usersRouter } from './routes/users';
@@ -110,6 +111,13 @@ async function bootstrap() {
     startUdpBridge(io);
   } catch (err) {
     logger.warn({ msg: '⚠️  ESP32 UDP bridge не запустился — PTT через веб продолжает работать', err });
+  }
+
+  // Sensor poller — graceful: PTT/WebRTC работают даже если поллер не стартовал
+  try {
+    startSensorPoller(io);
+  } catch (err) {
+    logger.warn({ msg: '⚠️  Sensor poller не запустился — связь продолжает работать', err });
   }
 
   // ─── Запуск ───────────────────────────────────────────────
