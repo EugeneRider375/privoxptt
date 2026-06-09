@@ -29,8 +29,8 @@ export function startSensorPoller(io: Server): void {
   if (timer) return;
   logger.info({ msg: '🌡️  Sensor poller запущен', intervalMs: POLL_INTERVAL_MS });
   // первый прогон сразу, затем по интервалу
-  void runCycle(io);
-  timer = setInterval(() => void runCycle(io), POLL_INTERVAL_MS);
+  void pollOnce(io);
+  timer = setInterval(() => void pollOnce(io), POLL_INTERVAL_MS);
 }
 
 export function stopSensorPoller(): void {
@@ -40,7 +40,8 @@ export function stopSensorPoller(): void {
   }
 }
 
-async function runCycle(io: Server): Promise<void> {
+// Один полный цикл опроса всех включённых датчиков. Экспортирован для тестов.
+export async function pollOnce(io: Server): Promise<void> {
   let sensors: Sensor[];
   try {
     sensors = await prisma.sensor.findMany({ where: { enabled: true } });
