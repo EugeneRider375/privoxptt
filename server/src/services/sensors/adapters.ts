@@ -1,22 +1,34 @@
-// Адаптеры внешних датчиков.
-// Превращают ответ публичного API датчика в единый формат NormalizedReading.
-// ВАЖНО: прошивки и бэкенды датчиков (Frigo, HomeClimate) НЕ трогаются —
-// мы только читаем их публичный JSON и парсим.
+// Адаптеры внешних датчиков + универсальные МЕТРИКИ и ПРАВИЛА порогов.
+// Прошивки/бэкенды датчиков НЕ трогаем — читаем их публичный JSON.
+
+export type MetricValue = number | boolean;
 
 export interface NormalizedReading {
-  temperature: number | null;
-  humidity: number | null;
-  observedAt: Date | null; // время замера по данным источника
+  metrics: Record<string, MetricValue>;
+  observedAt: Date | null;
 }
 
-export interface MetricRule {
-  min?: number;
-  max?: number;
+export type Severity = 'INFO' | 'WARNING' | 'CRITICAL';
+export type RuleOp = 'gt' | 'lt' | 'outside' | 'is';
+
+// Правило порога: одна метрика + условие + важность (+ дебаунс).
+export interface ThresholdRule {
+  id: string;
+  metric: string;
+  op: RuleOp;
+  value?: number | boolean; // для gt/lt/is
+  min?: number; // для outside
+  max?: number; // для outside
+  severity?: Severity; // по умолчанию CRITICAL
+  sustainedSec?: number; // условие должно держаться N сек (дебаунс)
 }
 
-export interface Thresholds {
-  temperature?: MetricRule;
-  humidity?: MetricRule;
+export interface FiredRule {
+  ruleId: string;
+  metric: string;
+  severity: Severity;
+  message: string;
+  value: MetricValue;
 }
 
 function num(v: unknown): number | null {
@@ -29,54 +41,90 @@ function parseDate(s: unknown): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-// Frigo: GET https://frigo.privox.tech/api/stats
-// → { current, min, max, avg, last_seen }
+// Frigo: GET frigo.privox.tech/api/stats → { current, last_seen }
 export function normalizeFrigo(json: unknown): NormalizedReading {
   const o = (json ?? {}) as Record<string, unknown>;
-  return {
-    temperature: num(o.current),
-    humidity: null,
-    observedAt: parseDate(o.last_seen),
-  };
+  const t = num(o.current);
+  const metrics: Record<string, MetricValue> = {};
+  if (t !== null) metrics.temperature = t;
+  return { metrics, observedAt: parseDate(o.last_seen) };
 }
 
-// HomeClimate: GET https://temperature.privox.tech/api/latest
-// → [ { sensor_id, temperature, humidity, temp_valid, hum_valid, created_at }, ... ]
-// externalId выбирает нужный датчик (1 = улица, 2 = дом).
+// HomeClimate: GET temperature.privox.tech/api/latest → [{sensor_id,temperature,humidity,...}]
 export function normalizeHomeclimate(json: unknown, externalId: string | null): NormalizedReading {
   const arr = Array.isArray(json) ? (json as Array<Record<string, unknown>>) : [];
   const row = arr.find((r) => String(r?.sensor_id) === String(externalId));
-  if (!row) return { temperature: null, humidity: null, observedAt: null };
-  return {
-    temperature: row.temp_valid ? num(row.temperature) : null,
-    humidity: row.hum_valid ? num(row.humidity) : null,
-    observedAt: parseDate(row.created_at),
-  };
+  const metrics: Record<string, MetricValue> = {};
+  if (!row) return { metrics, observedAt: null };
+  const t = row.temp_valid ? num(row.temperature) : null;
+  const h = row.hum_valid ? num(row.humidity) : null;
+  if (t !== null) metrics.temperature = t;
+  if (h !== null) metrics.humidity = h;
+  return { metrics, observedAt: parseDate(row.created_at) };
 }
 
-const RU_LABEL: Record<keyof Thresholds, string> = {
-  temperature: 'температура',
-  humidity: 'влажность',
+const UNIT: Record<string, string> = {
+  temperature: '°C', humidity: '%', waterLevel: '', co2: 'ppm', battery: '%',
 };
+function unit(metric: string): string {
+  return UNIT[metric] ?? '';
+}
 
-const UNIT: Record<keyof Thresholds, string> = {
-  temperature: '°C',
-  humidity: '%',
-};
+// Старый формат порогов { temperature:{min,max}, humidity:{max} } → массив правил.
+// Новый формат (массив правил) возвращается как есть.
+export function thresholdsToRules(thresholds: unknown): ThresholdRule[] {
+  if (Array.isArray(thresholds)) {
+    return (thresholds as ThresholdRule[]).filter((r) => r && r.metric && r.op);
+  }
+  const out: ThresholdRule[] = [];
+  const obj = (thresholds ?? {}) as Record<string, { min?: number; max?: number }>;
+  for (const [metric, rule] of Object.entries(obj)) {
+    if (!rule || typeof rule !== 'object') continue;
+    const hasMin = typeof rule.min === 'number';
+    const hasMax = typeof rule.max === 'number';
+    if (hasMin && hasMax) out.push({ id: metric, metric, op: 'outside', min: rule.min, max: rule.max, severity: 'CRITICAL' });
+    else if (hasMax) out.push({ id: metric, metric, op: 'gt', value: rule.max, severity: 'CRITICAL' });
+    else if (hasMin) out.push({ id: metric, metric, op: 'lt', value: rule.min, severity: 'CRITICAL' });
+  }
+  return out;
+}
 
-// Возвращает список причин тревоги (пустой = всё в норме).
-export function evaluateThresholds(reading: NormalizedReading, thresholds: Thresholds): string[] {
-  const reasons: string[] = [];
-  (['temperature', 'humidity'] as Array<keyof Thresholds>).forEach((metric) => {
-    const value = reading[metric];
-    const rule = thresholds[metric];
-    if (value == null || !rule) return;
-    if (rule.max != null && value > rule.max) {
-      reasons.push(`${RU_LABEL[metric]} ${value}${UNIT[metric]} > ${rule.max}${UNIT[metric]}`);
+// Проверка правил против метрик. Возвращает сработавшие.
+export function evaluateRules(
+  metrics: Record<string, MetricValue>,
+  rules: ThresholdRule[],
+): FiredRule[] {
+  const fired: FiredRule[] = [];
+  for (const rule of rules) {
+    const v = metrics[rule.metric];
+    if (v === undefined) continue;
+    const u = unit(rule.metric);
+    let hit = false;
+    let msg = '';
+
+    if (rule.op === 'gt' && typeof v === 'number' && typeof rule.value === 'number') {
+      hit = v > rule.value;
+      msg = `${rule.metric} ${v}${u} > ${rule.value}${u}`;
+    } else if (rule.op === 'lt' && typeof v === 'number' && typeof rule.value === 'number') {
+      hit = v < rule.value;
+      msg = `${rule.metric} ${v}${u} < ${rule.value}${u}`;
+    } else if (rule.op === 'outside' && typeof v === 'number') {
+      if (rule.max !== undefined && v > rule.max) { hit = true; msg = `${rule.metric} ${v}${u} > ${rule.max}${u}`; }
+      else if (rule.min !== undefined && v < rule.min) { hit = true; msg = `${rule.metric} ${v}${u} < ${rule.min}${u}`; }
+    } else if (rule.op === 'is') {
+      hit = v === rule.value;
+      msg = `${rule.metric} = ${v}`;
     }
-    if (rule.min != null && value < rule.min) {
-      reasons.push(`${RU_LABEL[metric]} ${value}${UNIT[metric]} < ${rule.min}${UNIT[metric]}`);
+
+    if (hit) {
+      fired.push({
+        ruleId: rule.id ?? rule.metric,
+        metric: rule.metric,
+        severity: rule.severity ?? 'CRITICAL',
+        message: msg,
+        value: v,
+      });
     }
-  });
-  return reasons;
+  }
+  return fired;
 }
