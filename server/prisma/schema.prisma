@@ -174,27 +174,36 @@ model Sensor {
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  name       String // "Холодильник", "Улица", "Дом"
-  kind       SensorKind // FRIDGE | OUTDOOR | INDOOR
-  adapter    SensorAdapter // как парсить ответ источника
-  sourceUrl  String // откуда тянем (frigo.privox.tech/api/stats)
-  externalId String? // для HomeClimate: "1" или "2" (sensor_id)
+  name       String
+  kind       SensorKind // FRIDGE | OUTDOOR | INDOOR | ...
+  ingest     SensorIngest @default(PULL) // PULL (поллинг адаптером) | PUSH (устройство шлёт само)
+  adapter    SensorAdapter? // только для PULL — как парсить ответ источника
+  sourceUrl  String? // только для PULL — откуда тянем
+  externalId String? // для HomeClimate: "1"/"2" (sensor_id)
+  sensorKey  String?       @unique // только для PUSH — ключ устройства для /api/telemetry
 
-  thresholds Json // правила тревог: { "temperature": {"min":2,"max":8}, "humidity": {"max":70} }
+  // Пороги = массив ПРАВИЛ: [{ metric, op, value|min|max, severity, sustainedSec }]
+  thresholds Json
   lat        Float? // для маркера на карте
   lng        Float?
 
-  groupId String? // в какую группу слать push при тревоге
+  groupId String? // в какую группу слать тревоги/push
   group   Group?  @relation(fields: [groupId], references: [id], onDelete: SetNull)
 
-  lastValue  Json? // последнее нормализованное значение { temperature, humidity }
-  lastSeenAt DateTime? // время последнего успешного замера от источника
+  // Здоровье устройства
+  reportIntervalSec Int? // ожидаемый интервал отчёта (null = событийный, как дверь)
+  batteryPct        Float?
+  rssi              Int?
+
+  lastValue  Json? // последние метрики { temperature, humidity, waterLevel, leak, ... }
+  lastSeenAt DateTime? // время последнего показания
   status     SensorStatus @default(STALE) // OK | ALERT | STALE
   enabled    Boolean      @default(true)
 
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
   readings  SensorReading[]
+  incidents Incident[]
 
   @@index([organizationId, enabled])
 }
@@ -203,12 +212,35 @@ model SensorReading {
   id          String   @id @default(uuid())
   sensorId    String
   sensor      Sensor   @relation(fields: [sensorId], references: [id], onDelete: Cascade)
-  temperature Float?
-  humidity    Float?
+  metrics     Json? // обобщённые метрики { temperature, humidity, waterLevel, leak, ... }
+  temperature Float? // legacy (back-compat); дублирует metrics.temperature
+  humidity    Float? // legacy
   raw         Json? // полный ответ источника
   createdAt   DateTime @default(now())
 
   @@index([sensorId, createdAt])
+}
+
+// Тревога с жизненным циклом: открыта → подтверждена → решена / заглушена.
+model Incident {
+  id        String         @id @default(uuid())
+  sensorId  String
+  sensor    Sensor         @relation(fields: [sensorId], references: [id], onDelete: Cascade)
+  ruleId    String? // id правила из Sensor.thresholds
+  metric    String? // какая метрика сработала
+  severity  AlertSeverity
+  status    IncidentStatus @default(OPEN)
+  message   String
+  peakValue Float? // пиковое значение за время инцидента
+
+  openedAt       DateTime  @default(now())
+  acknowledgedAt DateTime?
+  acknowledgedBy String? // userId подтвердившего
+  resolvedAt     DateTime?
+  lastNotifiedAt DateTime? // для повтор-нотификации
+
+  @@index([sensorId, status])
+  @@index([status, severity])
 }
 
 enum UserRole {
@@ -243,6 +275,24 @@ enum SensorKind {
 enum SensorAdapter {
   FRIGO
   HOMECLIMATE
+}
+
+enum SensorIngest {
+  PULL // сервер опрашивает источник адаптером
+  PUSH // устройство шлёт само на /api/telemetry
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum IncidentStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+  MUTED
 }
 
 enum SensorStatus {

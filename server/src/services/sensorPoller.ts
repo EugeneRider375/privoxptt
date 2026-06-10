@@ -44,7 +44,10 @@ export function stopSensorPoller(): void {
 export async function pollOnce(io: Server): Promise<void> {
   let sensors: Sensor[];
   try {
-    sensors = await prisma.sensor.findMany({ where: { enabled: true } });
+    // Поллим только PULL-датчики с URL. PUSH-устройства шлют сами на /api/telemetry.
+    sensors = await prisma.sensor.findMany({
+      where: { enabled: true, ingest: 'PULL', sourceUrl: { not: null } },
+    });
   } catch (err) {
     logger.warn({ msg: 'sensor poller: не удалось прочитать датчики', err });
     return;
@@ -76,6 +79,7 @@ function normalize(sensor: Sensor, json: unknown): NormalizedReading {
 }
 
 async function pollSensor(io: Server, sensor: Sensor): Promise<void> {
+  if (!sensor.sourceUrl) return; // PUSH-датчики не поллим
   const json = await fetchJson(sensor.sourceUrl);
   const reading = normalize(sensor, json);
 
