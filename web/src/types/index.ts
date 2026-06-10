@@ -139,6 +139,28 @@ export interface UserCallStatusEvent {
   updatedAt: number;
 }
 
+export interface Sensor {
+  id: string;
+  organizationId: string;
+  name: string;
+  kind: 'FRIDGE' | 'OUTDOOR' | 'INDOOR';
+  adapter: 'FRIGO' | 'HOMECLIMATE';
+  sourceUrl: string;
+  externalId: string | null;
+  thresholds: Record<string, { min?: number; max?: number }>;
+  lat: number | null;
+  lng: number | null;
+  groupId: string | null;
+  group?: { id: string; name: string } | null;
+  organization?: { name: string; slug: string };
+  lastValue: { temperature: number | null; humidity: number | null } | null;
+  lastSeenAt: string | null;
+  status: 'OK' | 'ALERT' | 'STALE';
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface SensorState {
   id: string;
   name: string;
