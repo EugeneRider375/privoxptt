@@ -19,7 +19,7 @@ const OPUS_CODEC_OPTIONS = {
 // На рации T320 микрофон в MODE_IN_COMMUNICATION звучит тихо — усиливаем
 // исходящий сигнал через WebAudio GainNode. Только в режиме рации; телефоны
 // не затрагиваются. Значение подбирается на устройстве.
-const RADIO_MIC_GAIN = 4.0;
+const RADIO_MIC_GAIN = 8.0;
 
 export function useWebRTC(groupId: string | null) {
   const deviceRef = useRef<Device | null>(null);
