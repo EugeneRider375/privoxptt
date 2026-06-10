@@ -1,5 +1,5 @@
 import { Routes, Route, NavLink, useNavigate } from 'react-router-dom';
-import { Radio, Users, Layers, Building2, LogOut, ChevronLeft, ChevronRight, ClipboardList, MessageSquare } from 'lucide-react';
+import { Radio, Users, Layers, Building2, LogOut, ChevronLeft, ChevronRight, ClipboardList, MessageSquare, Thermometer } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { authApi } from '@/api/client';
 import { unregisterNativePushDevice } from '@/hooks/useNativePush';
@@ -8,6 +8,7 @@ import { PrivoxLogo } from '@/components/brand/PrivoxLogo';
 import { AdminUsers } from './AdminUsers';
 import { AdminGroups } from './AdminGroups';
 import { AdminOrgs } from './AdminOrgs';
+import { AdminSensors } from './AdminSensors';
 import { ActivityLogPage } from '../activity/ActivityLogPage';
 import { DispatcherDashboard } from '../dispatcher/DispatcherDashboard';
 import { MessengerPage } from '../messages/MessengerPage';
@@ -20,6 +21,7 @@ const NAV = [
   { to: '/admin/messages', icon: MessageSquare, label: 'Messages',   roles: ['SUPERADMIN','ADMIN','DISPATCHER'] },
   { to: '/admin/users',    icon: Users,       label: 'Users',         roles: ['SUPERADMIN','ADMIN'] },
   { to: '/admin/groups',   icon: Layers,      label: 'Groups',        roles: ['SUPERADMIN','ADMIN'] },
+  { to: '/admin/sensors',  icon: Thermometer, label: 'Sensors',       roles: ['SUPERADMIN','ADMIN'] },
   { to: '/admin/orgs',     icon: Building2,   label: 'Organizations', roles: ['SUPERADMIN'] },
 ];
 
@@ -129,6 +131,7 @@ export function AdminLayout() {
             <Route path="messages" element={<MessengerPage embedded />} />
             <Route path="users" element={<AdminUsers />} />
             <Route path="groups" element={<AdminGroups />} />
+            <Route path="sensors" element={<AdminSensors />} />
             <Route path="orgs" element={<AdminOrgs />} />
           </Routes>
         </div>

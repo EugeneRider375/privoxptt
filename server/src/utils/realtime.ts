@@ -1,7 +1,7 @@
 import type { Request } from 'express';
 import type { Server } from 'socket.io';
 
-type DataChangeType = 'groups' | 'users' | 'members';
+type DataChangeType = 'groups' | 'users' | 'members' | 'sensors';
 
 export function emitOrgDataChanged(
   req: Request,

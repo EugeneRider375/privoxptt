@@ -22,6 +22,7 @@ import { activityRouter } from './routes/activity';
 import { devicesRouter } from './routes/devices';
 import { callsRouter } from './routes/calls';
 import { messagesRouter } from './routes/messages';
+import { sensorsRouter } from './routes/sensors';
 import { errorHandler, notFound } from './middleware/errorHandler';
 
 async function bootstrap() {
@@ -81,6 +82,7 @@ async function bootstrap() {
   app.use('/api/devices', devicesRouter);
   app.use('/api/calls', callsRouter);
   app.use('/api/messages', messagesRouter);
+  app.use('/api/sensors', sensorsRouter);
 
   // ─── 404 и обработка ошибок ───────────────────────────────
   app.use(notFound);

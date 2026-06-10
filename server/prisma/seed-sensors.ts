@@ -22,7 +22,7 @@ type SeedSensor = {
 
 const sensors: SeedSensor[] = [
   {
-    name: 'Холодильник',
+    name: 'Fridge',
     kind: 'FRIDGE',
     adapter: 'FRIGO',
     sourceUrl: 'https://frigo.privox.tech/api/stats',
@@ -31,7 +31,7 @@ const sensors: SeedSensor[] = [
     groupId: GROUP_EMERGENCY,
   },
   {
-    name: 'Улица',
+    name: 'Outdoor',
     kind: 'OUTDOOR',
     adapter: 'HOMECLIMATE',
     sourceUrl: 'https://temperature.privox.tech/api/latest',
@@ -40,7 +40,7 @@ const sensors: SeedSensor[] = [
     groupId: GROUP_GENERAL,
   },
   {
-    name: 'Дом',
+    name: 'Indoor',
     kind: 'INDOOR',
     adapter: 'HOMECLIMATE',
     sourceUrl: 'https://temperature.privox.tech/api/latest',

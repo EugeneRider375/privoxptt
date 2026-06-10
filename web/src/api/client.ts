@@ -112,6 +112,15 @@ export const orgsApi = {
   delete: (id: string) => api.delete(`/orgs/${id}`),
 };
 
+// ─── Sensors ──────────────────────────────────────────────
+export const sensorsApi = {
+  list: (orgId?: string) => api.get('/sensors', { params: { orgId } }).then((r) => r.data),
+  get: (id: string) => api.get(`/sensors/${id}`).then((r) => r.data),
+  create: (data: object) => api.post('/sensors', data).then((r) => r.data),
+  update: (id: string, data: object) => api.patch(`/sensors/${id}`, data).then((r) => r.data),
+  delete: (id: string) => api.delete(`/sensors/${id}`),
+};
+
 // ─── Activity log ─────────────────────────────────────────
 export const activityApi = {
   list: (params?: { limit?: number; type?: string }) =>
