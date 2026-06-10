@@ -44,15 +44,21 @@ node -e "
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
+const renameMap = { 'Холодильник': 'Fridge', 'Улица': 'Outdoor', 'Дом': 'Indoor' };
+
 const sensors = [
-  { name: 'Холодильник', kind: 'FRIDGE', adapter: 'FRIGO', sourceUrl: 'https://frigo.privox.tech/api/stats', externalId: null, thresholds: { temperature: { min: 2, max: 8 } }, groupId: 'group-emergency' },
-  { name: 'Улица', kind: 'OUTDOOR', adapter: 'HOMECLIMATE', sourceUrl: 'https://temperature.privox.tech/api/latest', externalId: '1', thresholds: {}, groupId: 'group-general' },
-  { name: 'Дом', kind: 'INDOOR', adapter: 'HOMECLIMATE', sourceUrl: 'https://temperature.privox.tech/api/latest', externalId: '2', thresholds: { temperature: { min: 10 }, humidity: { max: 70 } }, groupId: 'group-emergency' },
+  { name: 'Fridge', kind: 'FRIDGE', adapter: 'FRIGO', sourceUrl: 'https://frigo.privox.tech/api/stats', externalId: null, thresholds: { temperature: { min: 2, max: 8 } }, groupId: 'group-emergency' },
+  { name: 'Outdoor', kind: 'OUTDOOR', adapter: 'HOMECLIMATE', sourceUrl: 'https://temperature.privox.tech/api/latest', externalId: '1', thresholds: {}, groupId: 'group-general' },
+  { name: 'Indoor', kind: 'INDOOR', adapter: 'HOMECLIMATE', sourceUrl: 'https://temperature.privox.tech/api/latest', externalId: '2', thresholds: { temperature: { min: 10 }, humidity: { max: 70 } }, groupId: 'group-emergency' },
 ];
 
 async function seedSensors() {
   const org = await prisma.organization.findUnique({ where: { slug: 'privox' } });
   if (!org) { console.log('Org privox не найдена, пропускаем сид датчиков'); return; }
+  for (const [oldN, newN] of Object.entries(renameMap)) {
+    const r = await prisma.sensor.updateMany({ where: { organizationId: org.id, name: oldN }, data: { name: newN } });
+    if (r.count) console.log('Переименован датчик:', oldN, '->', newN);
+  }
   for (const s of sensors) {
     const existing = await prisma.sensor.findFirst({ where: { organizationId: org.id, name: s.name } });
     if (existing) { console.log('Датчик уже есть:', s.name); continue; }

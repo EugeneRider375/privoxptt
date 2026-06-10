@@ -207,7 +207,7 @@ export function AdminSensors() {
                 <div className="flex-1 min-w-0">
                   <p className="font-rajdhani font-bold text-white truncate">{s.name}</p>
                   <p className="font-mono text-ptt-muted text-xs truncate">
-                    {s.group?.name ?? 'без группы'}{!s.enabled && ' · OFF'}
+                    {s.group?.name ?? 'no group'}{!s.enabled && ' · OFF'}
                     {isSuperAdmin && s.organization && ` · ${s.organization.name}`}
                   </p>
                 </div>
@@ -225,9 +225,9 @@ export function AdminSensors() {
                   <Field label="NAME">
                     <input value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} className={inputCls} />
                   </Field>
-                  <Field label="GROUP (куда слать тревоги/push)">
+                  <Field label="GROUP (alerts / push target)">
                     <select value={edit.groupId} onChange={(e) => setEdit({ ...edit, groupId: e.target.value })} className={inputCls}>
-                      <option value="">— без группы —</option>
+                      <option value="">— no group —</option>
                       {groups.filter((g) => g.organizationId === s.organizationId).map((g) => (
                         <option key={g.id} value={g.id}>{g.name}</option>
                       ))}
@@ -236,7 +236,7 @@ export function AdminSensors() {
 
                   <div>
                     <label className="font-mono text-ptt-muted text-xs tracking-widest block mb-1 flex items-center gap-1">
-                      <Thermometer className="w-3 h-3" /> ТЕМПЕРАТУРА — пороги °C
+                      <Thermometer className="w-3 h-3" /> TEMPERATURE — thresholds °C
                     </label>
                     <div className="flex gap-2">
                       <input placeholder="min" type="number" value={edit.thr.tempMin}
@@ -247,7 +247,7 @@ export function AdminSensors() {
                   </div>
                   <div>
                     <label className="font-mono text-ptt-muted text-xs tracking-widest mb-1 flex items-center gap-1">
-                      <Droplets className="w-3 h-3" /> ВЛАЖНОСТЬ — порог max %
+                      <Droplets className="w-3 h-3" /> HUMIDITY — max threshold %
                     </label>
                     <input placeholder="max %" type="number" value={edit.thr.humMax}
                       onChange={(e) => setEdit({ ...edit, thr: { ...edit.thr, humMax: e.target.value } })} className={inputCls} />
@@ -256,7 +256,7 @@ export function AdminSensors() {
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" checked={edit.enabled}
                       onChange={(e) => setEdit({ ...edit, enabled: e.target.checked })} className="accent-ptt-green" />
-                    <span className="font-mono text-xs text-ptt-text">Датчик включён</span>
+                    <span className="font-mono text-xs text-ptt-text">Sensor enabled</span>
                   </label>
 
                   {error && <p className="font-mono text-ptt-danger text-xs">{error}</p>}
@@ -280,7 +280,7 @@ export function AdminSensors() {
           );
         })}
         {sensors.length === 0 && (
-          <p className="font-mono text-ptt-muted text-xs text-center py-6">НЕТ ДАТЧИКОВ</p>
+          <p className="font-mono text-ptt-muted text-xs text-center py-6">NO SENSORS</p>
         )}
       </div>
 
@@ -317,24 +317,24 @@ export function AdminSensors() {
             <Field label="SOURCE URL">
               <input value={create.sourceUrl} placeholder="https://..." onChange={(e) => setCreate({ ...create, sourceUrl: e.target.value })} className={inputCls} />
             </Field>
-            <Field label="EXTERNAL ID (HomeClimate sensor_id, опц.)">
+            <Field label="EXTERNAL ID (HomeClimate sensor_id, optional)">
               <input value={create.externalId} onChange={(e) => setCreate({ ...create, externalId: e.target.value })} className={inputCls} />
             </Field>
-            <Field label="GROUP (тревоги/push)">
+            <Field label="GROUP (alerts / push)">
               <select value={create.groupId} onChange={(e) => setCreate({ ...create, groupId: e.target.value })} className={inputCls}>
-                <option value="">— без группы —</option>
+                <option value="">— no group —</option>
                 {createGroups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
               </select>
             </Field>
             <div className="grid grid-cols-2 gap-2">
-              <Field label="ТЕМП min °C">
+              <Field label="TEMP min °C">
                 <input type="number" value={create.thr.tempMin} onChange={(e) => setCreate({ ...create, thr: { ...create.thr, tempMin: e.target.value } })} className={inputCls} />
               </Field>
-              <Field label="ТЕМП max °C">
+              <Field label="TEMP max °C">
                 <input type="number" value={create.thr.tempMax} onChange={(e) => setCreate({ ...create, thr: { ...create.thr, tempMax: e.target.value } })} className={inputCls} />
               </Field>
             </div>
-            <Field label="ВЛАЖНОСТЬ max %">
+            <Field label="HUMIDITY max %">
               <input type="number" value={create.thr.humMax} onChange={(e) => setCreate({ ...create, thr: { ...create.thr, humMax: e.target.value } })} className={inputCls} />
             </Field>
             {error && <p className="font-mono text-ptt-danger text-xs">{error}</p>}
