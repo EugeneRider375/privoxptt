@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Plus, Pencil, Trash2, Users, X, UserPlus, UserMinus, MicOff, Mic } from 'lucide-react';
-import { groupsApi, usersApi, orgsApi } from '@/api/client';
+import { groupsApi, usersApi, orgsApi, sensorsApi } from '@/api/client';
 import { useStore } from '@/store/useStore';
-import type { Group, User, GroupMember, Organization } from '@/types';
+import type { Group, User, GroupMember, Organization, Sensor } from '@/types';
+import clsx from 'clsx';
 
 const inputCls = 'w-full bg-ptt-dark border border-ptt-border rounded px-3 py-2 font-mono text-sm text-white focus:outline-none focus:border-ptt-green';
 
@@ -36,6 +37,7 @@ export function AdminGroups() {
   const isSuperAdmin = currentUser?.role === 'SUPERADMIN';
   const [groups, setGroups] = useState<Group[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [sensors, setSensors] = useState<Sensor[]>([]);
   const [orgs, setOrgs] = useState<Organization[]>([]);
   const [selectedOrgId, setSelectedOrgId] = useState('');
   const [modal, setModal] = useState<'create' | 'edit' | 'members' | null>(null);
@@ -49,6 +51,7 @@ export function AdminGroups() {
   const load = () => {
     groupsApi.list(isSuperAdmin ? selectedOrgId || undefined : undefined).then(setGroups).catch(console.error);
     usersApi.list(isSuperAdmin ? selectedOrgId || undefined : undefined).then(setAllUsers).catch(console.error);
+    sensorsApi.list(isSuperAdmin ? selectedOrgId || undefined : undefined).then(setSensors).catch(console.error);
   };
 
   useEffect(() => {
@@ -136,6 +139,12 @@ export function AdminGroups() {
 
   const nonMembers = allUsers.filter((u) => !members.some((m) => m.userId === u.id));
 
+  // Датчики, привязанные к каждой группе (read-only индикатор; управление — на странице Sensors)
+  const sensorsByGroup: Record<string, Sensor[]> = {};
+  for (const s of sensors) {
+    if (s.groupId) (sensorsByGroup[s.groupId] ??= []).push(s);
+  }
+
   return (
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between">
@@ -179,6 +188,19 @@ export function AdminGroups() {
               <span>P:{g.priority}</span>
               {g.isPrivate && <span className="text-ptt-warn">PRIVATE</span>}
             </div>
+
+            {(sensorsByGroup[g.id]?.length ?? 0) > 0 && (
+              <div className="flex items-center gap-2 flex-wrap font-mono text-xs">
+                <span className="text-ptt-muted">Sensors:</span>
+                {sensorsByGroup[g.id].map((s) => (
+                  <span key={s.id} className="flex items-center gap-1 text-white/70">
+                    <span className={clsx('w-1.5 h-1.5 rounded-full',
+                      s.status === 'ALERT' ? 'bg-ptt-danger animate-pulse' : s.status === 'STALE' ? 'bg-ptt-muted' : 'bg-ptt-green')} />
+                    {s.name}
+                  </span>
+                ))}
+              </div>
+            )}
 
             <div className="flex items-center gap-2 pt-1 border-t border-ptt-border/50">
               <button onClick={() => openMembers(g)} className="flex items-center gap-1 text-ptt-blue hover:text-white transition-colors font-mono text-xs">
