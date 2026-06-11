@@ -139,21 +139,40 @@ export interface UserCallStatusEvent {
   updatedAt: number;
 }
 
+export type SensorSeverity = 'INFO' | 'WARNING' | 'CRITICAL';
+
+export interface SensorRule {
+  id: string;
+  metric: string;
+  op: 'gt' | 'lt' | 'outside' | 'is';
+  value?: number | boolean;
+  min?: number;
+  max?: number;
+  severity?: SensorSeverity;
+  sustainedSec?: number;
+}
+
 export interface Sensor {
   id: string;
   organizationId: string;
   name: string;
   kind: 'FRIDGE' | 'OUTDOOR' | 'INDOOR';
-  adapter: 'FRIGO' | 'HOMECLIMATE';
-  sourceUrl: string;
+  ingest: 'PULL' | 'PUSH';
+  adapter: 'FRIGO' | 'HOMECLIMATE' | null;
+  sourceUrl: string | null;
   externalId: string | null;
-  thresholds: Record<string, { min?: number; max?: number }>;
+  sensorKey: string | null;
+  // массив правил (новый) ИЛИ старый объект { metric: {min,max} }
+  thresholds: SensorRule[] | Record<string, { min?: number; max?: number }>;
+  reportIntervalSec: number | null;
+  batteryPct: number | null;
+  rssi: number | null;
   lat: number | null;
   lng: number | null;
   groupId: string | null;
   group?: { id: string; name: string } | null;
   organization?: { name: string; slug: string };
-  lastValue: { temperature: number | null; humidity: number | null } | null;
+  lastValue: Record<string, number | boolean> | null;
   lastSeenAt: string | null;
   status: 'OK' | 'ALERT' | 'STALE';
   enabled: boolean;
@@ -166,6 +185,7 @@ export interface SensorState {
   name: string;
   kind: 'FRIDGE' | 'OUTDOOR' | 'INDOOR';
   status: 'OK' | 'ALERT' | 'STALE';
+  metrics?: Record<string, number | boolean>;
   temperature: number | null;
   humidity: number | null;
   lat?: number | null;

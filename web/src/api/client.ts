@@ -118,6 +118,7 @@ export const sensorsApi = {
   get: (id: string) => api.get(`/sensors/${id}`).then((r) => r.data),
   create: (data: object) => api.post('/sensors', data).then((r) => r.data),
   update: (id: string, data: object) => api.patch(`/sensors/${id}`, data).then((r) => r.data),
+  rotateKey: (id: string) => api.post(`/sensors/${id}/rotate-key`).then((r) => r.data),
   delete: (id: string) => api.delete(`/sensors/${id}`),
 };
 

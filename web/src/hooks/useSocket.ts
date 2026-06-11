@@ -207,6 +207,7 @@ export function useSocket() {
       kind: SensorState['kind'];
       status: 'ALERT' | 'STALE';
       message: string;
+      metrics?: Record<string, number | boolean>;
       temperature: number | null;
       humidity: number | null;
       groupId: string | null;
@@ -220,6 +221,7 @@ export function useSocket() {
         name: a.name,
         kind: a.kind,
         status: a.status,
+        metrics: a.metrics,
         temperature: a.temperature,
         humidity: a.humidity,
         lat: a.lat,
