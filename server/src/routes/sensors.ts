@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
+import { randomBytes } from 'crypto';
 import { prisma } from '../database/prisma';
 import { authenticate, requireSuperAdmin, requireAdmin, requireDispatcher } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
@@ -15,32 +16,51 @@ function param(value: string | string[] | undefined, name: string): string {
   return value;
 }
 
-// Универсальные пороги: любая метрика (temperature, humidity, ...) → { min?, max? }
-const thresholdsSchema = z.record(
-  z.object({ min: z.number().optional(), max: z.number().optional() }),
-);
+function generateSensorKey(): string {
+  return randomBytes(24).toString('base64url');
+}
 
-// POST — регистрация устройства (только SUPERADMIN): источник/адаптер/тех-детали
+// Правило порога (новый формат): метрика + условие + важность (+ дебаунс).
+const ruleSchema = z.object({
+  id: z.string().min(1).max(64),
+  metric: z.string().min(1).max(64),
+  op: z.enum(['gt', 'lt', 'outside', 'is']),
+  value: z.union([z.number(), z.boolean()]).optional(),
+  min: z.number().optional(),
+  max: z.number().optional(),
+  severity: z.enum(['INFO', 'WARNING', 'CRITICAL']).optional(),
+  sustainedSec: z.number().int().nonnegative().optional(),
+});
+
+// Пороги: массив правил (новый) ИЛИ старый объект { metric: {min,max} } (back-compat).
+const thresholdsSchema = z.union([
+  z.array(ruleSchema),
+  z.record(z.object({ min: z.number().optional(), max: z.number().optional() })),
+]);
+
+// POST — регистрация устройства (SUPERADMIN). PUSH или PULL.
 const createSensorSchema = z.object({
   name: z.string().min(1).max(120),
   kind: z.nativeEnum(SensorKind),
-  adapter: z.nativeEnum(SensorAdapter),
-  sourceUrl: z.string().url().max(500),
+  ingest: z.enum(['PULL', 'PUSH']).default('PULL'),
+  adapter: z.nativeEnum(SensorAdapter).optional(), // только PULL
+  sourceUrl: z.string().url().max(500).optional(), // только PULL
   externalId: z.string().max(64).optional(),
   organizationId: z.string().uuid().optional(),
   groupId: z.string().max(64).optional(),
-  thresholds: thresholdsSchema.default({}),
+  thresholds: thresholdsSchema.optional(),
+  reportIntervalSec: z.number().int().positive().optional(),
   lat: z.number().optional(),
   lng: z.number().optional(),
   enabled: z.boolean().default(true),
 });
 
-// PATCH — конфигурация (ADMIN): пороги, группа, вкл/выкл, имя, координаты.
-// Тех-детали (adapter/sourceUrl/externalId/kind) тут не меняем — это регистрация (SUPERADMIN).
+// PATCH — настройка (ADMIN): правила, группа, вкл/выкл, имя, координаты, интервал.
 const updateSensorSchema = z.object({
   name: z.string().min(1).max(120).optional(),
   thresholds: thresholdsSchema.optional(),
   groupId: z.string().max(64).nullable().optional(),
+  reportIntervalSec: z.number().int().positive().nullable().optional(),
   enabled: z.boolean().optional(),
   lat: z.number().nullable().optional(),
   lng: z.number().nullable().optional(),
@@ -102,23 +122,29 @@ sensorsRouter.get('/:id', requireDispatcher, async (req: Request, res: Response,
   }
 });
 
-// POST /api/sensors — регистрация нового устройства (SUPERADMIN)
+// POST /api/sensors — регистрация устройства (SUPERADMIN). PUSH → выдаём ключ.
 sensorsRouter.post('/', requireSuperAdmin, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const data = createSensorSchema.parse(req.body);
     const orgId = data.organizationId ?? req.user!.organizationId;
 
     if (data.groupId) await assertGroupInOrg(data.groupId, orgId);
+    if (data.ingest === 'PULL' && (!data.adapter || !data.sourceUrl)) {
+      throw new AppError(400, 'PULL sensor requires adapter and sourceUrl');
+    }
 
     const sensor = await prisma.sensor.create({
       data: {
         organizationId: orgId,
         name: data.name,
         kind: data.kind,
-        adapter: data.adapter,
-        sourceUrl: data.sourceUrl,
+        ingest: data.ingest,
+        adapter: data.ingest === 'PULL' ? data.adapter ?? null : null,
+        sourceUrl: data.ingest === 'PULL' ? data.sourceUrl ?? null : null,
         externalId: data.externalId ?? null,
-        thresholds: data.thresholds as Prisma.InputJsonValue,
+        sensorKey: data.ingest === 'PUSH' ? generateSensorKey() : null,
+        thresholds: (data.thresholds ?? []) as Prisma.InputJsonValue,
+        reportIntervalSec: data.reportIntervalSec ?? null,
         groupId: data.groupId ?? null,
         lat: data.lat ?? null,
         lng: data.lng ?? null,
@@ -127,13 +153,13 @@ sensorsRouter.post('/', requireSuperAdmin, async (req: Request, res: Response, n
     });
 
     emitOrgDataChanged(req, orgId, 'sensors', { sensorId: sensor.id, action: 'created' });
-    res.status(201).json(sensor);
+    res.status(201).json(sensor); // для PUSH включает sensorKey
   } catch (err) {
     next(err);
   }
 });
 
-// PATCH /api/sensors/:id — настройка (ADMIN): пороги, группа, вкл/выкл, имя, координаты
+// PATCH /api/sensors/:id — настройка (ADMIN)
 sensorsRouter.patch('/:id', requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = param(req.params.id, 'sensor id');
@@ -153,12 +179,28 @@ sensorsRouter.patch('/:id', requireAdmin, async (req: Request, res: Response, ne
     if (data.enabled !== undefined) updateData.enabled = data.enabled;
     if (data.lat !== undefined) updateData.lat = data.lat;
     if (data.lng !== undefined) updateData.lng = data.lng;
-    if (data.groupId !== undefined) updateData.groupId = data.groupId; // null = отвязать
+    if (data.groupId !== undefined) updateData.groupId = data.groupId;
+    if (data.reportIntervalSec !== undefined) updateData.reportIntervalSec = data.reportIntervalSec;
 
     const updated = await prisma.sensor.update({ where: { id }, data: updateData });
 
     emitOrgDataChanged(req, sensor.organizationId, 'sensors', { sensorId: id, action: 'updated' });
     res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/sensors/:id/rotate-key — новый ключ для push-датчика (SUPERADMIN)
+sensorsRouter.post('/:id/rotate-key', requireSuperAdmin, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = param(req.params.id, 'sensor id');
+    const sensor = await prisma.sensor.findUnique({ where: { id } });
+    if (!sensor) throw new AppError(404, 'Sensor not found');
+    if (sensor.ingest !== 'PUSH') throw new AppError(400, 'Only push sensors have a key');
+
+    const updated = await prisma.sensor.update({ where: { id }, data: { sensorKey: generateSensorKey() } });
+    res.json({ sensorKey: updated.sensorKey });
   } catch (err) {
     next(err);
   }
