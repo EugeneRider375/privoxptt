@@ -50,7 +50,8 @@ export function DispatcherLayout() {
 
   return (
     <div className="h-full flex bg-ptt-dark overflow-hidden">
-      <AlertPanel />
+      {/* Глобально — только модалка входящего вызова. Уведомления — под PTT в Console. */}
+      <AlertPanel showNotifications={false} />
 
       {/* Боковое меню */}
       <aside className={clsx(
