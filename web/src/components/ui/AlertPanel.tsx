@@ -96,7 +96,7 @@ function UserCallAlert({ alert }: { alert: Alert }) {
   );
 }
 
-export function AlertPanel({ inline = false }: { inline?: boolean }) {
+export function AlertPanel({ inline = false, showCall = true, showNotifications = true }: { inline?: boolean; showCall?: boolean; showNotifications?: boolean }) {
   const allAlerts = useStore((s) => s.alerts);
   const alerts = allAlerts.filter((a) => !a.read && a.variant !== 'user-call');
   const userCall = allAlerts.find((a) => !a.read && a.variant === 'user-call');
@@ -106,8 +106,8 @@ export function AlertPanel({ inline = false }: { inline?: boolean }) {
 
   return (
     <>
-      {userCall && <UserCallAlert alert={userCall} />}
-      {alerts.length > 0 && (
+      {showCall && userCall && <UserCallAlert alert={userCall} />}
+      {showNotifications && alerts.length > 0 && (
         <div className={clsx(
           'z-50',
           inline ? 'relative w-[88%] max-w-sm' : 'fixed top-12 right-4 w-80 max-w-[calc(100vw-2rem)]',

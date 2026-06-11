@@ -7,6 +7,7 @@ import { groupsApi } from '@/api/client';
 import { PTTButton } from '@/components/ui/PTTButton';
 import { Waveform } from '@/components/ui/Waveform';
 import { SensorPanel } from '@/components/dispatcher/SensorPanel';
+import { AlertPanel } from '@/components/ui/AlertPanel';
 import type { Group, GroupMember } from '@/types';
 import clsx from 'clsx';
 
@@ -164,7 +165,7 @@ export function DispatcherDashboard() {
   };
 
   return (
-    <div className="h-full grid grid-cols-[220px_1fr_220px] gap-0 overflow-hidden">
+    <div className="h-full grid grid-cols-[220px_220px_1fr_220px_220px] gap-0 overflow-hidden">
 
       {/* ── Левая панель: группы ───────────────────────────── */}
       <div className="bg-ptt-panel border-r border-ptt-border flex flex-col overflow-hidden">
@@ -234,14 +235,17 @@ export function DispatcherDashboard() {
           })}
         </div>
 
-        <SensorPanel />
-
         <div className="px-3 py-2 border-t border-ptt-border bg-ptt-dark">
           <div className="flex items-center gap-2">
             <div className="online-dot" />
             <span className="font-mono text-xs text-ptt-text">{onlineCount} online</span>
           </div>
         </div>
+      </div>
+
+      {/* ── Колонка ДАТЧИКИ (как каналы, свой скролл) ───────── */}
+      <div className="bg-ptt-panel border-r border-ptt-border flex flex-col overflow-hidden">
+        <SensorPanel />
       </div>
 
       {/* ── Центр: PTT пульт ───────────────────────────────── */}
@@ -308,18 +312,20 @@ export function DispatcherDashboard() {
           )}
         </div>
 
-        <div className="flex-1 flex items-center justify-center">
+        <div className="flex-1 flex flex-col items-center justify-center gap-5 px-4">
           <div className="text-center space-y-4">
             <PTTButton
               status={pttStatus}
               onStart={startPtt}
               onStop={stopPtt}
-              size="lg"
+              size="md"
             />
             <p className="font-mono text-ptt-text text-xs">
-              Dispatcher · {activeGroup?.name ?? '-'}
+              Dispatcher · {activeGroup?.name ?? '-'} · [SPACE]
             </p>
           </div>
+          {/* Уведомления — прямо под микрофоном, не в углу */}
+          <AlertPanel inline showCall={false} />
         </div>
       </div>
 
@@ -387,16 +393,24 @@ export function DispatcherDashboard() {
           })}
         </div>
 
-        <div className="border-t border-ptt-border p-2">
-          <p className="font-mono text-ptt-muted text-xs tracking-widest mb-2">ALL ONLINE</p>
-          <div className="space-y-1 max-h-32 overflow-y-auto">
-            {Object.entries(onlineUsers).map(([uid, info]) => (
-              <div key={uid} className="flex items-center gap-2 px-1">
-                <div className="online-dot" />
-                <span className="callsign text-xs">{info.callsign}</span>
-              </div>
-            ))}
-          </div>
+      </div>
+
+      {/* ── Все онлайн — отдельная колонка (справа от абонентов) ─ */}
+      <div className="bg-ptt-panel border-l border-ptt-border flex flex-col overflow-hidden">
+        <div className="px-3 py-2 border-b border-ptt-border flex items-center justify-between">
+          <p className="font-mono text-ptt-text text-xs tracking-widest">ALL ONLINE</p>
+          <span className="font-mono text-xs text-ptt-green">{onlineCount}</span>
+        </div>
+        <div className="flex-1 overflow-y-auto py-1">
+          {Object.entries(onlineUsers).map(([uid, info]) => (
+            <div key={uid} className="flex items-center gap-2 px-3 py-1.5">
+              <div className="online-dot" />
+              <span className="callsign text-xs truncate">{info.callsign}</span>
+            </div>
+          ))}
+          {onlineCount === 0 && (
+            <p className="font-mono text-ptt-muted text-xs text-center py-4">никого онлайн</p>
+          )}
         </div>
       </div>
     </div>
