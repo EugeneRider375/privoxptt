@@ -17,8 +17,8 @@ const STATUS_STYLE: Record<SensorState['status'], { dot: string; card: string; l
 };
 
 const UNIT: Record<string, string> = { temperature: '°C', humidity: '%', co2: 'ppm', battery: '%' };
+const ORDER: Record<SensorState['status'], number> = { ALERT: 0, STALE: 1, OK: 2 };
 
-// Собираем строку метрик из metrics (или temp/humidity для back-compat).
 function metricsOf(s: SensorState): Array<[string, number | boolean]> {
   if (s.metrics && Object.keys(s.metrics).length > 0) return Object.entries(s.metrics);
   const out: Array<[string, number | boolean]> = [];
@@ -67,23 +67,28 @@ function SensorCard({ sensor }: { sensor: SensorState }) {
 
 export function SensorPanel() {
   const sensors = useStore((s) => s.sensors);
-  const list = Object.values(sensors).sort((a, b) => a.name.localeCompare(b.name));
-
-  if (list.length === 0) return null;
-
+  // тревоги/офлайн сверху, потом OK; внутри — по имени
+  const list = Object.values(sensors).sort(
+    (a, b) => (ORDER[a.status] - ORDER[b.status]) || a.name.localeCompare(b.name),
+  );
   const alerting = list.filter((s) => s.status === 'ALERT' || s.status === 'STALE').length;
 
   return (
-    <div className="border-t border-ptt-border bg-ptt-dark">
-      <div className="px-3 py-2 flex items-center gap-2">
-        <Thermometer className="w-3 h-3 text-ptt-text" />
+    <div className="flex flex-col h-full bg-ptt-dark">
+      <div className="px-3 py-2 flex items-center gap-2 border-b border-ptt-border shrink-0">
+        <Thermometer className="w-3.5 h-3.5 text-ptt-text" />
         <p className="font-mono text-ptt-text text-xs tracking-widest">SENSORS</p>
+        <span className="font-mono text-ptt-muted text-xs">{list.length}</span>
         <span className={clsx('ml-auto font-mono text-xs', alerting > 0 ? 'text-ptt-danger' : 'text-ptt-green')}>
-          {alerting > 0 ? `${alerting} ALERT` : 'ALL OK'}
+          {alerting > 0 ? `${alerting} ALERT` : list.length ? 'ALL OK' : '—'}
         </span>
       </div>
-      <div className="max-h-52 overflow-y-auto">
-        {list.map((sensor) => <SensorCard key={sensor.id} sensor={sensor} />)}
+      <div className="flex-1 overflow-y-auto">
+        {list.length === 0 ? (
+          <p className="font-mono text-ptt-muted text-xs text-center py-8">нет датчиков (ждём данные…)</p>
+        ) : (
+          list.map((sensor) => <SensorCard key={sensor.id} sensor={sensor} />)
+        )}
       </div>
     </div>
   );

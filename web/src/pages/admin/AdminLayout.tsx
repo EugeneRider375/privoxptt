@@ -46,7 +46,8 @@ export function AdminLayout() {
 
   return (
     <div className="h-full flex bg-ptt-dark overflow-hidden">
-      <AlertPanel />
+      {/* Глобально — только модалка входящего вызова. Уведомления — в центре Console под PTT. */}
+      <AlertPanel showNotifications={false} />
 
       <aside className={clsx(
         'flex flex-col bg-ptt-panel border-r border-ptt-border transition-all duration-200 shrink-0',
