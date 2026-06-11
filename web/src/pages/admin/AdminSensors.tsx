@@ -8,6 +8,8 @@ import type { Sensor, SensorRule, SensorSeverity, Group, Organization } from '@/
 import clsx from 'clsx';
 
 const inputCls = 'w-full bg-ptt-dark border border-ptt-border rounded px-2 py-1.5 font-mono text-sm text-white focus:outline-none focus:border-ptt-green';
+// без w-full — для flex-полей в редакторе правил (иначе схлопываются)
+const fieldCls = 'bg-ptt-dark border border-ptt-border rounded px-2 py-1.5 font-mono text-sm text-white focus:outline-none focus:border-ptt-green';
 
 const KIND_ICON = { FRIDGE: Refrigerator, INDOOR: Home, OUTDOOR: TreePine } as const;
 const STATUS_DOT: Record<Sensor['status'], string> = {
@@ -80,12 +82,12 @@ function RulesEditor({ rules, onChange }: { rules: SensorRule[]; onChange: (r: S
         <div key={r.id} className="bg-ptt-dark border border-ptt-border/50 rounded p-2 space-y-1.5">
           <div className="flex gap-1.5 items-center">
             <input list="metric-suggest" placeholder="metric" value={r.metric}
-              onChange={(e) => update(i, { metric: e.target.value })} className={clsx(inputCls, 'flex-1')} />
-            <select value={r.op} onChange={(e) => update(i, { op: e.target.value as SensorRule['op'] })} className={clsx(inputCls, 'w-24')}>
-              <option value="gt">&gt; больше</option>
-              <option value="lt">&lt; меньше</option>
-              <option value="outside">вне диапазона</option>
-              <option value="is">= (да/нет)</option>
+              onChange={(e) => update(i, { metric: e.target.value })} className={clsx(fieldCls, 'flex-1 min-w-0')} />
+            <select value={r.op} onChange={(e) => update(i, { op: e.target.value as SensorRule['op'] })} className={clsx(fieldCls, 'shrink-0 w-20')}>
+              <option value="gt">&gt;</option>
+              <option value="lt">&lt;</option>
+              <option value="outside">вне</option>
+              <option value="is">да/нет</option>
             </select>
             <button onClick={() => onChange(rules.filter((_, idx) => idx !== i))}
               className="text-ptt-muted hover:text-ptt-danger shrink-0 px-1"><Trash2 className="w-3.5 h-3.5" /></button>
@@ -93,19 +95,19 @@ function RulesEditor({ rules, onChange }: { rules: SensorRule[]; onChange: (r: S
           <div className="flex gap-1.5 items-center">
             {r.op === 'outside' ? (
               <>
-                <input type="number" placeholder="min" value={r.min ?? ''} onChange={(e) => update(i, { min: numOrUndef(e.target.value) })} className={clsx(inputCls, 'flex-1')} />
-                <input type="number" placeholder="max" value={r.max ?? ''} onChange={(e) => update(i, { max: numOrUndef(e.target.value) })} className={clsx(inputCls, 'flex-1')} />
+                <input type="number" placeholder="min" value={r.min ?? ''} onChange={(e) => update(i, { min: numOrUndef(e.target.value) })} className={clsx(fieldCls, 'flex-1 min-w-0')} />
+                <input type="number" placeholder="max" value={r.max ?? ''} onChange={(e) => update(i, { max: numOrUndef(e.target.value) })} className={clsx(fieldCls, 'flex-1 min-w-0')} />
               </>
             ) : r.op === 'is' ? (
-              <select value={String(r.value ?? true)} onChange={(e) => update(i, { value: e.target.value === 'true' })} className={clsx(inputCls, 'flex-1')}>
+              <select value={String(r.value ?? true)} onChange={(e) => update(i, { value: e.target.value === 'true' })} className={clsx(fieldCls, 'flex-1 min-w-0')}>
                 <option value="true">true (да)</option>
                 <option value="false">false (нет)</option>
               </select>
             ) : (
-              <input type="number" placeholder="value" value={typeof r.value === 'number' ? r.value : ''} onChange={(e) => update(i, { value: numOrUndef(e.target.value) })} className={clsx(inputCls, 'flex-1')} />
+              <input type="number" placeholder="value" value={typeof r.value === 'number' ? r.value : ''} onChange={(e) => update(i, { value: numOrUndef(e.target.value) })} className={clsx(fieldCls, 'flex-1 min-w-0')} />
             )}
             <select value={r.severity ?? 'CRITICAL'} onChange={(e) => update(i, { severity: e.target.value as SensorSeverity })}
-              className={clsx(inputCls, 'w-32', SEV_COLOR[r.severity ?? 'CRITICAL'])}>
+              className={clsx(fieldCls, 'shrink-0 w-28', SEV_COLOR[r.severity ?? 'CRITICAL'])}>
               <option value="INFO">INFO</option>
               <option value="WARNING">WARNING</option>
               <option value="CRITICAL">CRITICAL</option>
@@ -315,7 +317,7 @@ export function AdminSensors() {
                   </Field>
 
                   <div className="grid grid-cols-2 gap-2 items-end">
-                    <Field label="REPORT INTERVAL (sec, опц.)">
+                    <Field label="EXPECTED REPORT INTERVAL (sec — для офлайн-детекта)">
                       <input type="number" placeholder="напр. 600" value={edit.reportIntervalSec} onChange={(e) => setEdit({ ...edit, reportIntervalSec: e.target.value })} className={inputCls} />
                     </Field>
                     <label className="flex items-center gap-2 cursor-pointer pb-1.5">
