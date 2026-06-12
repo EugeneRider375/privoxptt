@@ -199,6 +199,7 @@ model Sensor {
   lastSeenAt DateTime? // время последнего показания
   status     SensorStatus @default(STALE) // OK | ALERT | STALE
   enabled    Boolean      @default(true)
+  armed      Boolean      @default(true) // на охране: false = телеметрия пишется, но алерты/инциденты/пуши подавляются
 
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt

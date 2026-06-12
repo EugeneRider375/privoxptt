@@ -98,6 +98,7 @@ export async function processReading(
     name: sensor.name,
     kind: sensor.kind,
     status: newStatus,
+    armed: sensor.armed,
     metrics,
     temperature: num(metrics.temperature),
     humidity: num(metrics.humidity),
@@ -120,35 +121,40 @@ export async function processReading(
   });
   const openByRule = new Set(openIncidents.map((i) => i.ruleId ?? ''));
 
-  // открыть новые
-  for (const [ruleId, info] of activeNow) {
-    if (openByRule.has(ruleId)) continue;
-    await prisma.incident.create({
-      data: {
-        sensorId: sensor.id,
-        ruleId,
-        metric: info.metric,
-        severity: info.severity,
-        status: 'OPEN',
-        message: info.message,
-        peakValue: info.value,
-        lastNotifiedAt: now,
-      },
-    });
-    logger.warn({ msg: '🔴 INCIDENT OPEN', sensor: sensor.name, severity: info.severity, message: info.message });
-    await notify(io, sensor, newStatus, info.message, metrics, now);
+  // открыть новые — только если датчик НА ОХРАНЕ (disarmed: телеметрия пишется, алерты молчат)
+  if (sensor.armed) {
+    for (const [ruleId, info] of activeNow) {
+      if (openByRule.has(ruleId)) continue;
+      await prisma.incident.create({
+        data: {
+          sensorId: sensor.id,
+          ruleId,
+          metric: info.metric,
+          severity: info.severity,
+          status: 'OPEN',
+          message: info.message,
+          peakValue: info.value,
+          lastNotifiedAt: now,
+        },
+      });
+      logger.warn({ msg: '🔴 INCIDENT OPEN', sensor: sensor.name, severity: info.severity, message: info.message });
+      await notify(io, sensor, newStatus, info.message, metrics, now);
+    }
   }
 
   // закрыть решённые (с linger: не закрываем на первом тихом замере, чтобы серия
-  // движений не плодила инциденты/пуши; закрываем только после CLEAR_LINGER_MS тишины)
+  // движений не плодила инциденты/пуши; закрываем только после CLEAR_LINGER_MS тишины).
+  // Снятие с охраны (disarmed) гасит любые открытые инциденты сразу, без linger.
   for (const inc of openIncidents) {
     const rid = inc.ruleId ?? '';
     const key = `${sensor.id}:${rid}`;
-    if (activeNow.has(rid)) {
+    if (sensor.armed && activeNow.has(rid)) {
       clearingSince.delete(key); // снова активно — отменяем отложенное закрытие
       continue;
     }
-    if (rid === STALE_RULE_ID) {
+    if (!sensor.armed) {
+      clearingSince.delete(key); // снято с охраны — закрываем немедленно
+    } else if (rid === STALE_RULE_ID) {
       // данные вернулись — STALE снимаем сразу, без linger
       clearingSince.delete(key);
     } else {

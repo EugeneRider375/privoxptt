@@ -1,7 +1,8 @@
-import { Thermometer, Refrigerator, Home, TreePine } from 'lucide-react';
+import { Thermometer, Refrigerator, Home, TreePine, ShieldCheck, ShieldOff } from 'lucide-react';
 import clsx from 'clsx';
 import { formatDistanceToNow } from 'date-fns';
 import { useStore } from '@/store/useStore';
+import { sensorsApi } from '@/api/client';
 import type { SensorState } from '@/types';
 
 const KIND_ICON: Record<SensorState['kind'], typeof Thermometer> = {
@@ -36,14 +37,34 @@ function SensorCard({ sensor }: { sensor: SensorState }) {
   const style = STATUS_STYLE[sensor.status];
   const KindIcon = KIND_ICON[sensor.kind] ?? Home;
   const metrics = metricsOf(sensor);
+  const upsertSensor = useStore((s) => s.upsertSensor);
+  const armed = sensor.armed !== false; // по умолчанию на охране
+
+  const toggleArm = async () => {
+    const next = !armed;
+    upsertSensor({ ...sensor, armed: next }); // оптимистично
+    try {
+      await sensorsApi.arm(sensor.id, next);
+    } catch {
+      upsertSensor({ ...sensor, armed }); // откат при ошибке
+    }
+  };
 
   return (
-    <div className={clsx('px-3 py-2 border-b transition-colors', style.card)}>
+    <div className={clsx('px-3 py-2 border-b transition-colors', style.card, !armed && 'opacity-80')}>
       <div className="flex items-center gap-2">
         <span className={clsx('w-2 h-2 rounded-full shrink-0', style.dot)} />
         <KindIcon className="w-3.5 h-3.5 text-ptt-text shrink-0" />
         <span className="font-rajdhani font-semibold text-sm text-white truncate flex-1">{sensor.name}</span>
+        {!armed && <span className="font-mono text-[10px] tracking-widest text-ptt-warn shrink-0">DISARMED</span>}
         <span className={clsx('font-mono text-[10px] tracking-widest', style.label)}>{sensor.status}</span>
+        <button
+          onClick={toggleArm}
+          title={armed ? 'На охране — снять' : 'Снято — поставить на охрану'}
+          className={clsx('shrink-0 transition-colors', armed ? 'text-ptt-green hover:text-white' : 'text-ptt-warn hover:text-white')}
+        >
+          {armed ? <ShieldCheck className="w-4 h-4" /> : <ShieldOff className="w-4 h-4" />}
+        </button>
       </div>
       <div className="flex items-center gap-3 mt-1 pl-4 font-mono text-xs flex-wrap">
         {metrics.length === 0 ? (
