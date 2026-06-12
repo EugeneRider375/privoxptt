@@ -184,8 +184,13 @@ async function notify(
     lng: sensor.lng,
     at: now.toISOString(),
   };
-  io.to(`org:${sensor.organizationId}`).emit('sensor-alert', payload);
-  if (sensor.groupId) io.to(sensor.groupId).emit('sensor-alert', payload);
+  // Один emit с объединением комнат: socket.io шлёт сокету, состоящему и в org-,
+  // и в group-комнате, ОДИН раз (раньше два отдельных emit давали дубль уведомления
+  // тем, кто член группы датчика; кто только в org — получал один раз).
+  const target = sensor.groupId
+    ? io.to(`org:${sensor.organizationId}`).to(sensor.groupId)
+    : io.to(`org:${sensor.organizationId}`);
+  target.emit('sensor-alert', payload);
 
   if (sensor.groupId) {
     const members = await prisma.groupMember.findMany({
