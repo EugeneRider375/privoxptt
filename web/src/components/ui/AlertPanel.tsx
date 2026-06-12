@@ -38,6 +38,9 @@ function AlertItem({ alert }: { alert: Alert }) {
           <span className="text-ptt-green tracking-widest mr-2">{alert.callsign}</span>
         )}
         <span className="text-white/80">{alert.message}</span>
+        <span className="block text-ptt-muted text-[10px] mt-0.5">
+          {new Date(alert.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+        </span>
       </div>
       <button
         onClick={() => markRead(alert.id)}
