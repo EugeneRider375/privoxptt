@@ -7,6 +7,9 @@ import {
   refreshPttLock,
   getPttLockOwner,
   isUserOnline,
+  setUserCurrentGroup,
+  clearUserCurrentGroup,
+  getUserCurrentGroup,
   redis,
   PTT_LOCK_PREFIX,
 } from '../database/redis';
@@ -135,6 +138,9 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
       }
 
       socket.join(groupId);
+      // Запоминаем текущую группу и сообщаем диспетчерам/орге
+      await setUserCurrentGroup(userId, groupId);
+      socket.to(`org:${organizationId}`).emit('user-group-changed', { userId, groupId });
       logger.debug({ msg: 'Вошёл в группу', userId, callsign, groupId });
 
       // Сообщаем текущий статус PTT в группе
@@ -164,6 +170,11 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
     await releasePttLock(groupId, userId);
     heldPttGroups.delete(groupId);
     socket.leave(groupId);
+    // Чистим текущую группу только если уходим именно из неё (не затираем уже начатый join другой)
+    if ((await getUserCurrentGroup(userId)) === groupId) {
+      await clearUserCurrentGroup(userId);
+      socket.to(`org:${organizationId}`).emit('user-group-changed', { userId, groupId: null });
+    }
     logger.debug({ msg: 'Покинул группу', userId, callsign, groupId });
   });
 

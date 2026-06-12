@@ -96,9 +96,12 @@ export function useSocket() {
     });
 
     // Используем getState() вместо useStore() — не создаём лишние React-подписки
-    socket.on('presence-snapshot', ({ users }: { users: Array<{ userId: string; callsign: string; displayName: string }> }) => {
+    socket.on('presence-snapshot', ({ users }: { users: Array<{ userId: string; callsign: string; displayName: string; currentGroupId?: string | null }> }) => {
       const state = useStore.getState();
-      users.forEach((u) => state.setUserOnline(u.userId, u.callsign, u.displayName));
+      users.forEach((u) => {
+        state.setUserOnline(u.userId, u.callsign, u.displayName);
+        if (u.currentGroupId !== undefined) state.setUserGroup(u.userId, u.currentGroupId ?? null);
+      });
     });
 
     socket.on('user-online', ({ userId, callsign, displayName }) => {
@@ -107,6 +110,11 @@ export function useSocket() {
 
     socket.on('user-offline', ({ userId }) => {
       useStore.getState().setUserOffline(userId);
+    });
+
+    // Абонент сменил активную группу (или вышел из всех — groupId === null)
+    socket.on('user-group-changed', ({ userId, groupId }: { userId: string; groupId: string | null }) => {
+      useStore.getState().setUserGroup(userId, groupId);
     });
 
     socket.on('channel-busy', ({ groupId, userId, callsign }) => {

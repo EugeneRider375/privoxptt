@@ -27,6 +27,7 @@ export function UserRadioPage() {
   const pttCallsign = useStore((s) => s.pttCallsign);
   const clearAuth = useStore((s) => s.clearAuth);
   const onlineUsers = useStore((s) => s.onlineUsers);
+  const userGroups = useStore((s) => s.userGroups);
 
   const battery = useBattery();
   const { joinGroup, leaveGroup, sendSos, callUser, callDispatcher } = useSocket();
@@ -343,22 +344,33 @@ export function UserRadioPage() {
           const isTalking = activeGroup?.pttOwnerId === m.userId;
           const isSelf = m.userId === user?.id;
           const isCalling = callingUserId === m.userId;
+          // Онлайн, но сейчас в ДРУГОЙ группе → не услышит, если говорить в этой
+          const currentGroupId = userGroups[m.userId];
+          const inOtherGroup =
+            isOnline && !isTalking && !isSelf &&
+            currentGroupId != null && currentGroupId !== activeGroupId;
+          const otherGroupName = inOtherGroup
+            ? groups.find((g) => g.id === currentGroupId)?.name
+            : undefined;
           return (
             <div key={m.id} className="flex items-center gap-3 px-4 py-2 border-b border-ptt-border/30 last:border-0">
               <div
                 className={
                   isTalking
                     ? 'online-dot animate-pulse'
-                    : isOnline
-                      ? 'online-dot'
-                      : isReachable
-                        ? 'w-2 h-2 rounded-full bg-ptt-blue'
-                        : 'offline-dot'
+                    : inOtherGroup
+                      ? 'w-2 h-2 rounded-full bg-ptt-warn'
+                      : isOnline
+                        ? 'online-dot'
+                        : isReachable
+                          ? 'w-2 h-2 rounded-full bg-ptt-blue'
+                          : 'offline-dot'
                 }
-                title={isOnline ? 'Online' : isReachable ? 'Available by call' : 'Offline'}
+                title={inOtherGroup ? `In another group${otherGroupName ? `: ${otherGroupName}` : ''} — won't hear this channel` : isOnline ? 'Online' : isReachable ? 'Available by call' : 'Offline'}
               />
-              <span className={`callsign text-sm ${isTalking ? 'text-ptt-green' : isOnline ? 'text-white' : isReachable ? 'text-ptt-blue' : 'text-ptt-muted'}`}>
+              <span className={`callsign text-sm ${isTalking ? 'text-ptt-green' : inOtherGroup ? 'text-ptt-warn' : isOnline ? 'text-white' : isReachable ? 'text-ptt-blue' : 'text-ptt-muted'}`}>
                 {m.user.callsign}
+                {otherGroupName && <span className="font-mono text-xs text-ptt-warn"> · {otherGroupName}</span>}
               </span>
               <div className="ml-auto flex items-center gap-2">
                 {isTalking && <Radio className="w-3 h-3 text-ptt-green animate-pulse" />}

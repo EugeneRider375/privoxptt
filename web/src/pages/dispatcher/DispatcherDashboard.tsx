@@ -19,6 +19,7 @@ export function DispatcherDashboard() {
   const pttStatus = useStore((s) => s.pttStatus);
   const pttCallsign = useStore((s) => s.pttCallsign);
   const onlineUsers = useStore((s) => s.onlineUsers);
+  const userGroups = useStore((s) => s.userGroups);
   const dispatcherCalls = useStore((s) => s.dispatcherCalls);
   const outgoingUserCalls = useStore((s) => s.outgoingUserCalls);
 
@@ -343,6 +344,14 @@ export function DispatcherDashboard() {
             const online = !!onlineUsers[m.userId] || !!m.isOnline;
             const reachable = online || !!m.isReachable;
             const talking = activeGroup?.pttOwnerId === m.userId;
+            // Онлайн, но активен в ДРУГОЙ группе → в микрофон этой группы не услышит.
+            // Показываем янтарным только когда точно знаем чужую группу (иначе не трогаем зелёный).
+            const currentGroupId = userGroups[m.userId];
+            const inOtherGroup =
+              online && !talking && currentGroupId != null && currentGroupId !== activeGroupId;
+            const otherGroupName = inOtherGroup
+              ? groups.find((g) => g.id === currentGroupId)?.name
+              : undefined;
             return (
               <div
                 key={m.id}
@@ -350,24 +359,34 @@ export function DispatcherDashboard() {
                   'flex items-center gap-2 px-3 py-2.5 border-b border-ptt-border/30',
                   talking && 'bg-ptt-green/5'
                 )}
+                title={inOtherGroup ? `Онлайн в другой группе${otherGroupName ? `: ${otherGroupName}` : ''} — в микрофон не услышит, нужен Call Group` : undefined}
               >
                 <div className={
                   talking
                     ? 'online-dot animate-pulse'
-                    : online
-                      ? 'online-dot'
-                      : reachable
-                        ? 'w-2 h-2 rounded-full bg-ptt-blue'
-                        : 'offline-dot'
+                    : inOtherGroup
+                      ? 'w-2 h-2 rounded-full bg-ptt-warn'
+                      : online
+                        ? 'online-dot'
+                        : reachable
+                          ? 'w-2 h-2 rounded-full bg-ptt-blue'
+                          : 'offline-dot'
                 } />
                 <div className="flex-1 min-w-0">
                   <p className={clsx(
                     'callsign text-xs truncate',
-                    !online && (reachable ? 'text-ptt-blue' : 'text-ptt-muted')
+                    inOtherGroup
+                      ? 'text-ptt-warn'
+                      : !online && (reachable ? 'text-ptt-blue' : 'text-ptt-muted')
                   )}>
                     {m.user.callsign}
                   </p>
-                  <p className="font-mono text-ptt-text text-xs truncate">{m.user.displayName}</p>
+                  <p className="font-mono text-ptt-text text-xs truncate">
+                    {m.user.displayName}
+                    {otherGroupName && (
+                      <span className="text-ptt-warn"> · {otherGroupName}</span>
+                    )}
+                  </p>
                 </div>
                 {talking && <Radio className="w-3 h-3 text-ptt-green shrink-0 animate-pulse" />}
                 {!m.canSpeak && !talking && <MicOff className="w-3 h-3 text-ptt-muted shrink-0" />}

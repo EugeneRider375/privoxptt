@@ -113,10 +113,41 @@ export async function refreshUserOnline(userId: string): Promise<void> {
     .multi()
     .expire(`${ONLINE_PREFIX}${userId}`, ONLINE_TTL)
     .expire(`${ONLINE_SOCKET_PREFIX}${userId}`, ONLINE_TTL)
+    .expire(`${USER_GROUP_PREFIX}${userId}`, ONLINE_TTL)
     .exec();
 }
 
 export async function getOnlineUserIds(): Promise<string[]> {
   const keys = await redis.keys(`${ONLINE_PREFIX}*`);
   return keys.map((k) => k.replace(ONLINE_PREFIX, ''));
+}
+
+// ─── Текущая группа пользователя ─────────────────────────
+// Подсказка для диспетчера: в какой группе абонент находится прямо сейчас.
+// TTL совпадает с онлайн-статусом и продлевается heartbeat'ом; явный disconnect
+// не обязателен — ключ протухнет сам, а на фронте онлайн-статус всё равно снимется.
+export const USER_GROUP_PREFIX = 'usergroup:user:';
+
+export async function setUserCurrentGroup(userId: string, groupId: string): Promise<void> {
+  await redis.set(`${USER_GROUP_PREFIX}${userId}`, groupId, 'EX', ONLINE_TTL);
+}
+
+export async function clearUserCurrentGroup(userId: string): Promise<void> {
+  await redis.del(`${USER_GROUP_PREFIX}${userId}`);
+}
+
+export async function getUserCurrentGroup(userId: string): Promise<string | null> {
+  return redis.get(`${USER_GROUP_PREFIX}${userId}`);
+}
+
+export async function getUsersCurrentGroups(
+  userIds: string[]
+): Promise<Record<string, string | null>> {
+  if (userIds.length === 0) return {};
+  const values = await redis.mget(...userIds.map((id) => `${USER_GROUP_PREFIX}${id}`));
+  const result: Record<string, string | null> = {};
+  userIds.forEach((id, i) => {
+    result[id] = values[i] ?? null;
+  });
+  return result;
 }

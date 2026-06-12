@@ -29,6 +29,10 @@ interface AppStore {
   setUserOnline: (userId: string, callsign: string, displayName: string) => void;
   setUserOffline: (userId: string) => void;
 
+  // В какой группе абонент находится прямо сейчас (для подсветки диспетчеру)
+  userGroups: Record<string, string | null>;
+  setUserGroup: (userId: string, groupId: string | null) => void;
+
   // ─── Местоположение ────────────────────────────────────
   locations: Record<string, UserLocation>;
   updateLocation: (loc: UserLocation) => void;
@@ -109,8 +113,15 @@ export const useStore = create<AppStore>()(
         set((s) => {
           const next = { ...s.onlineUsers };
           delete next[userId];
-          return { onlineUsers: next };
+          const nextGroups = { ...s.userGroups };
+          delete nextGroups[userId];
+          return { onlineUsers: next, userGroups: nextGroups };
         }),
+
+      // Текущая группа абонента
+      userGroups: {},
+      setUserGroup: (userId, groupId) =>
+        set((s) => ({ userGroups: { ...s.userGroups, [userId]: groupId } })),
 
       // Местоположение
       locations: {},

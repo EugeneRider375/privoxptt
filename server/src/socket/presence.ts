@@ -1,7 +1,7 @@
 import { Server, Socket } from 'socket.io';
 import { ActivityLogType } from '@prisma/client';
 import { prisma } from '../database/prisma';
-import { setUserOnline, setUserOffline, refreshUserOnline, getOnlineUserIds, isUserOnline } from '../database/redis';
+import { setUserOnline, setUserOffline, refreshUserOnline, getOnlineUserIds, isUserOnline, getUsersCurrentGroups } from '../database/redis';
 import { logger } from '../utils/logger';
 import type { AuthenticatedSocket } from './index';
 
@@ -54,11 +54,13 @@ export function setupPresence(io: Server, socket: AuthenticatedSocket): void {
         where: { id: { in: onlineIds }, organizationId },
         select: { id: true, callsign: true, displayName: true },
       });
+      const currentGroups = await getUsersCurrentGroups(onlineUsers.map((u) => u.id));
       socket.emit('presence-snapshot', {
         users: onlineUsers.map((u) => ({
           userId: u.id,
           callsign: u.callsign,
           displayName: u.displayName,
+          currentGroupId: currentGroups[u.id] ?? null,
         })),
       });
     }
