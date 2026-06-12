@@ -16,6 +16,7 @@ const telemetrySchema = z.object({
   key: z.string().max(128).optional(),
   ts: z.number().optional(), // опц. время устройства (информационно); для свежести берём серверное
   metrics: z.record(z.union([z.number(), z.boolean()])),
+  setArmed: z.boolean().optional(), // событие с кнопки на плате: запрос снять/поставить на охрану
 });
 
 telemetryRouter.post('/', async (req: Request, res: Response, next: NextFunction) => {
@@ -39,10 +40,19 @@ telemetryRouter.post('/', async (req: Request, res: Response, next: NextFunction
       return;
     }
 
+    // Кнопка на плате (событие): меняем armed ДО обработки, чтобы тот же замер уже
+    // подавлялся/разрешался, а диспетчер увидел смену мгновенно (через sensor-update).
+    if (data.setArmed !== undefined && data.setArmed !== sensor.armed) {
+      await prisma.sensor.update({ where: { id: sensor.id }, data: { armed: data.setArmed } });
+      sensor.armed = data.setArmed; // для processReading в этом же запросе
+    }
+
     // observedAt = серверное время приёма (push = данные только что пришли).
     await processReading(io, sensor, data.metrics, { observedAt: new Date(), raw: req.body });
 
-    res.json({ ok: true });
+    // Возвращаем актуальное состояние охраны — плата красит LED и синхронизируется
+    // с удалёнными изменениями диспетчера (узнаёт о них на ближайшем heartbeat).
+    res.json({ ok: true, armed: sensor.armed });
   } catch (err) {
     next(err);
   }
