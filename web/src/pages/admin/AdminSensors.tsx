@@ -83,7 +83,13 @@ function RulesEditor({ rules, onChange }: { rules: SensorRule[]; onChange: (r: S
           <div className="flex gap-1.5 items-center">
             <input list="metric-suggest" placeholder="metric" value={r.metric}
               onChange={(e) => update(i, { metric: e.target.value })} className={clsx(fieldCls, 'flex-1 min-w-0')} />
-            <select value={r.op} onChange={(e) => update(i, { op: e.target.value as SensorRule['op'] })} className={clsx(fieldCls, 'shrink-0 w-20')}>
+            <select value={r.op} onChange={(e) => {
+              const op = e.target.value as SensorRule['op'];
+              // 'is' показывает дефолт «true», но без onChange он не сохраняется → засеваем явно.
+              // При уходе с 'is' чистим булев value, чтобы числовое поле не подхватило его.
+              if (op === 'is') update(i, { op, value: typeof r.value === 'boolean' ? r.value : true });
+              else update(i, { op, value: typeof r.value === 'boolean' ? undefined : r.value });
+            }} className={clsx(fieldCls, 'shrink-0 w-20')}>
               <option value="gt">&gt;</option>
               <option value="lt">&lt;</option>
               <option value="outside">вне</option>
