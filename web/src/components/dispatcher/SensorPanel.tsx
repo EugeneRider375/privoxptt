@@ -1,9 +1,28 @@
+import { useEffect } from 'react';
 import { Thermometer, Refrigerator, Home, TreePine, ShieldCheck, ShieldOff } from 'lucide-react';
 import clsx from 'clsx';
 import { formatDistanceToNow } from 'date-fns';
 import { useStore } from '@/store/useStore';
 import { sensorsApi } from '@/api/client';
 import type { SensorState } from '@/types';
+
+// полный объект датчика из GET /api/sensors → SensorState (чтобы видеть даже тихие/оффлайн)
+function toSensorState(s: Record<string, unknown>): SensorState {
+  const lv = (s.lastValue ?? {}) as Record<string, number | boolean>;
+  return {
+    id: String(s.id),
+    name: String(s.name),
+    kind: s.kind as SensorState['kind'],
+    status: s.status as SensorState['status'],
+    armed: s.armed as boolean | undefined,
+    metrics: lv,
+    temperature: typeof lv.temperature === 'number' ? lv.temperature : null,
+    humidity: typeof lv.humidity === 'number' ? lv.humidity : null,
+    lat: (s.lat as number | null) ?? null,
+    lng: (s.lng as number | null) ?? null,
+    lastSeenAt: (s.lastSeenAt as string | null) ?? null,
+  };
+}
 
 const KIND_ICON: Record<SensorState['kind'], typeof Thermometer> = {
   FRIDGE: Refrigerator,
@@ -88,6 +107,15 @@ function SensorCard({ sensor }: { sensor: SensorState }) {
 
 export function SensorPanel() {
   const sensors = useStore((s) => s.sensors);
+  const seedSensors = useStore((s) => s.seedSensors);
+
+  // начальная загрузка: показать ВСЕ датчики орга (в т.ч. тихие/оффлайн), чтобы можно
+  // было снять/поставить на охрану даже тот, что ничего не присылал. Живые sensor-update приоритетнее.
+  useEffect(() => {
+    sensorsApi.list()
+      .then((list: Array<Record<string, unknown>>) => seedSensors(list.map(toSensorState)))
+      .catch(() => {});
+  }, [seedSensors]);
   // тревоги/офлайн сверху, потом OK; внутри — по имени
   const list = Object.values(sensors).sort(
     (a, b) => (ORDER[a.status] - ORDER[b.status]) || a.name.localeCompare(b.name),

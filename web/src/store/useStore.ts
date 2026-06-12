@@ -40,6 +40,7 @@ interface AppStore {
   // ─── Датчики ───────────────────────────────────────────
   sensors: Record<string, SensorState>;
   upsertSensor: (sensor: SensorState) => void;
+  seedSensors: (list: SensorState[]) => void; // начальная загрузка списка (живые события имеют приоритет)
 
   // ─── Алерты ────────────────────────────────────────────
   alerts: Alert[];
@@ -132,6 +133,13 @@ export const useStore = create<AppStore>()(
       sensors: {},
       upsertSensor: (sensor) =>
         set((s) => ({ sensors: { ...s.sensors, [sensor.id]: sensor } })),
+      seedSensors: (list) =>
+        set((s) => {
+          const next = { ...s.sensors };
+          // не затираем уже пришедшие живые данные (они свежее списка)
+          for (const sensor of list) if (!next[sensor.id]) next[sensor.id] = sensor;
+          return { sensors: next };
+        }),
 
       // Алерты
       alerts: [],
