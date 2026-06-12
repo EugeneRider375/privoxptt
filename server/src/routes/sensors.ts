@@ -6,6 +6,7 @@ import { authenticate, requireSuperAdmin, requireAdmin, requireDispatcher } from
 import { AppError } from '../middleware/errorHandler';
 import { UserRole, SensorKind, SensorAdapter, Prisma } from '@prisma/client';
 import { emitOrgDataChanged } from '../utils/realtime';
+import type { Server } from 'socket.io';
 
 export const sensorsRouter = Router();
 
@@ -186,6 +187,43 @@ sensorsRouter.patch('/:id', requireAdmin, async (req: Request, res: Response, ne
 
     emitOrgDataChanged(req, sensor.organizationId, 'sensors', { sensorId: id, action: 'updated' });
     res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/sensors/:id/arm — поставить/снять с охраны (DISPATCHER+)
+// disarmed: телеметрия пишется, но алерты/инциденты/пуши подавляются (логика в processReading).
+const armSchema = z.object({ armed: z.boolean() });
+sensorsRouter.post('/:id/arm', requireDispatcher, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = param(req.params.id, 'sensor id');
+    const sensor = await prisma.sensor.findUnique({ where: { id } });
+    if (!sensor) throw new AppError(404, 'Sensor not found');
+    if (req.user!.role !== UserRole.SUPERADMIN && sensor.organizationId !== req.user!.organizationId) {
+      throw new AppError(403, 'Access denied');
+    }
+
+    const { armed } = armSchema.parse(req.body);
+    const updated = await prisma.sensor.update({ where: { id }, data: { armed } });
+
+    // живое обновление панелей: armed + текущее состояние (метрики из lastValue, чтобы не обнулить)
+    const lv = (updated.lastValue ?? {}) as Record<string, number | boolean>;
+    const io = req.app.get('io') as Server | undefined;
+    io?.to(`org:${sensor.organizationId}`).emit('sensor-update', {
+      id: updated.id,
+      name: updated.name,
+      kind: updated.kind,
+      status: updated.status,
+      armed: updated.armed,
+      metrics: lv,
+      temperature: typeof lv.temperature === 'number' ? lv.temperature : null,
+      humidity: typeof lv.humidity === 'number' ? lv.humidity : null,
+      lat: updated.lat,
+      lng: updated.lng,
+      lastSeenAt: updated.lastSeenAt?.toISOString() ?? null,
+    });
+    res.json({ id, armed: updated.armed });
   } catch (err) {
     next(err);
   }

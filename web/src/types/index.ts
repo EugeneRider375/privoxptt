@@ -185,6 +185,7 @@ export interface SensorState {
   name: string;
   kind: 'FRIDGE' | 'OUTDOOR' | 'INDOOR';
   status: 'OK' | 'ALERT' | 'STALE';
+  armed?: boolean; // на охране; false = тревоги подавлены (телеметрия видна живьём)
   metrics?: Record<string, number | boolean>;
   temperature: number | null;
   humidity: number | null;
