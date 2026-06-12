@@ -10,9 +10,12 @@ import { sendSensorAlertPushToUsers } from '../push';
 
 const DEFAULT_STALE_MS = 20 * 60_000; // молчание дольше → STALE (если не задан reportIntervalSec)
 const STALE_RULE_ID = '__stale__';
+const CLEAR_LINGER_MS = 2 * 60_000; // инцидент закрываем только после N тишины (схлопывает серии движений в один инцидент = один пуш)
 
 // Дебаунс: ключ `${sensorId}:${ruleId}` → когда правило начало срабатывать (ms).
 const pendingSince = new Map<string, number>();
+// Linger: ключ `${sensorId}:${ruleId}` → когда правило перестало срабатывать (ms).
+const clearingSince = new Map<string, number>();
 
 type Metrics = Record<string, MetricValue>;
 
@@ -136,12 +139,26 @@ export async function processReading(
     await notify(io, sensor, newStatus, info.message, metrics, now);
   }
 
-  // закрыть решённые
+  // закрыть решённые (с linger: не закрываем на первом тихом замере, чтобы серия
+  // движений не плодила инциденты/пуши; закрываем только после CLEAR_LINGER_MS тишины)
   for (const inc of openIncidents) {
-    if (!activeNow.has(inc.ruleId ?? '')) {
-      await prisma.incident.update({ where: { id: inc.id }, data: { status: 'RESOLVED', resolvedAt: now } });
-      logger.info({ msg: '✅ INCIDENT RESOLVED', sensor: sensor.name, ruleId: inc.ruleId });
+    const rid = inc.ruleId ?? '';
+    const key = `${sensor.id}:${rid}`;
+    if (activeNow.has(rid)) {
+      clearingSince.delete(key); // снова активно — отменяем отложенное закрытие
+      continue;
     }
+    if (rid === STALE_RULE_ID) {
+      // данные вернулись — STALE снимаем сразу, без linger
+      clearingSince.delete(key);
+    } else {
+      const since = clearingSince.get(key);
+      if (since === undefined) { clearingSince.set(key, now.getTime()); continue; } // старт тишины
+      if (now.getTime() - since < CLEAR_LINGER_MS) continue; // ещё в окне linger — держим открытым
+      clearingSince.delete(key);
+    }
+    await prisma.incident.update({ where: { id: inc.id }, data: { status: 'RESOLVED', resolvedAt: now } });
+    logger.info({ msg: '✅ INCIDENT RESOLVED', sensor: sensor.name, ruleId: inc.ruleId });
   }
 }
 
