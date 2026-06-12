@@ -3,7 +3,7 @@ import type { Server } from 'socket.io';
 import type { PlainTransport, Producer, Consumer } from 'mediasoup/node/lib/types';
 import { mediasoupManager } from '../mediasoup/server';
 import { groupProducerEvents, getGroupProducers, registerDeviceProducer, unregisterDeviceProducer } from '../mediasoup/router';
-import { setUserOnline, setUserOffline, refreshUserOnline, isUserOnline } from '../database/redis';
+import { setUserOnline, setUserOffline, refreshUserOnline, isUserOnline, setUserCurrentGroup, clearUserCurrentGroup } from '../database/redis';
 import { acquirePttLock, releasePttLock } from '../database/redis';
 import { prisma } from '../database/prisma';
 import { ActivityLogType } from '@prisma/client';
@@ -149,6 +149,13 @@ export class DeviceSession {
       userId:      this.userId,
       callsign:    this.callsign,
       displayName: this.displayName,
+    });
+    // Рация авторизуется в одну фиксированную группу — сообщаем её, чтобы
+    // диспетчер/абоненты видели, в какой группе она сейчас (янтарный для чужой)
+    await setUserCurrentGroup(this.userId, this.groupId);
+    this.io.to(`org:${this.organizationId}`).emit('user-group-changed', {
+      userId:  this.userId,
+      groupId: this.groupId,
     });
     // Журнал активности — рация теперь видна в логах админа/диспетчера наравне с веб/Android
     if (!wasOnline) {
@@ -319,6 +326,7 @@ export class DeviceSession {
     groupProducerEvents.off('producer-closed',  this.onProducerClosed);
 
     await releasePttLock(this.groupId, this.userId).catch(() => {});
+    await clearUserCurrentGroup(this.userId).catch(() => {});
     const wentOffline = await setUserOffline(this.userId, this.deviceSocketId).catch(() => false);
     this.io.to(`org:${this.organizationId}`).emit('user-offline', { userId: this.userId });
     if (wentOffline) {
