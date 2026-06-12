@@ -112,7 +112,10 @@ export function evaluateRules(
       if (rule.max !== undefined && v > rule.max) { hit = true; msg = `${rule.metric} ${v}${u} > ${rule.max}${u}`; }
       else if (rule.min !== undefined && v < rule.min) { hit = true; msg = `${rule.metric} ${v}${u} < ${rule.min}${u}`; }
     } else if (rule.op === 'is') {
-      hit = v === rule.value;
+      // value опц.: если правило сохранено без него (дефолт UI), считаем «is true».
+      // Boolean-приведение переживает строковый "true"/"false" и 0/1.
+      const want = rule.value === undefined ? true : Boolean(rule.value);
+      hit = Boolean(v) === want;
       msg = `${rule.metric} = ${v}`;
     }
 
