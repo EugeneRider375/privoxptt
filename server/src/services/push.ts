@@ -220,8 +220,10 @@ export async function sendSensorAlertPushToUsers(
   if (!initFirebase()) return { sent: 0, failed: 0 };
   if (userIds.length === 0) return { sent: 0, failed: 0 };
 
+  // Все включённые устройства получателей (ANDROID + IOS). Раньше фильтр platform:'ANDROID'
+  // вообще исключал iOS, а диспетчер с iPhone не получал тревогу.
   const devices = await prisma.device.findMany({
-    where: { userId: { in: userIds }, platform: 'ANDROID', enabled: true },
+    where: { userId: { in: userIds }, enabled: true },
     select: { id: true, pushToken: true },
   });
   if (devices.length === 0) return { sent: 0, failed: 0 };

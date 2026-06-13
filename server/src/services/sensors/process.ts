@@ -215,20 +215,34 @@ async function notify(
     : io.to(`org:${sensor.organizationId}`);
   target.emit('sensor-alert', payload);
 
+  // Получатели пуша: члены группы датчика + диспетчеры/админы/суперадмины орга.
+  // Раньше пуш уходил ТОЛЬКО членам группы → диспетчер (обычно не в группе) не
+  // получал ничего, кроме in-app socket (а ночью вкладка закрыта = тишина).
+  const recipientIds = new Set<string>();
   if (sensor.groupId) {
     const members = await prisma.groupMember.findMany({
       where: { groupId: sensor.groupId },
       select: { userId: true },
     });
-    const userIds = members.map((m) => m.userId);
-    if (userIds.length > 0) {
-      void sendSensorAlertPushToUsers(userIds, {
-        sensorId: sensor.id,
-        sensorName: sensor.name,
-        status: status === 'STALE' ? 'STALE' : 'ALERT',
-        message,
-      }).catch((err) => logger.warn({ msg: 'sensor push failed', sensorId: sensor.id, err }));
-    }
+    members.forEach((m) => recipientIds.add(m.userId));
+  }
+  const staff = await prisma.user.findMany({
+    where: {
+      organizationId: sensor.organizationId,
+      isActive: true,
+      role: { in: ['DISPATCHER', 'ADMIN', 'SUPERADMIN'] },
+    },
+    select: { id: true },
+  });
+  staff.forEach((u) => recipientIds.add(u.id));
+
+  if (recipientIds.size > 0) {
+    void sendSensorAlertPushToUsers([...recipientIds], {
+      sensorId: sensor.id,
+      sensorName: sensor.name,
+      status: status === 'STALE' ? 'STALE' : 'ALERT',
+      message,
+    }).catch((err) => logger.warn({ msg: 'sensor push failed', sensorId: sensor.id, err }));
   }
 }
 
