@@ -9,6 +9,7 @@ import { z } from 'zod';
 import type { Server } from 'socket.io';
 import { prisma } from '../database/prisma';
 import { processReading } from '../services/sensors/process';
+import { logger } from '../utils/logger';
 
 export const telemetryRouter = Router();
 
@@ -33,6 +34,17 @@ telemetryRouter.post('/', async (req: Request, res: Response, next: NextFunction
       res.status(401).json({ error: 'Invalid sensor key' });
       return;
     }
+
+    // 📡 Чёрный ящик: фиксируем КАЖДЫЙ принятый POST (тело + текущая охрана).
+    // Видно точную череду motion:true/false и частоту (ребуты платы дают cold-boot
+    // motion:false). Диагностика «первый пуш есть, повторов нет» / самоснятия.
+    logger.info({
+      msg: '📡 TELEMETRY IN',
+      sensor: sensor.name,
+      metrics: data.metrics,
+      setArmed: data.setArmed,
+      armedBefore: sensor.armed,
+    });
 
     const io = req.app.get('io') as Server | undefined;
     if (!io) {

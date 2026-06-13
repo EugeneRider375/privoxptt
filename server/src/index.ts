@@ -29,6 +29,10 @@ import { errorHandler, notFound } from './middleware/errorHandler';
 async function bootstrap() {
   const app = express();
 
+  // За реверс-прокси (Coolify/Traefik) — доверяем первому хопу, иначе express-rate-limit
+  // ругается на X-Forwarded-For (ValidationError) и неверно кеит лимиты по IP.
+  app.set('trust proxy', 1);
+
   // ─── Безопасность ─────────────────────────────────────────
   app.use(helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' },
