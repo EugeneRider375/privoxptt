@@ -15,12 +15,19 @@ export const PRIVOX_MESSAGE_NEW_EVENT = 'privox-message-new';
 export const PRIVOX_MESSAGE_CLEARED_EVENT = 'privox-message-cleared';
 
 let globalSocket: Socket | null = null;
+// Heartbeat-вотчдог: следим за временем последнего heartbeat-ack от сервера.
+let watchdogTimer: ReturnType<typeof setInterval> | null = null;
+let lastPongAt = 0;
+
+const HEARTBEAT_MS = 30_000;
+const PONG_TIMEOUT_MS = 75_000; // нет ack ~2.5 пинга подряд → сокет «мёртв, но connected»
 
 export function getPrivoxSocket(): Socket | null {
   return globalSocket;
 }
 
 export function disconnectPrivoxSocket(): void {
+  if (watchdogTimer) { clearInterval(watchdogTimer); watchdogTimer = null; }
   if (!globalSocket) return;
   globalSocket.removeAllListeners();
   globalSocket.disconnect();
@@ -80,10 +87,29 @@ export function useSocket() {
     socketRef.current = socket;
     publishSocket(socket);
 
+    // Сервер отвечает heartbeat-ack на каждый наш heartbeat — фиксируем время ответа.
+    lastPongAt = Date.now();
+    socket.on('heartbeat-ack', () => { lastPongAt = Date.now(); });
+
+    // Единый вотчдог-таймер на жизнь сокета. socket.io может остаться "connected",
+    // но втихую перестать доставлять кадры (деградировавший сокет) — тогда reconnect
+    // сам не наступает, presence-snapshot/sensor-update не приезжают, данные залипают
+    // (лечилось только релогином). Если ack нет дольше PONG_TIMEOUT_MS → принудительный
+    // реальный reconnect: он триггерит свежий presence-snapshot + рефетч датчиков.
+    if (watchdogTimer) clearInterval(watchdogTimer);
+    watchdogTimer = setInterval(() => {
+      if (!socket.connected) return; // отключён — реконнектом займётся сам socket.io
+      socket.emit('heartbeat');
+      if (Date.now() - lastPongAt > PONG_TIMEOUT_MS) {
+        console.warn('[Socket] heartbeat watchdog: нет ack, форсирую reconnect');
+        lastPongAt = Date.now();        // не дёргать повторно на следующем тике
+        socket.disconnect().connect();  // реальный reconnect → свежий снапшот
+      }
+    }, HEARTBEAT_MS);
+
     socket.on('connect', () => {
       console.log('[Socket] Connected:', socket.id);
-      const heartbeat = setInterval(() => socket.emit('heartbeat'), 30_000);
-      socket.on('disconnect', () => clearInterval(heartbeat));
+      lastPongAt = Date.now(); // свежее подключение — сбрасываем счётчик молчания
       messagesApi.conversations()
         .then((conversations: Array<{ unreadCount: number }>) => {
           const unread = conversations.reduce((total, item) => total + item.unreadCount, 0);
