@@ -255,6 +255,7 @@ export function useSocket() {
       lat: number | null;
       lng: number | null;
       at: string;
+      alarmSound?: boolean;
     }) => {
       const state = useStore.getState();
       state.upsertSensor({
@@ -274,9 +275,10 @@ export function useSocket() {
         message: `${a.name}: ${a.message}`,
         groupId: a.groupId ?? undefined,
       });
-      // Звуковая сирена только диспетчеру/админу/суперадмину (у них пульт мониторинга).
+      // Звуковая сирена: только если включена на датчике (alarmSound) И только
+      // диспетчеру/админу/суперадмину (у них пульт мониторинга).
       const role = state.user?.role;
-      if (role === 'DISPATCHER' || role === 'ADMIN' || role === 'SUPERADMIN') {
+      if (a.alarmSound && (role === 'DISPATCHER' || role === 'ADMIN' || role === 'SUPERADMIN')) {
         void playSensorAlarm();
       }
     });

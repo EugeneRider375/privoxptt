@@ -162,13 +162,14 @@ export function AdminSensors() {
   const [selectedOrgId, setSelectedOrgId] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const [edit, setEdit] = useState({ name: '', groupId: '', enabled: true, reportIntervalSec: '', rules: [] as SensorRule[] });
+  const [edit, setEdit] = useState({ name: '', groupId: '', enabled: true, alarmSound: false, reportIntervalSec: '', rules: [] as SensorRule[] });
 
   const [createOpen, setCreateOpen] = useState(false);
   const emptyCreate = {
     ingest: 'PUSH' as 'PUSH' | 'PULL',
     name: '', kind: 'FRIDGE', organizationId: '', groupId: '',
     adapter: 'FRIGO', sourceUrl: '', externalId: '', reportIntervalSec: '',
+    alarmSound: false,
     rules: [] as SensorRule[],
   };
   const [create, setCreate] = useState(emptyCreate);
@@ -194,6 +195,7 @@ export function AdminSensors() {
       name: s.name,
       groupId: s.groupId ?? '',
       enabled: s.enabled,
+      alarmSound: s.alarmSound ?? false,
       reportIntervalSec: s.reportIntervalSec?.toString() ?? '',
       rules: toRules(s.thresholds),
     });
@@ -206,6 +208,7 @@ export function AdminSensors() {
         name: edit.name,
         groupId: edit.groupId || null,
         enabled: edit.enabled,
+        alarmSound: edit.alarmSound,
         reportIntervalSec: edit.reportIntervalSec.trim() === '' ? null : Number(edit.reportIntervalSec),
         thresholds: edit.rules,
       });
@@ -242,6 +245,7 @@ export function AdminSensors() {
         organizationId: create.organizationId || undefined,
         groupId: create.groupId || undefined,
         reportIntervalSec: create.reportIntervalSec.trim() === '' ? undefined : Number(create.reportIntervalSec),
+        alarmSound: create.alarmSound,
         thresholds: create.rules,
       };
       if (create.ingest === 'PULL') {
@@ -332,6 +336,11 @@ export function AdminSensors() {
                     </label>
                   </div>
 
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={edit.alarmSound} onChange={(e) => setEdit({ ...edit, alarmSound: e.target.checked })} className="accent-ptt-danger" />
+                    <span className="font-mono text-xs text-ptt-text">🔊 Звуковая сирена диспетчеру при тревоге</span>
+                  </label>
+
                   {s.ingest === 'PUSH' && s.sensorKey && <KeyBox sensorKey={s.sensorKey} onRotate={isSuperAdmin ? () => handleRotate(s) : undefined} />}
                   {s.ingest === 'PULL' && <p className="font-mono text-ptt-muted text-[10px] truncate">{s.adapter} · {s.sourceUrl}</p>}
 
@@ -410,6 +419,10 @@ export function AdminSensors() {
               <Field label="THRESHOLD RULES">
                 <RulesEditor rules={create.rules} onChange={(rules) => setCreate({ ...create, rules })} />
               </Field>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={create.alarmSound} onChange={(e) => setCreate({ ...create, alarmSound: e.target.checked })} className="accent-ptt-danger" />
+                <span className="font-mono text-xs text-ptt-text">🔊 Звуковая сирена диспетчеру при тревоге</span>
+              </label>
               {error && <p className="font-mono text-ptt-danger text-xs">{error}</p>}
               <button onClick={handleCreate} disabled={loading} className="w-full bg-ptt-green text-ptt-dark font-orbitron text-xs py-2 rounded tracking-widest disabled:opacity-50">
                 {loading ? 'SAVING...' : 'CREATE'}

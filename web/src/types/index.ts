@@ -176,6 +176,7 @@ export interface Sensor {
   lastSeenAt: string | null;
   status: 'OK' | 'ALERT' | 'STALE';
   enabled: boolean;
+  alarmSound: boolean; // играть ли звуковую сирену диспетчеру при тревоге
   createdAt: string;
   updatedAt: string;
 }

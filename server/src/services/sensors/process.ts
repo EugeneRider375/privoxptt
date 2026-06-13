@@ -268,6 +268,7 @@ async function notify(
     lat: sensor.lat,
     lng: sensor.lng,
     at: now.toISOString(),
+    alarmSound: sensor.alarmSound, // диспетчерский пульт решает, играть ли сирену
   };
   // Один emit с объединением комнат: socket.io шлёт сокету, состоящему и в org-,
   // и в group-комнате, ОДИН раз (раньше два отдельных emit давали дубль уведомления
