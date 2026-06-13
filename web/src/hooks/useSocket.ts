@@ -4,6 +4,7 @@ import { useStore } from '@/store/useStore';
 import type { ChatMessage, DispatcherCall, SensorState } from '@/types';
 import { playUserCallTone } from '@/utils/callTone';
 import { playMessageTone } from '@/utils/messageTone';
+import { playSensorAlarm } from '@/utils/sensorAlarm';
 import { messagesApi } from '@/api/client';
 import { refetchSensors } from '@/utils/sensors';
 
@@ -273,6 +274,11 @@ export function useSocket() {
         message: `${a.name}: ${a.message}`,
         groupId: a.groupId ?? undefined,
       });
+      // Звуковая сирена только диспетчеру/админу/суперадмину (у них пульт мониторинга).
+      const role = state.user?.role;
+      if (role === 'DISPATCHER' || role === 'ADMIN' || role === 'SUPERADMIN') {
+        void playSensorAlarm();
+      }
     });
 
     socket.on('dispatcher-call-incoming', (call: Omit<DispatcherCall, 'status'>) => {
