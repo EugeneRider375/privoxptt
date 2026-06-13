@@ -19,6 +19,7 @@ const CLEAR_LINGER_MS = 2 * 60_000; // инцидент закрываем то�
 // EVENT_AUTORESET_MS после ПОСЛЕДНЕГО true (метка lastNotifiedAt обновляется на каждом true).
 const EVENT_METRICS = new Set<string>(['motion']);
 const EVENT_AUTORESET_MS = 60_000; // тишина дольше → импульс-инцидент авто-закрывается
+const ENTRY_DELAY_MS = 30_000; // entry delay: движение на охране → тревога не сразу, чтобы вошедший успел снять с охраны
 
 function isEventMetric(metric: string | null | undefined): boolean {
   return !!metric && EVENT_METRICS.has(metric);
@@ -28,8 +29,11 @@ function isEventMetric(metric: string | null | undefined): boolean {
 const pendingSince = new Map<string, number>();
 // Linger: ключ `${sensorId}:${ruleId}` → когда правило перестало срабатывать (ms).
 const clearingSince = new Map<string, number>();
+// Entry delay: ключ `${sensorId}:${ruleId}` → таймер отложенной тревоги по движению.
+const entryDelayTimers = new Map<string, NodeJS.Timeout>();
 
 type Metrics = Record<string, MetricValue>;
+type ActiveInfo = { severity: 'INFO' | 'WARNING' | 'CRITICAL'; message: string; metric: string | null; value: number | null };
 
 function num(v: MetricValue | undefined): number | null {
   return typeof v === 'number' ? v : null;
@@ -119,8 +123,15 @@ export async function processReading(
     lastSeenAt: (observedAt ?? sensor.lastSeenAt)?.toISOString() ?? null,
   });
 
+  // Сняли с охраны → отменяем отложенные entry-тревоги этого датчика (вошедший снял вовремя).
+  if (!sensor.armed) {
+    for (const [key, timer] of entryDelayTimers) {
+      if (key.startsWith(sensor.id + ':')) { clearTimeout(timer); entryDelayTimers.delete(key); }
+    }
+  }
+
   // ── Инциденты: что сейчас активно ──
-  const activeNow = new Map<string, { severity: 'INFO' | 'WARNING' | 'CRITICAL'; message: string; metric: string | null; value: number | null }>();
+  const activeNow = new Map<string, ActiveInfo>();
   for (const f of active) {
     activeNow.set(f.ruleId, { severity: f.severity, message: f.message, metric: f.metric, value: num(f.value) });
   }
@@ -137,20 +148,22 @@ export async function processReading(
   if (sensor.armed) {
     for (const [ruleId, info] of activeNow) {
       if (openByRule.has(ruleId)) continue;
-      await prisma.incident.create({
-        data: {
-          sensorId: sensor.id,
-          ruleId,
-          metric: info.metric,
-          severity: info.severity,
-          status: 'OPEN',
-          message: info.message,
-          peakValue: info.value,
-          lastNotifiedAt: now,
-        },
-      });
-      logger.warn({ msg: '🔴 INCIDENT OPEN', sensor: sensor.name, severity: info.severity, message: info.message });
-      await notify(io, sensor, newStatus, info.message, metrics, now);
+      // Entry delay: движение на охране даёт тревогу не сразу, а через ENTRY_DELAY_MS —
+      // чтобы вошедший успел снять с охраны. Только для импульс-метрик движения; вода/
+      // температура алярмят немедленно (там ждать нельзя).
+      if (isEventMetric(info.metric)) {
+        const key = `${sensor.id}:${ruleId}`;
+        if (entryDelayTimers.has(key)) continue; // отсчёт уже идёт — не дублируем
+        logger.info({ msg: '⏳ ENTRY DELAY', sensor: sensor.name, ruleId, ms: ENTRY_DELAY_MS });
+        const timer = setTimeout(() => {
+          entryDelayTimers.delete(key);
+          void fireEntryAlarm(io, sensor.id, ruleId, info, metrics);
+        }, ENTRY_DELAY_MS);
+        if (typeof timer.unref === 'function') timer.unref();
+        entryDelayTimers.set(key, timer);
+        continue;
+      }
+      await openIncident(io, sensor, ruleId, info, metrics, newStatus, now);
     }
   }
 
@@ -182,6 +195,55 @@ export async function processReading(
     }
     await prisma.incident.update({ where: { id: inc.id }, data: { status: 'RESOLVED', resolvedAt: now } });
     logger.info({ msg: '✅ INCIDENT RESOLVED', sensor: sensor.name, ruleId: inc.ruleId });
+  }
+}
+
+// Открыть инцидент + уведомить (общая часть немедленной и отложенной/entry-delay тревоги).
+async function openIncident(
+  io: Server,
+  sensor: Sensor,
+  ruleId: string,
+  info: ActiveInfo,
+  metrics: Metrics,
+  status: Sensor['status'],
+  now: Date,
+): Promise<void> {
+  await prisma.incident.create({
+    data: {
+      sensorId: sensor.id,
+      ruleId,
+      metric: info.metric,
+      severity: info.severity,
+      status: 'OPEN',
+      message: info.message,
+      peakValue: info.value,
+      lastNotifiedAt: now,
+    },
+  });
+  logger.warn({ msg: '🔴 INCIDENT OPEN', sensor: sensor.name, severity: info.severity, message: info.message });
+  await notify(io, sensor, status, info.message, metrics, now);
+}
+
+// Срабатывание отложенной entry-delay тревоги: спустя ENTRY_DELAY_MS открываем инцидент,
+// НО только если датчик всё ещё на охране (за это время могли снять → тревоги нет) и
+// инцидент по этому правилу ещё не открыт другим путём.
+async function fireEntryAlarm(
+  io: Server,
+  sensorId: string,
+  ruleId: string,
+  info: ActiveInfo,
+  metrics: Metrics,
+): Promise<void> {
+  try {
+    const sensor = await prisma.sensor.findUnique({ where: { id: sensorId } });
+    if (!sensor || !sensor.armed) return; // сняли с охраны за время задержки → тревоги нет
+    const existing = await prisma.incident.findFirst({
+      where: { sensorId, ruleId, status: { in: ['OPEN', 'ACKNOWLEDGED'] } },
+    });
+    if (existing) return; // уже открыт
+    await openIncident(io, sensor, ruleId, info, metrics, 'ALERT', new Date());
+  } catch (err) {
+    logger.warn({ msg: 'fireEntryAlarm: не удалось открыть отложенную тревогу', sensorId, err });
   }
 }
 

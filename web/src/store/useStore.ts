@@ -132,7 +132,10 @@ export const useStore = create<AppStore>()(
       // Датчики
       sensors: {},
       upsertSensor: (sensor) =>
-        set((s) => ({ sensors: { ...s.sensors, [sensor.id]: sensor } })),
+        // Слияние, а не замена: события sensor-alert несут неполный набор полей (без armed) —
+        // при полной замене armed затирался и индикатор охраны «прыгал». Мерж сохраняет
+        // поля, которых нет в частичном событии.
+        set((s) => ({ sensors: { ...s.sensors, [sensor.id]: { ...s.sensors[sensor.id], ...sensor } } })),
       seedSensors: (list) =>
         set((s) => {
           const next = { ...s.sensors };
