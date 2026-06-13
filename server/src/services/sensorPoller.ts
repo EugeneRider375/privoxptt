@@ -15,7 +15,7 @@ import {
   normalizeHomeclimate,
   type NormalizedReading,
 } from './sensors/adapters';
-import { processReading } from './sensors/process';
+import { processReading, sweepEventIncidents } from './sensors/process';
 
 const POLL_INTERVAL_MS = 15_000; // как часто опрашиваем датчики
 const FETCH_TIMEOUT_MS = 8_000;
@@ -27,7 +27,11 @@ export function startSensorPoller(io: Server): void {
   logger.info({ msg: '🌡️  Sensor poller запущен', intervalMs: POLL_INTERVAL_MS });
   // первый прогон сразу, затем по интервалу
   void pollOnce(io);
-  timer = setInterval(() => void pollOnce(io), POLL_INTERVAL_MS);
+  void sweepEventIncidents(io);
+  timer = setInterval(() => {
+    void pollOnce(io);
+    void sweepEventIncidents(io); // авто-сброс импульс-метрик (motion) для PUSH-датчиков
+  }, POLL_INTERVAL_MS);
 }
 
 export function stopSensorPoller(): void {
