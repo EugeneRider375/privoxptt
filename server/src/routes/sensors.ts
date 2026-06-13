@@ -54,6 +54,7 @@ const createSensorSchema = z.object({
   lat: z.number().optional(),
   lng: z.number().optional(),
   enabled: z.boolean().default(true),
+  alarmSound: z.boolean().default(false),
 });
 
 // PATCH — настройка (ADMIN): правила, группа, вкл/выкл, имя, координаты, интервал.
@@ -65,6 +66,7 @@ const updateSensorSchema = z.object({
   enabled: z.boolean().optional(),
   lat: z.number().nullable().optional(),
   lng: z.number().nullable().optional(),
+  alarmSound: z.boolean().optional(),
 });
 
 async function assertGroupInOrg(groupId: string, organizationId: string): Promise<void> {
@@ -150,6 +152,7 @@ sensorsRouter.post('/', requireSuperAdmin, async (req: Request, res: Response, n
         lat: data.lat ?? null,
         lng: data.lng ?? null,
         enabled: data.enabled,
+        alarmSound: data.alarmSound,
       },
     });
 
@@ -182,6 +185,7 @@ sensorsRouter.patch('/:id', requireAdmin, async (req: Request, res: Response, ne
     if (data.lng !== undefined) updateData.lng = data.lng;
     if (data.groupId !== undefined) updateData.groupId = data.groupId;
     if (data.reportIntervalSec !== undefined) updateData.reportIntervalSec = data.reportIntervalSec;
+    if (data.alarmSound !== undefined) updateData.alarmSound = data.alarmSound;
 
     const updated = await prisma.sensor.update({ where: { id }, data: updateData });
 
