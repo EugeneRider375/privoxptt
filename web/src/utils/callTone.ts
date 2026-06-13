@@ -22,7 +22,7 @@ export async function playUserCallTone() {
   compressor.attack.setValueAtTime(0.003, now);
   compressor.release.setValueAtTime(0.12, now);
 
-  masterGain.gain.setValueAtTime(0.0001, now);
+  masterGain.gain.setValueAtTime(1, now); // сразу 1 (как у messageTone): два set на один now держали 0.0001 → звонок был тихим
   masterGain.connect(compressor);
   compressor.connect(ctx.destination);
 
@@ -54,7 +54,6 @@ export async function playUserCallTone() {
     lowOsc.stop(stop + 0.02);
   });
 
-  masterGain.gain.setValueAtTime(1, now);
   masterGain.gain.setValueAtTime(1, now + 1.55);
   masterGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.65);
   window.setTimeout(() => {
