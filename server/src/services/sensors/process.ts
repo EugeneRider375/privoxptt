@@ -187,6 +187,12 @@ export async function processReading(
     } else if (rid === STALE_RULE_ID) {
       // данные вернулись — STALE снимаем сразу, без linger
       clearingSince.delete(key);
+    } else if (sensor.ingest === 'PUSH') {
+      // PUSH-датчик (вода/протечка в deep sleep) шлёт состояние ЯВНО и РЕДКО: пришёл
+      // leak:false = «реально сухо». Linger тут вреден — второго замера через 2 мин нет
+      // (плата спит), инцидент завис бы до следующего heartbeat и «проспал» бы перевзвод.
+      // Поэтому закрываем сразу по явному отбою → датчик быстро готов ловить снова.
+      clearingSince.delete(key);
     } else {
       const since = clearingSince.get(key);
       if (since === undefined) { clearingSince.set(key, now.getTime()); continue; } // старт тишины
