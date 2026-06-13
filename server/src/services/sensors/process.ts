@@ -12,6 +12,18 @@ const DEFAULT_STALE_MS = 20 * 60_000; // молчание дольше → STALE
 const STALE_RULE_ID = '__stale__';
 const CLEAR_LINGER_MS = 2 * 60_000; // инцидент закрываем только после N тишины (схлопывает серии движений в один инцидент = один пуш)
 
+// Импульс-метрики: батарейный PIR в deep sleep будит плату только по ПОДЪЁМУ движения,
+// шлёт motion:true и засыпает — motion:false из сна НЕ приходит никогда. Без авто-сброса
+// motion залипает в true → следующее движение не даёт фронта false→true → нет пуша.
+// Поэтому такие метрики трактуем как событие-импульс: открытый инцидент авто-гасим через
+// EVENT_AUTORESET_MS после ПОСЛЕДНЕГО true (метка lastNotifiedAt обновляется на каждом true).
+const EVENT_METRICS = new Set<string>(['motion']);
+const EVENT_AUTORESET_MS = 60_000; // тишина дольше → импульс-инцидент авто-закрывается
+
+function isEventMetric(metric: string | null | undefined): boolean {
+  return !!metric && EVENT_METRICS.has(metric);
+}
+
 // Дебаунс: ключ `${sensorId}:${ruleId}` → когда правило начало срабатывать (ms).
 const pendingSince = new Map<string, number>();
 // Linger: ключ `${sensorId}:${ruleId}` → когда правило перестало срабатывать (ms).
@@ -150,6 +162,11 @@ export async function processReading(
     const key = `${sensor.id}:${rid}`;
     if (sensor.armed && activeNow.has(rid)) {
       clearingSince.delete(key); // снова активно — отменяем отложенное закрытие
+      // импульс-метрика (motion): обновляем «последний раз активно», чтобы авто-сброс
+      // отсчитывался от ПОСЛЕДНЕГО движения (серия движений = один инцидент = один пуш).
+      if (isEventMetric(inc.metric)) {
+        await prisma.incident.update({ where: { id: inc.id }, data: { lastNotifiedAt: now } });
+      }
       continue;
     }
     if (!sensor.armed) {
@@ -198,19 +215,100 @@ async function notify(
     : io.to(`org:${sensor.organizationId}`);
   target.emit('sensor-alert', payload);
 
+  // Получатели пуша: члены группы датчика + диспетчеры/админы/суперадмины орга.
+  // Раньше пуш уходил ТОЛЬКО членам группы → диспетчер (обычно не в группе) не
+  // получал ничего, кроме in-app socket (а ночью вкладка закрыта = тишина).
+  const recipientIds = new Set<string>();
   if (sensor.groupId) {
     const members = await prisma.groupMember.findMany({
       where: { groupId: sensor.groupId },
       select: { userId: true },
     });
-    const userIds = members.map((m) => m.userId);
-    if (userIds.length > 0) {
-      void sendSensorAlertPushToUsers(userIds, {
-        sensorId: sensor.id,
-        sensorName: sensor.name,
-        status: status === 'STALE' ? 'STALE' : 'ALERT',
-        message,
-      }).catch((err) => logger.warn({ msg: 'sensor push failed', sensorId: sensor.id, err }));
+    members.forEach((m) => recipientIds.add(m.userId));
+  }
+  const staff = await prisma.user.findMany({
+    where: {
+      organizationId: sensor.organizationId,
+      isActive: true,
+      role: { in: ['DISPATCHER', 'ADMIN', 'SUPERADMIN'] },
+    },
+    select: { id: true },
+  });
+  staff.forEach((u) => recipientIds.add(u.id));
+
+  if (recipientIds.size > 0) {
+    void sendSensorAlertPushToUsers([...recipientIds], {
+      sensorId: sensor.id,
+      sensorName: sensor.name,
+      status: status === 'STALE' ? 'STALE' : 'ALERT',
+      message,
+    }).catch((err) => logger.warn({ msg: 'sensor push failed', sensorId: sensor.id, err }));
+  }
+}
+
+// ── Авто-сброс импульс-метрик (motion и т.п.) ───────────────────────────────
+// Спящий PIR не присылает motion:false — поэтому открытый импульс-инцидент гасим
+// сами через EVENT_AUTORESET_MS после последнего true. Без этого motion залипает true
+// и следующее движение не даёт фронта false→true → нет нового пуша.
+// Вызывается из поллера на общем таймере (motion — PUSH, поллер его не опрашивает).
+export async function sweepEventIncidents(io: Server): Promise<void> {
+  const cutoff = new Date(Date.now() - EVENT_AUTORESET_MS);
+  let stale: Array<{ id: string; sensorId: string; ruleId: string | null; metric: string | null }>;
+  try {
+    stale = await prisma.incident.findMany({
+      where: {
+        status: { in: ['OPEN', 'ACKNOWLEDGED'] },
+        metric: { in: [...EVENT_METRICS] },
+        lastNotifiedAt: { lt: cutoff },
+      },
+      select: { id: true, sensorId: true, ruleId: true, metric: true },
+    });
+  } catch (err) {
+    logger.warn({ msg: 'sweepEventIncidents: не удалось прочитать инциденты', err });
+    return;
+  }
+  if (stale.length === 0) return;
+
+  const now = new Date();
+  for (const inc of stale) {
+    try {
+      await prisma.incident.update({ where: { id: inc.id }, data: { status: 'RESOLVED', resolvedAt: now } });
+      // чистим in-memory дебаунс/linger по этому правилу — следующее движение стартует с нуля
+      const key = `${inc.sensorId}:${inc.ruleId ?? ''}`;
+      pendingSince.delete(key);
+      clearingSince.delete(key);
+
+      const sensor = await prisma.sensor.findUnique({ where: { id: inc.sensorId } });
+      if (!sensor) continue;
+
+      // гасим импульс-метрику в lastValue, чтобы панель показала отбой
+      const lastValue = { ...((sensor.lastValue as Metrics) ?? {}) };
+      if (inc.metric) lastValue[inc.metric] = false;
+
+      // статус OK только если других открытых инцидентов нет
+      const otherOpen = await prisma.incident.count({
+        where: { sensorId: sensor.id, status: { in: ['OPEN', 'ACKNOWLEDGED'] } },
+      });
+      const newStatus: Sensor['status'] = otherOpen > 0 ? 'ALERT' : 'OK';
+
+      await prisma.sensor.update({ where: { id: sensor.id }, data: { lastValue: lastValue as object, status: newStatus } });
+
+      io.to(`org:${sensor.organizationId}`).emit('sensor-update', {
+        id: sensor.id,
+        name: sensor.name,
+        kind: sensor.kind,
+        status: newStatus,
+        armed: sensor.armed,
+        metrics: lastValue,
+        temperature: num(lastValue.temperature),
+        humidity: num(lastValue.humidity),
+        lat: sensor.lat,
+        lng: sensor.lng,
+        lastSeenAt: sensor.lastSeenAt?.toISOString() ?? null,
+      });
+      logger.info({ msg: '⏱️ EVENT AUTO-RESET', sensor: sensor.name, metric: inc.metric });
+    } catch (err) {
+      logger.warn({ msg: 'sweepEventIncidents: не удалось закрыть инцидент', incidentId: inc.id, err });
     }
   }
 }

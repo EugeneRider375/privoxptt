@@ -5,6 +5,7 @@ import type { ChatMessage, DispatcherCall, SensorState } from '@/types';
 import { playUserCallTone } from '@/utils/callTone';
 import { playMessageTone } from '@/utils/messageTone';
 import { messagesApi } from '@/api/client';
+import { refetchSensors } from '@/utils/sensors';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || '';
 const SOCKET_ACK_TIMEOUT_MS = 6_000;
@@ -89,6 +90,11 @@ export function useSocket() {
           useStore.getState().setUnreadMessageCount(unread);
         })
         .catch(() => {});
+      // Реконсиляция датчиков: при reconnect могли пропустить sensor-update,
+      // пока сокет был оторван (панель залипала в устаревшем состоянии). Сервер
+      // на каждый connect заново заводит сокет в org-комнату, нам остаётся дотянуть
+      // актуальный список. Срабатывает и на первый connect, и на каждый reconnect.
+      void refetchSensors();
     });
 
     socket.on('connect_error', (err) => {
