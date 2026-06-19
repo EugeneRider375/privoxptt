@@ -67,6 +67,8 @@ const updateSensorSchema = z.object({
   lat: z.number().nullable().optional(),
   lng: z.number().nullable().optional(),
   alarmSound: z.boolean().optional(),
+  // Reassign the sensor to another organization (SUPERADMIN only — enforced in handler).
+  organizationId: z.string().uuid().optional(),
 });
 
 async function assertGroupInOrg(groupId: string, organizationId: string): Promise<void> {
@@ -186,6 +188,21 @@ sensorsRouter.patch('/:id', requireAdmin, async (req: Request, res: Response, ne
     if (data.groupId !== undefined) updateData.groupId = data.groupId;
     if (data.reportIntervalSec !== undefined) updateData.reportIntervalSec = data.reportIntervalSec;
     if (data.alarmSound !== undefined) updateData.alarmSound = data.alarmSound;
+
+    // Reassign to another organization — SUPERADMIN only. Groups are per-org, so
+    // drop any stale group reference when moving the sensor across organizations.
+    if (data.organizationId !== undefined && data.organizationId !== sensor.organizationId) {
+      if (req.user!.role !== UserRole.SUPERADMIN) {
+        throw new AppError(403, 'Only superadmin can reassign a sensor to another organization');
+      }
+      const org = await prisma.organization.findUnique({
+        where: { id: data.organizationId },
+        select: { id: true },
+      });
+      if (!org) throw new AppError(400, 'Organization not found');
+      updateData.organizationId = data.organizationId;
+      updateData.groupId = null;
+    }
 
     const updated = await prisma.sensor.update({ where: { id }, data: updateData });
 
