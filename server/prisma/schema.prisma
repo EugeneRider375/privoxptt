@@ -13,6 +13,7 @@ model Organization {
   slug        String   @unique // Короткое имя (privox, techtrans...)
   description String?
   logoUrl     String?
+  telegramChatId String? // Telegram chat/group id for this account's sensor alerts
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

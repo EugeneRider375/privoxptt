@@ -24,6 +24,8 @@ const createOrgSchema = z.object({
     .regex(/^[a-z0-9-]+$/, 'Only lowercase letters, numbers and hyphens are allowed'),
   description: z.string().max(500).optional(),
   logoUrl: z.string().url().optional(),
+  // Telegram chat/group id for this account's sensor alerts (nullable to clear).
+  telegramChatId: z.string().max(64).nullable().optional(),
 });
 
 const updateOrgSchema = createOrgSchema.partial();
