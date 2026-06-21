@@ -24,6 +24,7 @@ import { callsRouter } from './routes/calls';
 import { messagesRouter } from './routes/messages';
 import { sensorsRouter } from './routes/sensors';
 import { telemetryRouter } from './routes/telemetry';
+import { publicRouter } from './routes/public';
 import { errorHandler, notFound } from './middleware/errorHandler';
 
 async function bootstrap() {
@@ -89,6 +90,7 @@ async function bootstrap() {
   app.use('/api/messages', messagesRouter);
   app.use('/api/sensors', sensorsRouter);
   app.use('/api/telemetry', telemetryRouter); // push-телеметрия (ключ датчика, без JWT)
+  app.use('/api/public', publicRouter);       // read-only чтение датчиков (read-ключ, без JWT) — для дисплеев
 
   // ─── 404 и обработка ошибок ───────────────────────────────
   app.use(notFound);
