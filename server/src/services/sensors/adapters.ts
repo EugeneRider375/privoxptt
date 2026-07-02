@@ -60,6 +60,13 @@ export function normalizeHomeclimate(json: unknown, externalId: string | null): 
   const h = row.hum_valid ? num(row.humidity) : null;
   if (t !== null) metrics.temperature = t;
   if (h !== null) metrics.humidity = h;
+  // Заряд батареи (HomeClimate шлёт вольты). Отдаём как у Node 900: вольты + %.
+  const vb = num(row.battery);
+  if (vb !== null) {
+    metrics.batteryVoltage = vb;
+    // процент для 1S Li-ion: 3.30В→0%, 4.20В→100%
+    metrics.battery = Math.round(Math.max(0, Math.min(100, ((vb - 3.30) / 0.90) * 100)));
+  }
   return { metrics, observedAt: parseDate(row.created_at) };
 }
 
