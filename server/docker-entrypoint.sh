@@ -53,6 +53,11 @@ const sensors = [
 ];
 
 async function seedSensors() {
+  // Предохранитель: сеять только на ПУСТОЙ базе. На заполненной ничего не трогаем —
+  // иначе каждый деплой плодит дубли Fridge/Indoor/Outdoor (перенос в другую группу/орг
+  // делает их невидимыми для проверки по имени, и сид создаёт копии заново).
+  const total = await prisma.sensor.count();
+  if (total > 0) { console.log('датчики уже есть (' + total + ') — сид датчиков пропущен'); return; }
   const org = await prisma.organization.findUnique({ where: { slug: 'privox' } });
   if (!org) { console.log('Org privox не найдена, пропускаем сид датчиков'); return; }
   for (const [oldN, newN] of Object.entries(renameMap)) {
