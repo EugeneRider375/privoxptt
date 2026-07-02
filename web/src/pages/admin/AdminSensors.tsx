@@ -162,13 +162,14 @@ export function AdminSensors() {
   const [selectedOrgId, setSelectedOrgId] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const [edit, setEdit] = useState({ name: '', groupId: '', enabled: true, alarmSound: false, reportIntervalSec: '', rules: [] as SensorRule[] });
+  const [edit, setEdit] = useState({ name: '', groupId: '', enabled: true, alarmSound: false, reportIntervalSec: '', sensorKey: '', rules: [] as SensorRule[] });
 
   const [createOpen, setCreateOpen] = useState(false);
   const emptyCreate = {
     ingest: 'PUSH' as 'PUSH' | 'PULL',
     name: '', kind: 'FRIDGE', organizationId: '', groupId: '',
     adapter: 'FRIGO', sourceUrl: '', externalId: '', reportIntervalSec: '',
+    sensorKey: '',
     alarmSound: false,
     rules: [] as SensorRule[],
   };
@@ -197,6 +198,7 @@ export function AdminSensors() {
       enabled: s.enabled,
       alarmSound: s.alarmSound ?? false,
       reportIntervalSec: s.reportIntervalSec?.toString() ?? '',
+      sensorKey: '',
       rules: toRules(s.thresholds),
     });
   }
@@ -211,6 +213,7 @@ export function AdminSensors() {
         alarmSound: edit.alarmSound,
         reportIntervalSec: edit.reportIntervalSec.trim() === '' ? null : Number(edit.reportIntervalSec),
         thresholds: edit.rules,
+        sensorKey: edit.sensorKey.trim() || undefined, // непусто — сменить ключ; пусто — не трогать
       });
       setExpandedId(null);
       load();
@@ -252,6 +255,9 @@ export function AdminSensors() {
         payload.adapter = create.adapter;
         payload.sourceUrl = create.sourceUrl;
         payload.externalId = create.externalId || undefined;
+      }
+      if (create.ingest === 'PUSH' && create.sensorKey.trim()) {
+        payload.sensorKey = create.sensorKey.trim();
       }
       const s: Sensor = await sensorsApi.create(payload);
       load();
@@ -341,7 +347,16 @@ export function AdminSensors() {
                     <span className="font-mono text-xs text-ptt-text">🔊 Звуковая сирена диспетчеру при тревоге</span>
                   </label>
 
-                  {s.ingest === 'PUSH' && s.sensorKey && <KeyBox sensorKey={s.sensorKey} onRotate={isSuperAdmin ? () => handleRotate(s) : undefined} />}
+                  {s.ingest === 'PUSH' && s.sensorKey && (
+                    <>
+                      <KeyBox sensorKey={s.sensorKey} onRotate={isSuperAdmin ? () => handleRotate(s) : undefined} />
+                      {isSuperAdmin && (
+                        <Field label="SET KEY (впиши ключ устройства — вернуть датчик без перепрошивки)">
+                          <input value={edit.sensorKey} onChange={(e) => setEdit({ ...edit, sensorKey: e.target.value })} placeholder="оставь пустым — ключ не менять" className={inputCls} />
+                        </Field>
+                      )}
+                    </>
+                  )}
                   {s.ingest === 'PULL' && <p className="font-mono text-ptt-muted text-[10px] truncate">{s.adapter} · {s.sourceUrl}</p>}
 
                   {error && <p className="font-mono text-ptt-danger text-xs">{error}</p>}
@@ -397,6 +412,11 @@ export function AdminSensors() {
                   </select>
                 </Field>
               </div>
+              {create.ingest === 'PUSH' && (
+                <Field label="SENSOR KEY (пусто — сгенерится авто; или впиши ключ устройства)">
+                  <input value={create.sensorKey} onChange={(e) => setCreate({ ...create, sensorKey: e.target.value })} placeholder="оставь пустым для авто-генерации" className={inputCls} />
+                </Field>
+              )}
               {create.ingest === 'PULL' && (
                 <>
                   <div className="grid grid-cols-2 gap-2">

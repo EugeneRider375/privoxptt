@@ -47,6 +47,7 @@ const createSensorSchema = z.object({
   adapter: z.nativeEnum(SensorAdapter).optional(), // только PULL
   sourceUrl: z.string().url().max(500).optional(), // только PULL
   externalId: z.string().max(64).optional(),
+  sensorKey: z.string().min(16).max(128).optional(), // PUSH: можно задать свой ключ; иначе сгенерится
   organizationId: z.string().uuid().optional(),
   groupId: z.string().max(64).optional(),
   thresholds: thresholdsSchema.optional(),
@@ -69,6 +70,7 @@ const updateSensorSchema = z.object({
   alarmSound: z.boolean().optional(),
   // Reassign the sensor to another organization (SUPERADMIN only — enforced in handler).
   organizationId: z.string().uuid().optional(),
+  sensorKey: z.string().min(16).max(128).optional(), // сменить/вписать ключ push-датчика
 });
 
 async function assertGroupInOrg(groupId: string, organizationId: string): Promise<void> {
@@ -147,7 +149,7 @@ sensorsRouter.post('/', requireSuperAdmin, async (req: Request, res: Response, n
         adapter: data.ingest === 'PULL' ? data.adapter ?? null : null,
         sourceUrl: data.ingest === 'PULL' ? data.sourceUrl ?? null : null,
         externalId: data.externalId ?? null,
-        sensorKey: data.ingest === 'PUSH' ? generateSensorKey() : null,
+        sensorKey: data.ingest === 'PUSH' ? (data.sensorKey ?? generateSensorKey()) : null,
         thresholds: (data.thresholds ?? []) as Prisma.InputJsonValue,
         reportIntervalSec: data.reportIntervalSec ?? null,
         groupId: data.groupId ?? null,
@@ -188,6 +190,7 @@ sensorsRouter.patch('/:id', requireAdmin, async (req: Request, res: Response, ne
     if (data.groupId !== undefined) updateData.groupId = data.groupId;
     if (data.reportIntervalSec !== undefined) updateData.reportIntervalSec = data.reportIntervalSec;
     if (data.alarmSound !== undefined) updateData.alarmSound = data.alarmSound;
+    if (data.sensorKey !== undefined) updateData.sensorKey = data.sensorKey;
 
     // Reassign to another organization — SUPERADMIN only. Groups are per-org, so
     // drop any stale group reference when moving the sensor across organizations.
