@@ -7,3 +7,5 @@ dist/
 PRODUCTION.md
 STATUS_*.md
 WORKING_CHECKPOINT*.md
+docs/SECRETS.local.md
+*.local.md
