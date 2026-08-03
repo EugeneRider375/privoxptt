@@ -6,7 +6,7 @@ import { authenticate, requireAdmin } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
 import { UserRole } from '@prisma/client';
 import { isUserOnline } from '../database/redis';
-import { emitOrgDataChanged } from '../utils/realtime';
+import { emitOrgDataChanged, disconnectUserSockets } from '../utils/realtime';
 import { hasReachablePushDevice } from '../services/push';
 
 export const usersRouter = Router();
@@ -257,6 +257,14 @@ usersRouter.put('/:id', async (req: Request, res: Response, next: NextFunction) 
       },
     });
 
+    // Отключение аккаунта = мгновенный отзыв доступа: стираем все сохранённые
+    // сессии (иначе устройство продлится по refresh-токену) и рвём живые сокеты.
+    // Сценарий — потерянная или украденная рация.
+    if (data.isActive === false && target.isActive) {
+      await prisma.refreshToken.deleteMany({ where: { userId: id } });
+      disconnectUserSockets(req, id);
+    }
+
     emitOrgDataChanged(req, target.organizationId, 'users', { userId: id, action: 'updated' });
     if (updated.organizationId !== target.organizationId) {
       emitOrgDataChanged(req, updated.organizationId, 'users', { userId: id, action: 'updated' });
@@ -341,6 +349,9 @@ usersRouter.delete('/:id', requireAdmin, async (req: Request, res: Response, nex
     }
 
     await prisma.user.delete({ where: { id } });
+    // Сессии уходят каскадом вместе с пользователем, но живой сокет держится до
+    // следующего реконнекта — рвём его сразу.
+    disconnectUserSockets(req, id);
     emitOrgDataChanged(req, target.organizationId, 'users', { userId: id, action: 'deleted' });
     res.json({ message: 'User deleted' });
   } catch (err) {
