@@ -7,6 +7,7 @@ import { prisma } from '../../database/prisma';
 import { logger } from '../../utils/logger';
 import { thresholdsToRules, evaluateRules, type MetricValue } from './adapters';
 import { sendSensorAlertPushToUsers } from '../push';
+import { sendTelegram } from '../telegram';
 
 const DEFAULT_STALE_MS = 20 * 60_000; // молчание дольше → STALE (если не задан reportIntervalSec)
 const STALE_RULE_ID = '__stale__';
@@ -283,6 +284,11 @@ async function notify(
     ? io.to(`org:${sensor.organizationId}`).to(sensor.groupId)
     : io.to(`org:${sensor.organizationId}`);
   target.emit('sensor-alert', payload);
+
+  // Telegram-аларм (Privox Monitor). No-op, если бот не сконфигурен (TELEGRAM_*).
+  // Fire-and-forget: уведомление не должно влиять на обработку телеметрии.
+  const tgEmoji = status === 'STALE' ? '🟠' : status === 'OK' ? '🟢' : '🔴';
+  void sendTelegram(`${tgEmoji} ${sensor.name}\n${message}\n${now.toLocaleString('ru-RU')}`);
 
   // Получатели пуша: члены группы датчика + диспетчеры/админы/суперадмины орга.
   // Раньше пуш уходил ТОЛЬКО членам группы → диспетчер (обычно не в группе) не
