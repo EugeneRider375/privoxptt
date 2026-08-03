@@ -105,3 +105,19 @@ export function generateRefreshToken(payload: JwtPayload): string {
 export function verifyRefreshToken(token: string): JwtPayload {
   return jwt.verify(token, config.REFRESH_TOKEN_SECRET) as JwtPayload;
 }
+
+// Срок жизни строки RefreshToken в БД берём из самого токена, а не считаем
+// отдельно: иначе подпись JWT и запись в БД разъезжаются (раньше в БД был
+// захардкожен месяц, и правка REFRESH_TOKEN_EXPIRES_IN ничего не меняла —
+// refresh всё равно отклонялся по expiresAt).
+export function refreshTokenExpiresAt(token: string): Date {
+  const decoded = jwt.decode(token) as { exp?: number } | null;
+  if (decoded?.exp) {
+    return new Date(decoded.exp * 1000);
+  }
+  // Токен только что выпущен нами, так что сюда попасть не должны; на всякий
+  // случай не роняем логин, а даём консервативные 30 дней.
+  const fallback = new Date();
+  fallback.setDate(fallback.getDate() + 30);
+  return fallback;
+}

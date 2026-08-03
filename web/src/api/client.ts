@@ -1,4 +1,5 @@
 import axios, { AxiosError } from 'axios';
+import { useStore } from '@/store/useStore';
 
 const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -8,61 +9,103 @@ export const api = axios.create({
   timeout: 10_000,
 });
 
-// Подставляем Bearer токен из localStorage
+// Токены лежат в двух местах: в Zustand-persist (ключ privoxptt) и плоскими
+// ключами localStorage. Раньше этот файл читал только плоские, и стоило им
+// разъехаться со стором — приложение вставало в цикл: 401 -> редирект на
+// /login -> стор регидрируется из уцелевшего privoxptt -> снова считает себя
+// залогиненным -> 401. На рации это выглядело как «страница прыгает раз в
+// секунду и не даёт ввести пароль». Читаем и пишем оба места сразу.
+function readToken(kind: 'accessToken' | 'refreshToken'): string | null {
+  return useStore.getState()[kind] ?? localStorage.getItem(kind);
+}
+
+function storeTokens(accessToken: string, refreshToken: string): void {
+  localStorage.setItem('accessToken', accessToken);
+  localStorage.setItem('refreshToken', refreshToken);
+  useStore.setState({ accessToken, refreshToken });
+}
+
+// Сессии больше нет: чистим ОБА хранилища (clearAuth убирает и privoxptt) и
+// уходим на логин. Проверка pathname — страховка от повторного редиректа,
+// который и раскручивал цикл перезагрузок.
+function dropSession(): void {
+  useStore.getState().clearAuth();
+  if (window.location.pathname !== '/login') {
+    window.location.href = '/login';
+  }
+}
+
+// Подставляем Bearer токен
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('accessToken');
+  const token = readToken('accessToken');
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
-// Автоматический refresh при 401
-let isRefreshing = false;
-let queue: Array<(token: string) => void> = [];
+// Обновление сессии ровно одним запросом на всё приложение. Сервер ротирует
+// refresh-токен и удаляет старый, поэтому два параллельных обновления одним и
+// тем же токеном — это гарантированный 401 у проигравшего и разлогин живой
+// сессии. Все желающие ждут один и тот же промис.
+let refreshPromise: Promise<string> | null = null;
 
+function performRefresh(): Promise<string> {
+  if (!refreshPromise) {
+    const refreshToken = readToken('refreshToken');
+    if (!refreshToken) return Promise.reject(new Error('no refresh token'));
+
+    refreshPromise = axios
+      .post(`${BASE_URL}/auth/refresh`, { refreshToken })
+      .then(({ data }) => {
+        storeTokens(data.accessToken, data.refreshToken);
+        return data.accessToken as string;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
+}
+
+// Автоматический refresh при 401
 api.interceptors.response.use(
   (res) => res,
   async (error: AxiosError) => {
     const original = error.config as typeof error.config & { _retry?: boolean };
 
     if (error.response?.status === 401 && !original._retry) {
-      if (isRefreshing) {
-        return new Promise((resolve) => {
-          queue.push((token) => {
-            original.headers!.Authorization = `Bearer ${token}`;
-            resolve(api(original));
-          });
-        });
-      }
-
       original._retry = true;
-      isRefreshing = true;
 
       try {
-        const refreshToken = localStorage.getItem('refreshToken');
-        if (!refreshToken) throw new Error('no refresh token');
-
-        const { data } = await axios.post(`${BASE_URL}/auth/refresh`, { refreshToken });
-        localStorage.setItem('accessToken', data.accessToken);
-        localStorage.setItem('refreshToken', data.refreshToken);
-
-        queue.forEach((cb) => cb(data.accessToken));
-        queue = [];
-
-        original.headers!.Authorization = `Bearer ${data.accessToken}`;
+        const accessToken = await performRefresh();
+        original.headers!.Authorization = `Bearer ${accessToken}`;
         return api(original);
       } catch {
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        window.location.href = '/login';
+        dropSession();
         return Promise.reject(error);
-      } finally {
-        isRefreshing = false;
       }
     }
 
     return Promise.reject(error);
   }
 );
+
+// Тихое продление сессии при старте приложения. Сервер ротирует refresh-токен
+// и отодвигает срок ещё на год, поэтому устройство, которое включают хотя бы
+// раз в год, логин больше не спросит. Вызывается из main.tsx, ответа не ждём:
+// рация вне зоны должна стартовать на уже сохранённом токене.
+export async function refreshSession(): Promise<boolean> {
+  if (!readToken('refreshToken')) return false;
+
+  try {
+    await performRefresh();
+    return true;
+  } catch (err) {
+    // 401 — сессия отозвана или истекла, показываем логин.
+    // Нет сети — молчим и работаем с тем токеном, что есть.
+    if ((err as AxiosError).response?.status === 401) dropSession();
+    return false;
+  }
+}
 
 // ─── Auth ─────────────────────────────────────────────────
 export const authApi = {

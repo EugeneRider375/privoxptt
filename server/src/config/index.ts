@@ -14,7 +14,10 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(32, 'JWT_SECRET должен быть минимум 32 символа'),
   JWT_EXPIRES_IN: z.string().default('7d'),
   REFRESH_TOKEN_SECRET: z.string().min(32, 'REFRESH_TOKEN_SECRET должен быть минимум 32 символа'),
-  REFRESH_TOKEN_EXPIRES_IN: z.string().default('30d'),
+  // Год, а не 30 дней: рации и телефоны логинятся один раз, дальше токен
+  // ротируется при каждом запуске приложения. 30 дней означало, что устройство,
+  // пролежавшее месяц без дела, требовало повторного ввода логина и пароля.
+  REFRESH_TOKEN_EXPIRES_IN: z.string().default('365d'),
 
   MEDIASOUP_LISTEN_IP: z.string().default('0.0.0.0'),
   MEDIASOUP_ANNOUNCED_IP: z.string().default('127.0.0.1'),
