@@ -7,6 +7,7 @@ import {
   generateAccessToken,
   generateRefreshToken,
   verifyRefreshToken,
+  refreshTokenExpiresAt,
   JwtPayload,
 } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
@@ -50,12 +51,9 @@ authRouter.post('/login', async (req: Request, res: Response, next: NextFunction
     const accessToken = generateAccessToken(payload);
     const refreshToken = generateRefreshToken(payload);
 
-    // Сохраняем refresh токен в БД
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 30);
-
+    // Сохраняем refresh токен в БД — срок берём из самого токена
     await prisma.refreshToken.create({
-      data: { token: refreshToken, userId: user.id, expiresAt },
+      data: { token: refreshToken, userId: user.id, expiresAt: refreshTokenExpiresAt(refreshToken) },
     });
 
     // Обновляем lastSeen
@@ -112,14 +110,17 @@ authRouter.post('/refresh', async (req: Request, res: Response, next: NextFuncti
     const newAccessToken = generateAccessToken(payload);
     const newRefreshToken = generateRefreshToken(payload);
 
-    // Ротация токена — удаляем старый, создаём новый
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 30);
-
+    // Ротация токена — удаляем старый, создаём новый. Каждый запуск приложения
+    // отодвигает срок ещё на год, поэтому устройство, которым пользуются,
+    // повторного логина не потребует никогда.
     await prisma.$transaction([
       prisma.refreshToken.delete({ where: { id: storedToken.id } }),
       prisma.refreshToken.create({
-        data: { token: newRefreshToken, userId: storedToken.userId, expiresAt },
+        data: {
+          token: newRefreshToken,
+          userId: storedToken.userId,
+          expiresAt: refreshTokenExpiresAt(newRefreshToken),
+        },
       }),
     ]);
 
