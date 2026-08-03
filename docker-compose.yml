@@ -18,7 +18,10 @@ services:
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET обязателен}
       JWT_EXPIRES_IN: 7d
       REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET:?REFRESH_TOKEN_SECRET обязателен}
-      REFRESH_TOKEN_EXPIRES_IN: 30d
+      # Год, а не 30 дней: устройство логинится один раз, дальше токен ротируется
+      # при каждом запуске приложения. Значение здесь ПЕРЕБИВАЕТ дефолт из
+      # server/src/config — поэтому менять срок нужно и тут тоже.
+      REFRESH_TOKEN_EXPIRES_IN: ${REFRESH_TOKEN_EXPIRES_IN:-365d}
       MEDIASOUP_LISTEN_IP: 0.0.0.0
       MEDIASOUP_ANNOUNCED_IP: ${SERVER_IP:?SERVER_IP обязателен}
       MEDIASOUP_MIN_PORT: 10000
