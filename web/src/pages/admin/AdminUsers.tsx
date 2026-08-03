@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, RotateCcw, Search, X, Check, MicOff } from 'lucide-react';
+import { Plus, Pencil, Trash2, RotateCcw, Search, X, Check, MicOff, Ban, Power } from 'lucide-react';
 import { usersApi, groupsApi, orgsApi } from '@/api/client';
 import { useStore } from '@/store/useStore';
 import type { User, Group, UserRole, Organization } from '@/types';
@@ -143,6 +143,19 @@ export function AdminUsers() {
     load();
   }
 
+  // Отключение = мгновенный отзыв доступа: сервер стирает сохранённые сессии и
+  // рвёт живые сокеты, так что потерянное устройство вылетает из эфира сразу и
+  // войти обратно не сможет. Аккаунт при этом цел — нашлась рация, включил назад.
+  async function handleToggleActive(u: User) {
+    const disabling = u.isActive !== false;
+    const question = disabling
+      ? `Disable ${u.callsign}? The device will be kicked off the air immediately and won't be able to sign in.`
+      : `Enable ${u.callsign}? The user will be able to sign in again.`;
+    if (!confirm(question)) return;
+    await usersApi.update(u.id, { isActive: !disabling }).catch(console.error);
+    load();
+  }
+
   return (
     <div className="p-4 space-y-4">
       {/* Шапка */}
@@ -213,18 +226,27 @@ export function AdminUsers() {
                   )}
                   <td className={clsx('px-3 py-2.5 font-mono text-xs', ROLE_COLOR[u.role])}>{u.role}</td>
                   <td className="px-3 py-2.5">
-                    <div className="flex items-center gap-1.5">
-                      <div className={
-                        u.isOnline
-                          ? 'online-dot'
-                          : u.isReachable
-                            ? 'w-2 h-2 rounded-full bg-ptt-blue'
-                            : 'offline-dot'
-                      } />
-                      <span className="font-mono text-xs text-ptt-muted">
-                        {u.isOnline ? 'online' : u.isReachable ? 'available by call' : 'offline'}
-                      </span>
-                    </div>
+                    {u.isActive === false ? (
+                      // Отключённый аккаунт: в эфир не выйдет и войти не сможет,
+                      // поэтому online/offline тут ничего не значат.
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-2 h-2 rounded-full bg-ptt-danger" />
+                        <span className="font-mono text-xs text-ptt-danger">disabled</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <div className={
+                          u.isOnline
+                            ? 'online-dot'
+                            : u.isReachable
+                              ? 'w-2 h-2 rounded-full bg-ptt-blue'
+                              : 'offline-dot'
+                        } />
+                        <span className="font-mono text-xs text-ptt-muted">
+                          {u.isOnline ? 'online' : u.isReachable ? 'available by call' : 'offline'}
+                        </span>
+                      </div>
+                    )}
                   </td>
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-2 justify-end">
@@ -234,6 +256,22 @@ export function AdminUsers() {
                       <button onClick={() => openReset(u)} className="text-ptt-muted hover:text-ptt-warn transition-colors">
                         <RotateCcw className="w-3.5 h-3.5" />
                       </button>
+                      {u.id !== currentUser?.id && (
+                        <button
+                          onClick={() => handleToggleActive(u)}
+                          title={u.isActive === false ? 'Enable account' : 'Disable account (kicks the device off the air)'}
+                          className={clsx(
+                            'transition-colors',
+                            u.isActive === false
+                              ? 'text-ptt-danger hover:text-ptt-green'
+                              : 'text-ptt-muted hover:text-ptt-danger'
+                          )}
+                        >
+                          {u.isActive === false
+                            ? <Power className="w-3.5 h-3.5" />
+                            : <Ban className="w-3.5 h-3.5" />}
+                        </button>
+                      )}
                       {u.id !== currentUser?.id && (
                         <button onClick={() => handleDelete(u)} className="text-ptt-muted hover:text-ptt-danger transition-colors">
                           <Trash2 className="w-3.5 h-3.5" />
