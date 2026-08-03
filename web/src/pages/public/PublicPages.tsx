@@ -540,7 +540,9 @@ function HelpSection() {
 
 export function DownloadPage() {
   const androidApkUrl = '/downloads/privox-ptt-android-debug.apk?v=10';
-  const t320ApkUrl = '/downloads/privox-ptt-t320-debug.apk?v=7';
+  // ?v= обязателен и должен расти с каждой прошивкой: без него Cloudflare и
+  // браузер отдадут закешированный APK со старым содержимым.
+  const t320ApkUrl = '/downloads/privox-ptt-t320-debug.apk?v=8';
   const webAppUrl = '/app';
 
   return (
@@ -561,6 +563,7 @@ export function DownloadPage() {
             <h2 className="mt-5 text-xl font-bold text-slate-950">Inrico T320</h2>
             <p className="mt-2 text-sm font-medium uppercase tracking-[0.12em] text-orange-700">Hardware PTT radio</p>
             <p className="mt-3 text-sm leading-6 text-slate-600">Android-based radio with a dedicated PTT button. Runs the PRIVOX PTT app natively.</p>
+            <p className="mt-2 text-sm leading-6 text-slate-500">v1.7 — starts on its own after power-on and stays signed in.</p>
             <a href={t320ApkUrl} download className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-md bg-orange-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-orange-700">
               Download T320 APK <Download className="h-4 w-4" />
             </a>
