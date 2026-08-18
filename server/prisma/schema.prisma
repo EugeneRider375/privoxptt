@@ -8,30 +8,43 @@ datasource db {
 }
 
 model Organization {
-  id          String   @id @default(uuid())
-  name        String
-  slug        String   @unique // Короткое имя (privox, techtrans...)
-  description String?
-  logoUrl     String?
+  id             String   @id @default(uuid())
+  name           String
+  slug           String   @unique // Короткое имя (privox, techtrans...)
+  description    String?
+  logoUrl        String?
   telegramChatId String? // Telegram chat/group id for this account's sensor alerts
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   users        User[]
   groups       Group[]
   activityLogs ActivityLog[]
   messages     Message[]
   sensors      Sensor[]
+  invites      Invite[]
+  auditLogs    AdminAuditLog[]
 }
 
 model User {
   id          String   @id @default(uuid())
-  email       String   @unique
+  // Вход возможен по email ИЛИ по login. Оба уникальны, оба необязательны:
+  // старые аккаунты и рации ESP32 живут на email, массово создаваемые
+  // участники получают только login (почты у них может не быть).
+  // В login символ "@" запрещён на уровне приложения — поэтому пересечься
+  // с чьим-то email он не может.
+  email       String?  @unique
+  login       String?  @unique // ivanov, ivanov-2 — транслитерация позывного
   password    String // bcrypt hash
   callsign    String // Позывной (ALPHA-1, ДИСПЕТЧЕР-2)
   displayName String
   role        UserRole @default(USER)
   isActive    Boolean  @default(true)
+
+  // Срок доступа: null = бессрочно (так у всех существующих пользователей).
+  accessExpiresAt    DateTime?
+  // Пароль выдан администратором как временный — просим сменить при входе.
+  mustChangePassword Boolean   @default(false)
 
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -43,6 +56,7 @@ model User {
   sentMessages     Message[]      @relation("MessageSender")
   receivedMessages Message[]      @relation("MessageRecipient")
   messageReads     MessageRead[]
+  invites          Invite[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -108,13 +122,22 @@ model Group {
   members        GroupMember[]
   messages       Message[]
   sensors        Sensor[]
+  invites        Invite[]
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   isPrivate      Boolean       @default(false)
+
+  // Срок действия группы. null/null = бессрочная, как все существующие.
+  // Статус по умолчанию ACTIVE — после миграции ни одна группа не меняет поведения.
+  // DRAFT = создана, но ещё не включена («активировать позднее»).
+  startsAt   DateTime?
+  endsAt     DateTime?
+  status     GroupStatus @default(ACTIVE)
+  archivedAt DateTime?
   // Приоритет группы (выше = важнее, каналы экстренной связи)
-  priority       Int           @default(0)
+  priority   Int         @default(0)
   // Цвет для UI
-  color          String        @default("#3DDC84")
+  color      String      @default("#3DDC84")
 
   @@index([organizationId])
 }
@@ -126,7 +149,13 @@ model GroupMember {
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   group    Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
   joinedAt DateTime @default(now())
-  canSpeak Boolean  @default(true) // false = только слушатель
+  canSpeak Boolean  @default(true) // false = только слушатель («наблюдатель»)
+
+  // Права участника внутри группы. Дефолты повторяют сегодняшнее поведение:
+  // до этой миграции сообщения и геолокация были доступны всем участникам.
+  isGroupAdmin     Boolean @default(false) // администратор группы
+  canMessage       Boolean @default(true)
+  canShareLocation Boolean @default(true)
 
   @@unique([userId, groupId])
   @@index([groupId])
@@ -177,11 +206,11 @@ model Sensor {
 
   name       String
   kind       SensorKind // FRIDGE | OUTDOOR | INDOOR | ...
-  ingest     SensorIngest @default(PULL) // PULL (поллинг адаптером) | PUSH (устройство шлёт само)
+  ingest     SensorIngest   @default(PULL) // PULL (поллинг адаптером) | PUSH (устройство шлёт само)
   adapter    SensorAdapter? // только для PULL — как парсить ответ источника
   sourceUrl  String? // только для PULL — откуда тянем
   externalId String? // для HomeClimate: "1"/"2" (sensor_id)
-  sensorKey  String?       @unique // только для PUSH — ключ устройства для /api/telemetry
+  sensorKey  String?        @unique // только для PUSH — ключ устройства для /api/telemetry
 
   // Пороги = массив ПРАВИЛ: [{ metric, op, value|min|max, severity, sustainedSec }]
   thresholds Json
@@ -244,6 +273,82 @@ model Incident {
 
   @@index([sensorId, status])
   @@index([status, severity])
+}
+
+// Персональное приглашение = то, что стоит за QR-кодом.
+// В базе хранится ТОЛЬКО sha256 от токена — как пароль. Сам токен существует
+// один раз, в момент показа QR суперадмину; из дампа базы его не восстановить.
+model Invite {
+  id        String @id @default(uuid())
+  tokenHash String @unique // sha256(token), НЕ сам токен
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  groupId String?
+  group   Group?  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  status    InviteStatus @default(CREATED)
+  expiresAt DateTime
+  maxUses   Int          @default(1) // 1 = одноразовый
+  usedCount Int          @default(0)
+
+  firstOpenedAt DateTime? // когда ссылку открыли впервые
+  activatedAt   DateTime? // когда пользователь подтвердил вход
+  revokedAt     DateTime?
+
+  // Кто выпустил — денормализовано, чтобы запись пережила удаление админа.
+  createdById    String?
+  createdByLabel String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([groupId])
+  @@index([organizationId, status])
+  @@index([expiresAt])
+}
+
+// Журнал действий администраторов. Отдельно от ActivityLog: тот показывает
+// диспетчеру присутствие в эфире в реальном времени, и мешать туда
+// «суперадмин создал группу» — значит засорять оперативную ленту.
+model AdminAuditLog {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  actorId    String? // userId администратора
+  actorLabel String // позывной/логин — переживает удаление аккаунта
+
+  action     String // "group.create", "invite.revoke", "user.disable"
+  targetType String? // "group" | "user" | "invite"
+  targetId   String?
+  meta       Json? // подробности. Пароли и токены сюда НЕ попадают.
+  ip         String?
+
+  createdAt DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+}
+
+enum GroupStatus {
+  DRAFT // создана, но ещё не активирована
+  ACTIVE
+  ARCHIVED
+}
+
+enum InviteStatus {
+  CREATED
+  OPENED
+  ACTIVATED
+  EXPIRED
+  REVOKED
 }
 
 enum UserRole {

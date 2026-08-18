@@ -67,7 +67,7 @@ usersRouter.get('/', requireAdmin, async (req: Request, res: Response, next: Nex
     const users = await prisma.user.findMany({
       where: orgId ? { organizationId: orgId } : {},
       select: {
-        id: true, email: true, callsign: true, displayName: true,
+        id: true, email: true, login: true, callsign: true, displayName: true,
         role: true, isActive: true, lastSeen: true, createdAt: true,
         organizationId: true,
         organization: { select: { name: true, slug: true } },

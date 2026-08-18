@@ -167,6 +167,17 @@ export const sensorsApi = {
 };
 
 // ─── Activity log ─────────────────────────────────────────
+// ─── Вопросник суперадмина ──────────────────────────────────
+// Создание пачки участников упирается в bcrypt: 50 человек — около 4 секунд,
+// 200 — около 16. Глобальный таймаут (10 с) для этого мал, поэтому поднимаем
+// его точечно, не трогая остальные запросы.
+export const onboardingApi = {
+  preview: (data: object) =>
+    api.post('/onboarding/preview', data, { timeout: 30_000 }).then((r) => r.data),
+  create: (data: object) =>
+    api.post('/onboarding/create', data, { timeout: 180_000 }).then((r) => r.data),
+};
+
 export const activityApi = {
   list: (params?: { limit?: number; type?: string }) =>
     api.get('/activity', { params }).then((r) => r.data),

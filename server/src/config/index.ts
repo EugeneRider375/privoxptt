@@ -33,6 +33,10 @@ const envSchema = z.object({
 
   FIREBASE_SERVICE_ACCOUNT_JSON: z.string().optional(),
   SERVICE_URL_WEB: z.string().url().optional(),
+
+  // Адрес, который попадает в ссылку приглашения (QR): <адрес>/join/<токен>.
+  // Не задан — берём SERVICE_URL_WEB, затем первый https из CORS_ORIGINS.
+  PUBLIC_WEB_URL: z.string().url().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -43,9 +47,17 @@ if (!parsed.success) {
   process.exit(1);
 }
 
+const corsOrigins = parsed.data.CORS_ORIGINS.split(',').map((o) => o.trim());
+
 export const config = {
   ...parsed.data,
-  corsOrigins: parsed.data.CORS_ORIGINS.split(',').map((o) => o.trim()),
+  corsOrigins,
   isProd: parsed.data.NODE_ENV === 'production',
   isDev: parsed.data.NODE_ENV === 'development',
+  publicWebUrl:
+    parsed.data.PUBLIC_WEB_URL ||
+    parsed.data.SERVICE_URL_WEB ||
+    corsOrigins.find((o) => o.startsWith('https://')) ||
+    corsOrigins[0] ||
+    'http://localhost:5173',
 };

@@ -18,6 +18,7 @@ import { authRouter } from './routes/auth';
 import { organizationsRouter } from './routes/organizations';
 import { usersRouter } from './routes/users';
 import { groupsRouter } from './routes/groups';
+import { onboardingRouter } from './routes/onboarding';
 import { activityRouter } from './routes/activity';
 import { devicesRouter } from './routes/devices';
 import { callsRouter } from './routes/calls';
@@ -84,6 +85,7 @@ async function bootstrap() {
   app.use('/api/orgs', organizationsRouter);
   app.use('/api/users', usersRouter);
   app.use('/api/groups', groupsRouter);
+  app.use('/api/onboarding', onboardingRouter); // вопросник суперадмина: группа + участники + приглашения
   app.use('/api/activity', activityRouter);
   app.use('/api/devices', devicesRouter);
   app.use('/api/calls', callsRouter);

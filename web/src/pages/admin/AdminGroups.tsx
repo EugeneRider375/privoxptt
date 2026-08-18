@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, Users, X, UserPlus, UserMinus, MicOff, Mic } from 'lucide-react';
+import { Plus, Pencil, Trash2, Users, X, UserPlus, UserMinus, MicOff, Mic, Wand2 } from 'lucide-react';
 import { groupsApi, usersApi, orgsApi, sensorsApi } from '@/api/client';
 import { useStore } from '@/store/useStore';
 import type { Group, User, GroupMember, Organization, Sensor } from '@/types';
+import { GroupWizard } from './GroupWizard';
 import clsx from 'clsx';
 
 const inputCls = 'w-full bg-ptt-dark border border-ptt-border rounded px-3 py-2 font-mono text-sm text-white focus:outline-none focus:border-ptt-green';
@@ -41,6 +42,7 @@ export function AdminGroups() {
   const [orgs, setOrgs] = useState<Organization[]>([]);
   const [selectedOrgId, setSelectedOrgId] = useState('');
   const [modal, setModal] = useState<'create' | 'edit' | 'members' | null>(null);
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [selected, setSelected] = useState<Group | null>(null);
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [form, setForm] = useState({ name: '', description: '', color: '#3DDC84', priority: 0, isPrivate: false, organizationId: '' });
@@ -149,11 +151,28 @@ export function AdminGroups() {
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="font-orbitron text-white text-base tracking-wider">GROUPS / CHANNELS</h2>
-        <button onClick={openCreate}
-          className="flex items-center gap-2 bg-ptt-green text-ptt-dark font-orbitron text-xs px-3 py-1.5 rounded tracking-widest hover:bg-ptt-green/90">
-          <Plus className="w-3 h-3" /> CREATE
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Быстрое создание пустой группы остаётся как было — вопросник его не заменяет. */}
+          <button onClick={openCreate}
+            className="flex items-center gap-2 border border-ptt-border text-ptt-text font-mono text-xs px-3 py-1.5 rounded hover:text-white">
+            <Plus className="w-3 h-3" /> EMPTY GROUP
+          </button>
+          <button onClick={() => setWizardOpen(true)}
+            className="flex items-center gap-2 bg-ptt-green text-ptt-dark font-orbitron text-xs px-3 py-1.5 rounded tracking-widest hover:bg-ptt-green/90">
+            <Wand2 className="w-3 h-3" /> CREATE GROUP
+          </button>
+        </div>
       </div>
+
+      {wizardOpen && (
+        <GroupWizard
+          organizations={orgs}
+          defaultOrgId={selectedOrgId || currentUser?.organizationId || ''}
+          isSuperAdmin={isSuperAdmin}
+          onClose={() => setWizardOpen(false)}
+          onCreated={load}
+        />
+      )}
 
       {isSuperAdmin && (
         <div className="card p-3">
@@ -183,10 +202,17 @@ export function AdminGroups() {
               </div>
             </div>
 
-            <div className="flex items-center gap-4 font-mono text-xs text-ptt-muted">
+            <div className="flex items-center gap-4 font-mono text-xs text-ptt-muted flex-wrap">
               <span>{g._count?.members ?? 0} members</span>
               <span>P:{g.priority}</span>
               {g.isPrivate && <span className="text-ptt-warn">PRIVATE</span>}
+              {g.status === 'DRAFT' && <span className="text-ptt-warn">DRAFT</span>}
+              {g.status === 'ARCHIVED' && <span className="text-ptt-muted">ARCHIVED</span>}
+              {g.endsAt && (
+                <span className={clsx(new Date(g.endsAt) < new Date() ? 'text-ptt-danger' : 'text-ptt-blue')}>
+                  {new Date(g.endsAt) < new Date() ? 'EXPIRED' : `until ${new Date(g.endsAt).toLocaleDateString()}`}
+                </span>
+              )}
             </div>
 
             {(sensorsByGroup[g.id]?.length ?? 0) > 0 && (

@@ -17,5 +17,6 @@
     "emitDecoratorMetadata": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  // Тесты не должны попадать в dist и в production-образ.
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts"]
 }
