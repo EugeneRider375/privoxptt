@@ -91,6 +91,53 @@ export async function openInviteSheet(
   win.document.close();
 }
 
+/**
+ * Готовое сообщение для мессенджера — одна вставка, и всё на месте.
+ *
+ * Картинку QR сюда намеренно не кладём: если приглашение приходит на тот же
+ * телефон, куда ставят приложение, сканировать код нечем — человек просто
+ * нажимает ссылку. QR нужен для другого случая: показать код со своего экрана.
+ */
+export function buildInviteMessage(
+  member: CreatedMember,
+  groupName: string,
+  expiresAt: string
+): string {
+  const lines = [
+    `PRIVOX PTT — ${groupName}`,
+    `Callsign: ${member.callsign}`,
+    '',
+    'Open this link on your phone:',
+    member.inviteUrl,
+  ];
+
+  if (member.login) {
+    lines.push('', `Backup sign-in: ${member.login} / ${member.tempPassword ?? ''}`);
+  } else {
+    lines.push('', 'Sign in with your usual credentials.');
+  }
+
+  lines.push('', `The link is valid until ${new Date(expiresAt).toLocaleDateString()}.`);
+  return lines.join('\n');
+}
+
+/**
+ * Системное «Поделиться». Там, где браузер это умеет (телефон, Safari),
+ * открывается обычный лист выбора — WhatsApp, Telegram, почта.
+ * Где не умеет — возвращаем false, и вызывающий код просто копирует текст.
+ */
+export async function shareInvite(text: string, title: string): Promise<boolean> {
+  if (!navigator.share) return false;
+  try {
+    await navigator.share({ title, text });
+    return true;
+  } catch (err) {
+    // Пользователь закрыл лист выбора — это не ошибка, молчим.
+    if ((err as Error)?.name === 'AbortError') return true;
+    return false;
+  }
+}
+
 /** Экранирование: позывные и имена приходят от пользователя. */
 function esc(value: string): string {
   return value

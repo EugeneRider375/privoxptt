@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react';
 import {
   AlertTriangle, ArrowLeft, ArrowRight, Check, Copy, Download, Eye, EyeOff,
-  KeyRound, Link2, Printer, QrCode as QrIcon, ShieldAlert, UserPlus, Users, X,
+  KeyRound, Link2, Printer, QrCode as QrIcon, Send, ShieldAlert, UserPlus, Users, X,
 } from 'lucide-react';
 import clsx from 'clsx';
 
 import { onboardingApi } from '@/api/client';
 import { QrCode, downloadQr } from '@/components/ui/QrCode';
-import { openInviteSheet } from '@/utils/invitePrint';
+import { buildInviteMessage, openInviteSheet, shareInvite } from '@/utils/invitePrint';
 import type {
   CreatedMember, Organization, PreviewRow, UserRole, WizardPreview, WizardResult,
 } from '@/types';
@@ -208,6 +208,17 @@ export function GroupWizard({ organizations, defaultOrgId, isSuperAdmin, onClose
       setCopied(tag);
       setTimeout(() => setCopied(''), 1500);
     });
+  }
+
+  /**
+   * Отдать приглашение одним действием: где браузер умеет системное
+   * «Поделиться» — открываем его, иначе кладём готовый текст в буфер.
+   */
+  async function shareOrCopy(m: CreatedMember, tag: string) {
+    if (!result) return;
+    const text = buildInviteMessage(m, result.group.name, result.invites.expiresAt);
+    const shared = await shareInvite(text, `PRIVOX — ${m.callsign}`);
+    if (!shared) copy(text, tag);
   }
 
   function credentialsCsv(members: CreatedMember[]): string {
@@ -635,10 +646,17 @@ export function GroupWizard({ organizations, defaultOrgId, isSuperAdmin, onClose
                         </td>
                         <td className="px-3 py-2">
                           <div className="flex flex-col gap-1">
+                            {/* Готовое сообщение — одна вставка в WhatsApp или Telegram. */}
+                            <button
+                              onClick={() => shareOrCopy(m, `msg-${m.userId}`)}
+                              className="flex items-center gap-1 font-mono text-[11px] text-ptt-green hover:text-white">
+                              <Send className="w-3 h-3" />
+                              {copied === `msg-${m.userId}` ? 'copied!' : 'message'}
+                            </button>
                             <button onClick={() => copy(m.inviteUrl, m.userId)}
                               className="flex items-center gap-1 font-mono text-[11px] text-ptt-blue hover:text-white">
                               <Link2 className="w-3 h-3" />
-                              {copied === m.userId ? 'copied' : 'copy link'}
+                              {copied === m.userId ? 'copied' : 'link only'}
                             </button>
                             <button onClick={() => downloadQr(m.inviteUrl, `${m.callsign}-invite`)}
                               className="flex items-center gap-1 font-mono text-[11px] text-ptt-muted hover:text-white">
@@ -654,7 +672,8 @@ export function GroupWizard({ organizations, defaultOrgId, isSuperAdmin, onClose
             </div>
 
             <p className="font-mono text-ptt-muted text-[11px]">
-              Click a QR code to enlarge it — a member can scan it straight from your screen.
+              <b className="text-ptt-text">message</b> copies a ready text for WhatsApp or Telegram — link, callsign and
+              backup credentials in one paste. The QR is for scanning off your screen; click it to enlarge.
             </p>
           </div>
         )}
@@ -685,15 +704,22 @@ export function GroupWizard({ organizations, defaultOrgId, isSuperAdmin, onClose
                 </p>
               )}
 
-              <div className="flex gap-2 mt-4">
-                <button onClick={() => downloadQr(zoomedQr.inviteUrl, `${zoomedQr.callsign}-invite`)}
-                  className="flex-1 flex items-center justify-center gap-2 bg-ptt-green text-ptt-dark font-orbitron text-xs py-2 rounded tracking-widest">
-                  <QrIcon className="w-3 h-3" /> SAVE PNG
+              <div className="space-y-2 mt-4">
+                <button onClick={() => shareOrCopy(zoomedQr, `zoommsg-${zoomedQr.userId}`)}
+                  className="w-full flex items-center justify-center gap-2 bg-ptt-green text-ptt-dark font-orbitron text-xs py-2 rounded tracking-widest">
+                  <Send className="w-3 h-3" />
+                  {copied === `zoommsg-${zoomedQr.userId}` ? 'MESSAGE COPIED' : 'SEND TO MESSENGER'}
                 </button>
-                <button onClick={() => copy(zoomedQr.inviteUrl, `zoom-${zoomedQr.userId}`)}
-                  className="flex-1 border border-ptt-border text-ptt-text font-mono text-xs py-2 rounded hover:text-white">
-                  {copied === `zoom-${zoomedQr.userId}` ? 'COPIED' : 'COPY LINK'}
-                </button>
+                <div className="flex gap-2">
+                  <button onClick={() => downloadQr(zoomedQr.inviteUrl, `${zoomedQr.callsign}-invite`)}
+                    className="flex-1 flex items-center justify-center gap-2 border border-ptt-border text-ptt-text font-mono text-xs py-2 rounded hover:text-white">
+                    <QrIcon className="w-3 h-3" /> SAVE PNG
+                  </button>
+                  <button onClick={() => copy(zoomedQr.inviteUrl, `zoom-${zoomedQr.userId}`)}
+                    className="flex-1 border border-ptt-border text-ptt-text font-mono text-xs py-2 rounded hover:text-white">
+                    {copied === `zoom-${zoomedQr.userId}` ? 'COPIED' : 'COPY LINK'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
