@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle, ArrowLeft, ArrowRight, Check, Copy, Download, Eye, EyeOff,
   ImageIcon, KeyRound, Link2, Printer, QrCode as QrIcon, Send, ShieldAlert, UserPlus, Users, X,
@@ -122,8 +122,43 @@ export function GroupWizard({ organizations, defaultOrgId, isSuperAdmin, onClose
   const [copied, setCopied] = useState('');
   const [zoomedQr, setZoomedQr] = useState<CreatedMember | null>(null);
   const [cardBusy, setCardBusy] = useState('');
+  /**
+   * Карточки рисуются ЗАРАНЕЕ, как только показан результат.
+   *
+   * Иначе не работает главное: и «Поделиться», и запись в буфер разрешены
+   * браузером только синхронно, в момент нажатия. Любое ожидание внутри
+   * обработчика — отрисовка canvas, генерация QR — делает жест устаревшим,
+   * и телефон отправляет сообщение без картинки. Готовим всё заранее, тогда
+   * обработчик остаётся мгновенным.
+   */
+  const [cards, setCards] = useState<Record<string, Blob>>({});
+  const [cardsReady, setCardsReady] = useState(false);
   // Что именно произошло с карточкой — иначе непонятно, копировать или искать файл.
   const [cardState, setCardState] = useState<{ tag: string; state: 'copied' | 'saved' } | null>(null);
+
+  useEffect(() => {
+    if (!result) return;
+    let cancelled = false;
+    setCardsReady(false);
+
+    (async () => {
+      for (const m of result.members) {
+        if (cancelled) return;
+        try {
+          const blob = await renderInviteCard(
+            m, result.group.name, result.organization.name, result.invites.expiresAt
+          );
+          if (cancelled) return;
+          setCards((prev) => ({ ...prev, [m.userId]: blob }));
+        } catch {
+          // Одна не нарисовалась — остальные не роняем, кнопка уйдёт в запасной путь.
+        }
+      }
+      if (!cancelled) setCardsReady(true);
+    })();
+
+    return () => { cancelled = true; };
+  }, [result]);
 
   // Счётчик участников считается сам — вручную его вводить не нужно.
   const parsedCount = useMemo(
@@ -226,56 +261,50 @@ export function GroupWizard({ organizations, defaultOrgId, isSuperAdmin, onClose
   }
 
   /**
-   * Карточка приглашения картинкой.
-   *
-   * Запись в буфер запускается СИНХРОННО, прямо в обработчике нажатия, и
-   * получает обещание картинки. Если сначала дождаться отрисовки, браузер
-   * посчитает жест устаревшим и молча откажет — тогда в мессенджер уходил
-   * один текст. Где буфер картинки не поддерживается, скачиваем файл.
+   * Карточка приглашения картинкой. Обработчик СИНХРОННЫЙ: и «Поделиться»,
+   * и запись в буфер требуют неостывшего пользовательского жеста, поэтому
+   * готовая картинка берётся из заранее отрисованных.
    */
   function shareCard(m: CreatedMember, tag: string) {
     if (!result) return;
     const filename = `${m.callsign.replace(/[^\w-]+/g, '_')}-privox-invite.png`;
     const text = buildInviteMessage(m, result.group.name, result.invites.expiresAt);
-    const blobPromise = renderInviteCard(
-      m, result.group.name, result.organization.name, result.invites.expiresAt
-    );
+    const blob = cards[m.userId];
 
-    setCardBusy(tag);
-    const finish = (state: 'copied' | 'saved' | 'shared') => {
-      setCardBusy('');
-      if (state !== 'shared') {
-        setCardState({ tag, state });
-        setTimeout(() => setCardState(null), 2500);
-      }
+    const done = (state: 'copied' | 'saved') => {
+      setCardState({ tag, state });
+      setTimeout(() => setCardState(null), 2500);
     };
 
-    // Системное «Поделиться» — только на сенсорных устройствах. На компьютере
-    // оно уводит в тот же лист выбора, который к Telegram Desktop вложение
-    // часто не доносит; там надёжнее буфер обмена.
-    const isTouch = window.matchMedia('(pointer: coarse)').matches;
-    if (isTouch && navigator.canShare?.({ files: [new File([], filename, { type: 'image/png' })] })) {
-      blobPromise
-        .then(async (blob) => {
-          if (await shareInviteCard(blob, text, `PRIVOX — ${m.callsign}`, filename)) return finish('shared');
-          downloadBlob(blob, filename);
-          finish('saved');
-        })
-        .catch(() => { setCardBusy(''); setError('Could not build the invitation card'); });
+    if (!blob) {
+      // Ещё не готова — рисуем и просто отдаём файлом, без буфера и «Поделиться»:
+      // жест к этому моменту всё равно истечёт.
+      setCardBusy(tag);
+      renderInviteCard(m, result.group.name, result.organization.name, result.invites.expiresAt)
+        .then((b) => { downloadBlob(b, filename); done('saved'); })
+        .catch(() => setError('Could not build the invitation card'))
+        .finally(() => setCardBusy(''));
       return;
     }
 
-    if (canCopyImage()) {
-      copyInviteCard(blobPromise).then((ok) => {
-        if (ok) return finish('copied');
-        blobPromise.then((blob) => { downloadBlob(blob, filename); finish('saved'); });
+    const file = new File([blob], filename, { type: 'image/png' });
+
+    // Телефон: одно действие отправляет и картинку, и текст.
+    if (navigator.canShare?.({ files: [file] })) {
+      navigator.share({ title: `PRIVOX — ${m.callsign}`, text, files: [file] }).catch((err) => {
+        if ((err as Error)?.name === 'AbortError') return;
+        downloadBlob(blob, filename);
+        done('saved');
       });
       return;
     }
 
-    blobPromise
-      .then((blob) => { downloadBlob(blob, filename); finish('saved'); })
-      .catch(() => { setCardBusy(''); setError('Could not build the invitation card'); });
+    // Компьютер: в буфер, чтобы вставить прямо в окно мессенджера.
+    copyInviteCard(Promise.resolve(blob)).then((ok) => {
+      if (ok) return done('copied');
+      downloadBlob(blob, filename);
+      done('saved');
+    });
   }
 
   function credentialsCsv(members: CreatedMember[]): string {
@@ -712,14 +741,14 @@ export function GroupWizard({ organizations, defaultOrgId, isSuperAdmin, onClose
                             </button>
                             <button
                               onClick={() => shareCard(m, `card-${m.userId}`)}
-                              disabled={cardBusy === `card-${m.userId}`}
+                              disabled={cardBusy === `card-${m.userId}` || (!cards[m.userId] && !cardsReady)}
                               className="flex items-center gap-1 font-mono text-[11px] text-ptt-blue hover:text-white disabled:opacity-50">
                               <ImageIcon className="w-3 h-3" />
                               {cardBusy === `card-${m.userId}`
                                 ? '...'
                                 : cardState?.tag === `card-${m.userId}`
                                   ? (cardState.state === 'copied' ? 'copied!' : 'saved to file')
-                                  : 'card'}
+                                  : cards[m.userId] ? 'card' : 'preparing'}
                             </button>
                             <button onClick={() => copy(m.inviteUrl, m.userId)}
                               className="flex items-center gap-1 font-mono text-[11px] text-ptt-muted hover:text-white">
@@ -748,7 +777,8 @@ export function GroupWizard({ organizations, defaultOrgId, isSuperAdmin, onClose
                 2. <b className="text-ptt-text">message</b> → paste into the caption field &nbsp;·&nbsp; 3. send
               </p>
               <p className="font-mono text-ptt-muted text-[11px]">
-                On a phone both buttons open the system share sheet and send everything at once.
+                On a phone one tap on <b className="text-ptt-text">card</b> is enough — the share sheet sends the image
+                and the text together.
               </p>
             </div>
           </div>
