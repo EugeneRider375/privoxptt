@@ -106,18 +106,32 @@ export async function renderInviteCard(
   });
 }
 
+/** Умеет ли браузер вообще класть картинку в буфер. Проверка синхронная. */
+export function canCopyImage(): boolean {
+  return typeof ClipboardItem !== 'undefined' && !!navigator.clipboard?.write;
+}
+
 /**
  * Карточка в буфер обмена — чтобы вставить прямо в окно мессенджера.
- * Где браузер этого не умеет, возвращаем false: вызывающий код предложит
- * скачать файл.
+ *
+ * ВАЖНО: принимаем ОБЕЩАНИЕ картинки, а не готовую картинку, и вызываем
+ * clipboard.write синхронно по нажатию кнопки. Браузер разрешает запись в
+ * буфер только «по горячим следам» пользовательского жеста; если сначала
+ * дождаться отрисовки canvas, а потом писать, разрешение уже сгорит и
+ * запись молча провалится. Именно из-за этого в мессенджер уходил один
+ * текст без картинки. ClipboardItem умеет принимать Promise<Blob> —
+ * это и есть штатный способ обойти ограничение.
  */
-export async function copyInviteCard(blob: Blob): Promise<boolean> {
+export function copyInviteCard(blobPromise: Promise<Blob>): Promise<boolean> {
+  if (!canCopyImage()) return Promise.resolve(false);
   try {
-    if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') return false;
-    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-    return true;
+    const item = new ClipboardItem({ 'image/png': blobPromise });
+    return navigator.clipboard.write([item]).then(
+      () => true,
+      () => false
+    );
   } catch {
-    return false;
+    return Promise.resolve(false);
   }
 }
 

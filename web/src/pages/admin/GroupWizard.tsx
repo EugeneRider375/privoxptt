@@ -8,7 +8,7 @@ import clsx from 'clsx';
 import { onboardingApi } from '@/api/client';
 import { QrCode, downloadQr } from '@/components/ui/QrCode';
 import { buildInviteMessage, openInviteSheet, shareInvite } from '@/utils/invitePrint';
-import { copyInviteCard, downloadBlob, renderInviteCard, shareInviteCard } from '@/utils/inviteCard';
+import { canCopyImage, copyInviteCard, downloadBlob, renderInviteCard, shareInviteCard } from '@/utils/inviteCard';
 import type {
   CreatedMember, Organization, PreviewRow, UserRole, WizardPreview, WizardResult,
 } from '@/types';
@@ -122,6 +122,8 @@ export function GroupWizard({ organizations, defaultOrgId, isSuperAdmin, onClose
   const [copied, setCopied] = useState('');
   const [zoomedQr, setZoomedQr] = useState<CreatedMember | null>(null);
   const [cardBusy, setCardBusy] = useState('');
+  // Что именно произошло с карточкой — иначе непонятно, копировать или искать файл.
+  const [cardState, setCardState] = useState<{ tag: string; state: 'copied' | 'saved' } | null>(null);
 
   // Счётчик участников считается сам — вручную его вводить не нужно.
   const parsedCount = useMemo(
@@ -224,30 +226,56 @@ export function GroupWizard({ organizations, defaultOrgId, isSuperAdmin, onClose
   }
 
   /**
-   * Карточка приглашения картинкой. Порядок попыток: системное «Поделиться»
-   * с файлом (телефон) → буфер обмена (вставить в Telegram Desktop) →
-   * скачивание файлом.
+   * Карточка приглашения картинкой.
+   *
+   * Запись в буфер запускается СИНХРОННО, прямо в обработчике нажатия, и
+   * получает обещание картинки. Если сначала дождаться отрисовки, браузер
+   * посчитает жест устаревшим и молча откажет — тогда в мессенджер уходил
+   * один текст. Где буфер картинки не поддерживается, скачиваем файл.
    */
-  async function shareCard(m: CreatedMember, tag: string) {
+  function shareCard(m: CreatedMember, tag: string) {
     if (!result) return;
-    setCardBusy(tag);
-    try {
-      const blob = await renderInviteCard(m, result.group.name, result.organization.name, result.invites.expiresAt);
-      const text = buildInviteMessage(m, result.group.name, result.invites.expiresAt);
-      const filename = `${m.callsign.replace(/[^\w-]+/g, '_')}-privox-invite.png`;
+    const filename = `${m.callsign.replace(/[^\w-]+/g, '_')}-privox-invite.png`;
+    const text = buildInviteMessage(m, result.group.name, result.invites.expiresAt);
+    const blobPromise = renderInviteCard(
+      m, result.group.name, result.organization.name, result.invites.expiresAt
+    );
 
-      if (await shareInviteCard(blob, text, `PRIVOX — ${m.callsign}`, filename)) return;
-      if (await copyInviteCard(blob)) {
-        setCopied(tag);
-        setTimeout(() => setCopied(''), 1500);
-        return;
-      }
-      downloadBlob(blob, filename);
-    } catch {
-      setError('Could not build the invitation card');
-    } finally {
+    setCardBusy(tag);
+    const finish = (state: 'copied' | 'saved' | 'shared') => {
       setCardBusy('');
+      if (state !== 'shared') {
+        setCardState({ tag, state });
+        setTimeout(() => setCardState(null), 2500);
+      }
+    };
+
+    // Системное «Поделиться» — только на сенсорных устройствах. На компьютере
+    // оно уводит в тот же лист выбора, который к Telegram Desktop вложение
+    // часто не доносит; там надёжнее буфер обмена.
+    const isTouch = window.matchMedia('(pointer: coarse)').matches;
+    if (isTouch && navigator.canShare?.({ files: [new File([], filename, { type: 'image/png' })] })) {
+      blobPromise
+        .then(async (blob) => {
+          if (await shareInviteCard(blob, text, `PRIVOX — ${m.callsign}`, filename)) return finish('shared');
+          downloadBlob(blob, filename);
+          finish('saved');
+        })
+        .catch(() => { setCardBusy(''); setError('Could not build the invitation card'); });
+      return;
     }
+
+    if (canCopyImage()) {
+      copyInviteCard(blobPromise).then((ok) => {
+        if (ok) return finish('copied');
+        blobPromise.then((blob) => { downloadBlob(blob, filename); finish('saved'); });
+      });
+      return;
+    }
+
+    blobPromise
+      .then((blob) => { downloadBlob(blob, filename); finish('saved'); })
+      .catch(() => { setCardBusy(''); setError('Could not build the invitation card'); });
   }
 
   function credentialsCsv(members: CreatedMember[]): string {
@@ -689,7 +717,9 @@ export function GroupWizard({ organizations, defaultOrgId, isSuperAdmin, onClose
                               <ImageIcon className="w-3 h-3" />
                               {cardBusy === `card-${m.userId}`
                                 ? '...'
-                                : copied === `card-${m.userId}` ? 'copied!' : 'card'}
+                                : cardState?.tag === `card-${m.userId}`
+                                  ? (cardState.state === 'copied' ? 'copied!' : 'saved to file')
+                                  : 'card'}
                             </button>
                             <button onClick={() => copy(m.inviteUrl, m.userId)}
                               className="flex items-center gap-1 font-mono text-[11px] text-ptt-muted hover:text-white">
