@@ -1,13 +1,14 @@
 import { useMemo, useState } from 'react';
 import {
   AlertTriangle, ArrowLeft, ArrowRight, Check, Copy, Download, Eye, EyeOff,
-  KeyRound, Link2, Printer, QrCode as QrIcon, Send, ShieldAlert, UserPlus, Users, X,
+  ImageIcon, KeyRound, Link2, Printer, QrCode as QrIcon, Send, ShieldAlert, UserPlus, Users, X,
 } from 'lucide-react';
 import clsx from 'clsx';
 
 import { onboardingApi } from '@/api/client';
 import { QrCode, downloadQr } from '@/components/ui/QrCode';
 import { buildInviteMessage, openInviteSheet, shareInvite } from '@/utils/invitePrint';
+import { copyInviteCard, downloadBlob, renderInviteCard, shareInviteCard } from '@/utils/inviteCard';
 import type {
   CreatedMember, Organization, PreviewRow, UserRole, WizardPreview, WizardResult,
 } from '@/types';
@@ -120,6 +121,7 @@ export function GroupWizard({ organizations, defaultOrgId, isSuperAdmin, onClose
   const [showSecrets, setShowSecrets] = useState(false);
   const [copied, setCopied] = useState('');
   const [zoomedQr, setZoomedQr] = useState<CreatedMember | null>(null);
+  const [cardBusy, setCardBusy] = useState('');
 
   // Счётчик участников считается сам — вручную его вводить не нужно.
   const parsedCount = useMemo(
@@ -219,6 +221,33 @@ export function GroupWizard({ organizations, defaultOrgId, isSuperAdmin, onClose
     const text = buildInviteMessage(m, result.group.name, result.invites.expiresAt);
     const shared = await shareInvite(text, `PRIVOX — ${m.callsign}`);
     if (!shared) copy(text, tag);
+  }
+
+  /**
+   * Карточка приглашения картинкой. Порядок попыток: системное «Поделиться»
+   * с файлом (телефон) → буфер обмена (вставить в Telegram Desktop) →
+   * скачивание файлом.
+   */
+  async function shareCard(m: CreatedMember, tag: string) {
+    if (!result) return;
+    setCardBusy(tag);
+    try {
+      const blob = await renderInviteCard(m, result.group.name, result.organization.name, result.invites.expiresAt);
+      const text = buildInviteMessage(m, result.group.name, result.invites.expiresAt);
+      const filename = `${m.callsign.replace(/[^\w-]+/g, '_')}-privox-invite.png`;
+
+      if (await shareInviteCard(blob, text, `PRIVOX — ${m.callsign}`, filename)) return;
+      if (await copyInviteCard(blob)) {
+        setCopied(tag);
+        setTimeout(() => setCopied(''), 1500);
+        return;
+      }
+      downloadBlob(blob, filename);
+    } catch {
+      setError('Could not build the invitation card');
+    } finally {
+      setCardBusy('');
+    }
   }
 
   function credentialsCsv(members: CreatedMember[]): string {
@@ -653,14 +682,19 @@ export function GroupWizard({ organizations, defaultOrgId, isSuperAdmin, onClose
                               <Send className="w-3 h-3" />
                               {copied === `msg-${m.userId}` ? 'copied!' : 'message'}
                             </button>
+                            <button
+                              onClick={() => shareCard(m, `card-${m.userId}`)}
+                              disabled={cardBusy === `card-${m.userId}`}
+                              className="flex items-center gap-1 font-mono text-[11px] text-ptt-blue hover:text-white disabled:opacity-50">
+                              <ImageIcon className="w-3 h-3" />
+                              {cardBusy === `card-${m.userId}`
+                                ? '...'
+                                : copied === `card-${m.userId}` ? 'copied!' : 'card'}
+                            </button>
                             <button onClick={() => copy(m.inviteUrl, m.userId)}
-                              className="flex items-center gap-1 font-mono text-[11px] text-ptt-blue hover:text-white">
+                              className="flex items-center gap-1 font-mono text-[11px] text-ptt-muted hover:text-white">
                               <Link2 className="w-3 h-3" />
                               {copied === m.userId ? 'copied' : 'link only'}
-                            </button>
-                            <button onClick={() => downloadQr(m.inviteUrl, `${m.callsign}-invite`)}
-                              className="flex items-center gap-1 font-mono text-[11px] text-ptt-muted hover:text-white">
-                              <Download className="w-3 h-3" /> png
                             </button>
                           </div>
                         </td>
@@ -671,10 +705,22 @@ export function GroupWizard({ organizations, defaultOrgId, isSuperAdmin, onClose
               </div>
             </div>
 
-            <p className="font-mono text-ptt-muted text-[11px]">
-              <b className="text-ptt-text">message</b> copies a ready text for WhatsApp or Telegram — link, callsign and
-              backup credentials in one paste. The QR is for scanning off your screen; click it to enlarge.
-            </p>
+            <div className="rounded border border-ptt-border bg-ptt-dark p-3 space-y-1.5">
+              <p className="font-mono text-ptt-text text-[11px] tracking-widest">HOW TO SEND ONE INVITATION</p>
+              <p className="font-mono text-ptt-muted text-[11px]">
+                In Telegram or WhatsApp, send the card as a <b className="text-ptt-text">photo</b> and the text as its
+                <b className="text-ptt-text"> caption</b> — one message that works both ways: a phone taps the link, a
+                computer screen gets scanned with a camera. A link inside an image is not tappable, which is why the
+                text goes with it.
+              </p>
+              <p className="font-mono text-ptt-muted text-[11px]">
+                1. <b className="text-ptt-text">card</b> → paste into the chat &nbsp;·&nbsp;
+                2. <b className="text-ptt-text">message</b> → paste into the caption field &nbsp;·&nbsp; 3. send
+              </p>
+              <p className="font-mono text-ptt-muted text-[11px]">
+                On a phone both buttons open the system share sheet and send everything at once.
+              </p>
+            </div>
           </div>
         )}
 
