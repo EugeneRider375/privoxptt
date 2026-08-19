@@ -308,15 +308,26 @@ public class MainActivity extends BridgeActivity {
 
         if (getBridge() == null || getBridge().getWebView() == null) return;
 
-        final String url = data.toString();
-        // На старте WebView может быть ещё не готов принять loadUrl — уходим
-        // в его очередь, а не грузим прямо здесь.
-        getBridge().getWebView().post(new Runnable() {
+        // На холодном старте Capacitor сразу после onCreate грузит адрес из
+        // capacitor.config.json и перебивает нашу навигацию. Поэтому не
+        // переходим один раз, а повторяем попытки, пока адрес не станет нашим.
+        navigateToInvite(data.toString(), 0);
+    }
+
+    private void navigateToInvite(final String url, final int attempt) {
+        if (attempt >= 6) return;
+        if (getBridge() == null || getBridge().getWebView() == null) return;
+
+        final android.webkit.WebView webView = getBridge().getWebView();
+        webView.postDelayed(new Runnable() {
             @Override
             public void run() {
-                getBridge().getWebView().loadUrl(url);
+                final String current = webView.getUrl();
+                if (current != null && current.contains("/join/")) return; // уже пришли
+                webView.loadUrl(url);
+                navigateToInvite(url, attempt + 1);
             }
-        });
+        }, attempt == 0 ? 300 : 800);
     }
 
     @Override
