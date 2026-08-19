@@ -204,9 +204,13 @@ export function GroupInvites({ group, onClose }: { group: Group; onClose: () => 
               </button>
             </div>
 
-            <div className="flex items-center gap-3">
-              <QrCode value={fresh.url} size={96} alt={`QR for ${fresh.callsign}`} />
-              <div className="min-w-0 space-y-2">
+            <div className="flex flex-col sm:flex-row items-center gap-4">
+              {/* 200 точек: с экрана монитора камера телефона берёт уверенно,
+                  96 точек читались с трудом или не читались вовсе. */}
+              <div className="bg-white p-2 rounded shrink-0">
+                <QrCode value={fresh.url} size={200} alt={`QR for ${fresh.callsign}`} />
+              </div>
+              <div className="min-w-0 space-y-2 w-full">
                 <p className="font-mono text-ptt-muted text-[10px] break-all">{fresh.url}</p>
                 <div className="flex flex-wrap gap-2">
                   <button onClick={() => copy(fresh.url, 'fresh')}
@@ -257,7 +261,7 @@ export function GroupInvites({ group, onClose }: { group: Group; onClose: () => 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-64 overflow-y-auto">
               {batch.map((m) => (
                 <div key={m.userId} className="flex items-center gap-2 rounded border border-ptt-border bg-ptt-dark p-2">
-                  <QrCode value={m.inviteUrl} size={48} alt={`QR for ${m.callsign}`} />
+                  <QrCode value={m.inviteUrl} size={72} alt={`QR for ${m.callsign}`} />
                   <div className="min-w-0">
                     <p className="callsign text-xs truncate">{m.callsign}</p>
                     <button onClick={() => copy(m.inviteUrl, m.userId)}

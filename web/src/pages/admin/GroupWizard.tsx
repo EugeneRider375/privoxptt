@@ -740,7 +740,7 @@ export function GroupWizard({
                             title="Enlarge"
                             className="block rounded hover:ring-2 hover:ring-ptt-green transition-shadow"
                           >
-                            <QrCode value={m.inviteUrl} size={56} alt={`QR for ${m.callsign}`} />
+                            <QrCode value={m.inviteUrl} size={72} alt={`QR for ${m.callsign}`} />
                           </button>
                         </td>
                         <td className="px-3 py-2 callsign text-xs">
@@ -800,6 +800,10 @@ export function GroupWizard({
               <p className="font-mono text-ptt-muted text-[11px]">
                 On a phone one tap on <b className="text-ptt-text">card</b> is enough — the share sheet sends the image
                 and the text together.
+              </p>
+              <p className="font-mono text-ptt-warn text-[11px]">
+                Scanning off this screen? <b>Click the QR first</b> — the thumbnail is too small for a phone camera,
+                the enlarged one reads instantly.
               </p>
             </div>
           </div>
