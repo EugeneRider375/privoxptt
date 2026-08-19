@@ -7,3 +7,4 @@ node_modules/
 google-services.json
 *.apk
 * 2.*
+keystore.properties

@@ -1,5 +1,16 @@
 apply plugin: 'com.android.application'
 
+// Подпись релиза. Файл keystore.properties лежит рядом, в git не попадает
+// (см. android/.gitignore) и указывает на ключ ВНЕ репозитория. Если файла
+// нет — релиз собирается неподписанным, и проект по-прежнему собирается у
+// любого, у кого ключа нет.
+def keystorePropsFile = rootProject.file("keystore.properties")
+def keystoreProps = new Properties()
+if (keystorePropsFile.exists()) {
+    keystoreProps.load(new FileInputStream(keystorePropsFile))
+}
+def hasSigningKey = keystorePropsFile.exists() && keystoreProps['storeFile'] != null
+
 android {
     namespace = "tech.privox.ptt"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -16,8 +27,22 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (hasSigningKey) {
+                storeFile     file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias      keystoreProps['keyAlias']
+                keyPassword   keystoreProps['keyPassword']
+            }
+        }
+    }
+
     buildTypes {
         release {
+            // Без ключа сборка остаётся неподписанной, а не падает: так
+            // проект собирается и у того, у кого ключа нет.
+            signingConfig hasSigningKey ? signingConfigs.release : null
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
