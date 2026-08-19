@@ -8,6 +8,7 @@ import { UserRole } from '@prisma/client';
 import { isUserOnline } from '../database/redis';
 import { emitOrgDataChanged, disconnectUserSockets } from '../utils/realtime';
 import { hasReachablePushDevice } from '../services/push';
+import { LOGIN_PATTERN, LOGIN_MAX_LENGTH } from '../utils/login';
 
 export const usersRouter = Router();
 
@@ -35,6 +36,12 @@ const createUserSchema = z.object({
 });
 
 const updateUserSchema = z.object({
+  /**
+   * Короткий логин вдобавок к email. Нужен прежде всего рациям: на клавиатуре
+   * T320 набрать "base1" несравнимо легче, чем "unit1@privox.tech".
+   * Пустая строка означает «убрать логин», вход по email при этом остаётся.
+   */
+  login: z.string().trim().optional(),
   callsign: z.string().min(2).max(20).optional(),
   displayName: z.string().min(2).max(100).optional(),
   role: z.nativeEnum(UserRole).optional(),
@@ -215,6 +222,35 @@ usersRouter.put('/:id', async (req: Request, res: Response, next: NextFunction) 
 
     const data = updateUserSchema.parse(req.body);
 
+    // Логин меняет только администратор: это способ входа, а не имя на экране.
+    let login: string | null | undefined;
+    if (data.login !== undefined) {
+      if (!isAdminOfOrg) throw new AppError(403, 'Cannot change login');
+
+      if (data.login === '') {
+        // Снять логин можно только если останется email — иначе человек
+        // потеряет единственный способ войти паролем.
+        if (!target.email) {
+          throw new AppError(400, 'Cannot remove the login: this user has no email to sign in with');
+        }
+        login = null;
+      } else {
+        // Проверяем ИСХОДНЫЙ ввод, а не результат нормализации. Иначе "база1"
+        // молча превращалось бы в "1": нормализация выбрасывает кириллицу, а
+        // остаток проходит проверку. Логин администратор диктует голосом —
+        // он должен быть ровно тем, что набрали.
+        const candidate = data.login.trim().toLowerCase();
+        if (candidate.length > LOGIN_MAX_LENGTH || !LOGIN_PATTERN.test(candidate)) {
+          throw new AppError(
+            400,
+            'Login may contain Latin letters, digits, hyphen and underscore only, ' +
+              'and must start with a letter or digit'
+          );
+        }
+        login = candidate;
+      }
+    }
+
     // Только админ может менять роль
     if (data.role && !isAdminOfOrg) {
       throw new AppError(403, 'Cannot change role');
@@ -249,9 +285,11 @@ usersRouter.put('/:id', async (req: Request, res: Response, next: NextFunction) 
       data: {
         ...data,
         callsign: data.callsign?.toUpperCase(),
+        // undefined = поле не трогаем, null = снимаем логин.
+        login,
       },
       select: {
-        id: true, email: true, callsign: true, displayName: true,
+        id: true, email: true, login: true, callsign: true, displayName: true,
         role: true, isActive: true, organizationId: true,
         organization: { select: { name: true, slug: true } },
       },

@@ -192,6 +192,14 @@ export const onboardingApi = {
     api.post(`/onboarding/invites/${inviteId}/reissue`, data ?? {}).then((r) => r.data),
   newPassword: (userId: string) =>
     api.post(`/onboarding/users/${userId}/new-password`).then((r) => r.data),
+
+  // Группы, созданные до вопросника, живут без приглашений: людей заводили
+  // вручную. Эти два действия выдают им QR.
+  inviteMember: (groupId: string, userId: string, data?: object) =>
+    api.post(`/onboarding/groups/${groupId}/users/${userId}/invite`, data ?? {}).then((r) => r.data),
+  inviteMissing: (groupId: string, data?: object) =>
+    api.post(`/onboarding/groups/${groupId}/invite-missing`, data ?? {}, { timeout: 120_000 })
+      .then((r) => r.data),
 };
 
 // ─── Приглашение по персональному QR ────────────────────────

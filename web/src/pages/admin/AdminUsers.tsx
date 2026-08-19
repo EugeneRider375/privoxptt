@@ -15,6 +15,7 @@ const ROLE_COLOR: Record<UserRole, string> = {
 
 interface UserFormData {
   email: string;
+  login: string;
   password: string;
   callsign: string;
   displayName: string;
@@ -23,7 +24,7 @@ interface UserFormData {
 }
 
 const EMPTY_FORM: UserFormData = {
-  email: '', password: '', callsign: '', displayName: '', role: 'USER', organizationId: '',
+  email: '', login: '', password: '', callsign: '', displayName: '', role: 'USER', organizationId: '',
 };
 
 export function AdminUsers() {
@@ -72,7 +73,7 @@ export function AdminUsers() {
 
   function openEdit(u: User) {
     setSelected(u);
-    setForm({ email: u.email ?? '', password: '', callsign: u.callsign, displayName: u.displayName, role: u.role, organizationId: u.organizationId });
+    setForm({ email: u.email ?? '', login: u.login ?? '', password: '', callsign: u.callsign, displayName: u.displayName, role: u.role, organizationId: u.organizationId });
     setError('');
     setModal('edit');
   }
@@ -116,6 +117,9 @@ export function AdminUsers() {
         callsign: form.callsign,
         displayName: form.displayName,
         role: form.role,
+        // Отправляем, только если поле трогали: пустая строка означает
+        // «снять логин», а не «оставить как было».
+        ...(form.login !== (selected.login ?? '') ? { login: form.login } : {}),
         ...(isSuperAdmin ? { organizationId: form.organizationId } : {}),
       };
 
@@ -304,6 +308,23 @@ export function AdminUsers() {
               <Field label="EMAIL">
                 <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })}
                   className={inputCls} required />
+              </Field>
+            )}
+            {modal === 'edit' && (
+              <Field label="LOGIN">
+                <input
+                  value={form.login}
+                  onChange={(e) => setForm({ ...form, login: e.target.value })}
+                  className={inputCls}
+                  placeholder={selected?.email ? 'e.g. base1 — short, for radios' : 'required: this user has no email'}
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  spellCheck={false}
+                />
+                <p className="font-mono text-ptt-muted text-[11px] mt-1">
+                  A short sign-in name in addition to the email. Much easier to type on a T320 radio keypad than
+                  a full address. Latin letters, digits, hyphen and underscore.
+                </p>
               </Field>
             )}
             {modal === 'create' && (

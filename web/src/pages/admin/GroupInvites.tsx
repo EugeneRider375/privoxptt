@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import {
-  AlertTriangle, Ban, History, KeyRound, Link2, Loader2, RefreshCw, X,
+  AlertTriangle, Ban, History, KeyRound, Link2, Loader2, QrCode as QrIcon, RefreshCw, Send, X,
 } from 'lucide-react';
 import clsx from 'clsx';
 
 import { onboardingApi } from '@/api/client';
 import { QrCode, downloadQr } from '@/components/ui/QrCode';
-import type { Group, GroupInvite, GroupInvitesResponse, InviteStatus } from '@/types';
+import { openInviteSheet } from '@/utils/invitePrint';
+import type { CreatedMember, Group, GroupInvite, GroupInvitesResponse, InviteStatus } from '@/types';
 
 /**
  * Приглашения группы: кто активировался, кто ещё нет, у кого истекло.
@@ -46,6 +47,8 @@ export function GroupInvites({ group, onClose }: { group: Group; onClose: () => 
   const [secret, setSecret] = useState<Secret | null>(null);
   const [copied, setCopied] = useState('');
   const [showHistory, setShowHistory] = useState(false);
+  /** Пачка свежих ссылок после «выдать всем» — видна один раз. */
+  const [batch, setBatch] = useState<CreatedMember[] | null>(null);
 
   function load() {
     onboardingApi
@@ -85,6 +88,36 @@ export function GroupInvites({ group, onClose }: { group: Group; onClose: () => 
       load();
     } catch (e: any) {
       setError(e?.response?.data?.error ?? 'Revoke failed');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  /** Выдать приглашение тому, кто в группе, но без него — типично для старых групп. */
+  async function handleIssueOne(user: GroupInvite['user']) {
+    setBusy(user.id);
+    setError('');
+    try {
+      const r = await onboardingApi.inviteMember(group.id, user.id, { expiresInDays: 14, singleUse: false });
+      setFresh({ inviteId: r.id, callsign: user.callsign, url: r.inviteUrl, expiresAt: r.expiresAt });
+      load();
+    } catch (e: any) {
+      setError(e?.response?.data?.error ?? 'Could not issue an invitation');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  /** Разом всем без приглашения. Ссылки показываются один раз. */
+  async function handleIssueAll() {
+    setBusy('all');
+    setError('');
+    try {
+      const r = await onboardingApi.inviteMissing(group.id, { expiresInDays: 14, singleUse: false });
+      setBatch(r.members);
+      load();
+    } catch (e: any) {
+      setError(e?.response?.data?.error ?? 'Could not issue invitations');
     } finally {
       setBusy('');
     }
@@ -186,6 +219,54 @@ export function GroupInvites({ group, onClose }: { group: Group; onClose: () => 
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Пачка ссылок после «выдать всем» — видна один раз, как и всё остальное. */}
+        {batch && (
+          <div className="rounded border border-ptt-green/40 bg-ptt-green/5 p-3 mb-4 space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-orbitron text-ptt-green text-xs tracking-widest">
+                  {batch.length} INVITATIONS ISSUED — SAVE THEM NOW
+                </p>
+                <p className="font-mono text-ptt-muted text-[11px] mt-1">
+                  Shown once. Print the sheet or copy the links before closing this panel.
+                </p>
+              </div>
+              <button onClick={() => setBatch(null)} className="text-ptt-muted hover:text-white shrink-0">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <button
+              onClick={() =>
+                openInviteSheet(
+                  group.name,
+                  group.organization?.name ?? '',
+                  batch,
+                  new Date(Date.now() + 14 * 86_400_000).toISOString()
+                )
+              }
+              className="flex items-center gap-2 bg-ptt-green text-ptt-dark font-orbitron text-xs px-3 py-1.5 rounded tracking-widest"
+            >
+              PRINT ALL QR
+            </button>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-64 overflow-y-auto">
+              {batch.map((m) => (
+                <div key={m.userId} className="flex items-center gap-2 rounded border border-ptt-border bg-ptt-dark p-2">
+                  <QrCode value={m.inviteUrl} size={48} alt={`QR for ${m.callsign}`} />
+                  <div className="min-w-0">
+                    <p className="callsign text-xs truncate">{m.callsign}</p>
+                    <button onClick={() => copy(m.inviteUrl, m.userId)}
+                      className="font-mono text-[10px] text-ptt-blue hover:text-white">
+                      {copied === m.userId ? 'copied' : 'copy link'}
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -306,10 +387,35 @@ export function GroupInvites({ group, onClose }: { group: Group; onClose: () => 
             )}
 
             {data.membersWithoutInvite.length > 0 && (
-              <p className="font-mono text-ptt-muted text-[11px] mt-3">
-                In the group but without an invitation (added manually):{' '}
-                {data.membersWithoutInvite.map((u) => u.callsign).join(', ')}
-              </p>
+              <div className="rounded border border-ptt-warn/40 bg-ptt-warn/5 p-3 mt-4 space-y-2">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div>
+                    <p className="font-mono text-ptt-warn text-xs tracking-widest">
+                      {data.membersWithoutInvite.length} WITHOUT AN INVITATION
+                    </p>
+                    <p className="font-mono text-ptt-muted text-[11px] mt-1">
+                      They joined before invitations existed, or were added by hand. They can sign in with a
+                      login and password, but have no QR code.
+                    </p>
+                  </div>
+                  <button onClick={handleIssueAll} disabled={busy === 'all'}
+                    className="flex items-center gap-2 bg-ptt-green text-ptt-dark font-orbitron text-xs px-3 py-1.5 rounded tracking-widest disabled:opacity-50 shrink-0">
+                    {busy === 'all' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                    ISSUE FOR ALL
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1">
+                  {data.membersWithoutInvite.map((u) => (
+                    <button key={u.id} onClick={() => handleIssueOne(u)} disabled={busy === u.id}
+                      title={`Issue an invitation for ${u.callsign}`}
+                      className="flex items-center gap-1 font-mono text-[11px] text-ptt-text hover:text-white disabled:opacity-40">
+                      {busy === u.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <QrIcon className="w-3 h-3" />}
+                      {u.callsign}
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
 
             <p className="font-mono text-ptt-muted text-[11px] mt-3">

@@ -1182,3 +1182,220 @@ onboardingRouter.post('/users/:userId/new-password', async (req: Request, res: R
     next(err);
   }
 });
+
+// ─── Приглашения тем, кто уже в группе ──────────────────────
+// Группы, созданные до вопросника, живут без приглашений вообще: люди в них
+// заводились вручную. Пополнение через Add таким не поможет — оно отказывает
+// с «уже в группе». Поэтому отдельное действие: выдать QR тому, кто состоит
+// в группе, но приглашения не имеет.
+
+/** Выпуск приглашения участнику группы. Старое активное гасится. */
+async function issueInviteForMember(opts: {
+  groupId: string;
+  organizationId: string;
+  userId: string;
+  callsign: string;
+  groupName: string;
+  expiresInDays: number;
+  singleUse: boolean;
+  actorId: string | null;
+  actorLabel: string;
+  ip: string | null;
+}) {
+  const token = generateInviteToken();
+  const expiresAt = new Date(Date.now() + opts.expiresInDays * 86_400_000);
+
+  const created = await prisma.$transaction(async (tx) => {
+    // Живых приглашений на одного человека в одной группе быть не должно
+    // больше одного — иначе по рукам ходят две ссылки.
+    await tx.invite.updateMany({
+      where: { groupId: opts.groupId, userId: opts.userId, revokedAt: null },
+      data: { status: InviteStatus.REVOKED, revokedAt: new Date() },
+    });
+
+    const invite = await tx.invite.create({
+      data: {
+        tokenHash: hashInviteToken(token),
+        userId: opts.userId,
+        groupId: opts.groupId,
+        organizationId: opts.organizationId,
+        expiresAt,
+        maxUses: opts.singleUse ? 1 : 0,
+        createdById: opts.actorId,
+        createdByLabel: opts.actorLabel,
+      },
+      select: { id: true, expiresAt: true, maxUses: true },
+    });
+
+    await tx.adminAuditLog.create({
+      data: {
+        organizationId: opts.organizationId,
+        actorId: opts.actorId,
+        actorLabel: opts.actorLabel,
+        action: 'invite.issue_for_member',
+        targetType: 'invite',
+        targetId: invite.id,
+        meta: {
+          callsign: opts.callsign,
+          groupName: opts.groupName,
+          expiresAt: expiresAt.toISOString(),
+        } as Prisma.InputJsonValue,
+        ip: opts.ip,
+      },
+    });
+
+    return invite;
+  });
+
+  return { invite: created, token };
+}
+
+const issueSchema = z.object({
+  expiresInDays: z.number().int().min(1).max(365).default(DEFAULT_INVITE_DAYS),
+  singleUse: z.boolean().default(false),
+});
+
+// ─── POST /api/onboarding/groups/:groupId/users/:userId/invite ───
+
+onboardingRouter.post(
+  '/groups/:groupId/users/:userId/invite',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const groupId = z.string().uuid().parse(req.params.groupId);
+      const userId = z.string().uuid().parse(req.params.userId);
+      const options = issueSchema.parse(req.body ?? {});
+
+      const group = await loadWritableGroup(req, groupId);
+      if (!group.members.some((m) => m.userId === userId)) {
+        throw new AppError(400, 'This user is not a member of the group');
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, callsign: true, displayName: true, login: true, isActive: true, role: true },
+      });
+      if (!user) throw new AppError(404, 'User not found');
+      if (user.role === UserRole.SUPERADMIN) {
+        throw new AppError(400, 'A superadmin cannot sign in through an invitation link');
+      }
+
+      const actor = await loadActor(req.user!.userId);
+      const { invite, token } = await issueInviteForMember({
+        groupId: group.id,
+        organizationId: group.organizationId,
+        userId: user.id,
+        callsign: user.callsign,
+        groupName: group.name,
+        expiresInDays: options.expiresInDays,
+        singleUse: options.singleUse,
+        actorId: actor.id,
+        actorLabel: actor.label,
+        ip: req.ip ?? null,
+      });
+
+      res.status(201).json({
+        id: invite.id,
+        status: InviteStatus.CREATED,
+        user: { id: user.id, callsign: user.callsign, displayName: user.displayName, login: user.login },
+        expiresAt: invite.expiresAt,
+        singleUse: invite.maxUses === 1,
+        // Ссылка видна ЕДИНСТВЕННЫЙ раз.
+        inviteUrl: buildInviteUrl(config.publicWebUrl, token),
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// ─── POST /api/onboarding/groups/:groupId/invite-missing ─────
+// Разом всем, у кого приглашения нет. Ради старых групп: раздавать по одному
+// семерым — занятие на любителя.
+
+onboardingRouter.post(
+  '/groups/:groupId/invite-missing',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const groupId = z.string().uuid().parse(req.params.groupId);
+      const options = issueSchema.parse(req.body ?? {});
+
+      const group = await loadWritableGroup(req, groupId);
+      const actor = await loadActor(req.user!.userId);
+
+      const withInvite = await prisma.invite.findMany({
+        where: { groupId: group.id, revokedAt: null },
+        select: { userId: true },
+      });
+      const covered = new Set(withInvite.map((i) => i.userId));
+
+      const candidates = await prisma.user.findMany({
+        where: {
+          id: { in: group.members.map((m) => m.userId).filter((id) => !covered.has(id)) },
+          // Суперадмин по ссылке не входит, приглашение ему бессмысленно.
+          role: { not: UserRole.SUPERADMIN },
+        },
+        select: { id: true, callsign: true, displayName: true, login: true },
+      });
+
+      if (candidates.length === 0) {
+        throw new AppError(400, 'Everyone in this group already has an invitation');
+      }
+
+      const issued = [];
+      for (const u of candidates) {
+        const { invite, token } = await issueInviteForMember({
+          groupId: group.id,
+          organizationId: group.organizationId,
+          userId: u.id,
+          callsign: u.callsign,
+          groupName: group.name,
+          expiresInDays: options.expiresInDays,
+          singleUse: options.singleUse,
+          actorId: actor.id,
+          actorLabel: actor.label,
+          ip: req.ip ?? null,
+        });
+
+        issued.push({
+          userId: u.id,
+          callsign: u.callsign,
+          displayName: u.displayName,
+          login: u.login,
+          isNew: false,
+          tempPassword: null,
+          inviteId: invite.id,
+          inviteUrl: buildInviteUrl(config.publicWebUrl, token),
+        });
+      }
+
+      logger.info({
+        msg: 'Приглашения выданы участникам без них',
+        groupId: group.id,
+        groupName: group.name,
+        count: issued.length,
+      });
+
+      res.status(201).json({
+        group: {
+          id: group.id,
+          name: group.name,
+          status: group.status,
+          endsAt: group.endsAt,
+          unlimited: !group.endsAt,
+          color: group.color,
+          priority: group.priority,
+        },
+        organization: group.organization,
+        members: issued,
+        invites: {
+          expiresAt: new Date(Date.now() + options.expiresInDays * 86_400_000),
+          singleUse: options.singleUse,
+          count: issued.length,
+        },
+        sharedPassword: null,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
