@@ -22,6 +22,24 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- Приглашение по QR открывает приложение, а не браузер. Проверка
+                 подлинности идёт через /.well-known/assetlinks.json на сайте:
+                 там лежит отпечаток релизного ключа. У отладочной сборки
+                 отпечаток другой, поэтому ссылка у неё откроется в браузере —
+                 это ожидаемо.
+
+                 Ограничиваемся путём /join: остальной сайт должен открываться
+                 в браузере, иначе страница загрузки APK попадала бы внутрь
+                 приложения, где скачивать уже нечего. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https"
+                      android:host="ptt.privox.tech"
+                      android:pathPrefix="/join" />
+            </intent-filter>
+
         </activity>
 
         <activity

@@ -542,8 +542,8 @@ export function DownloadPage() {
   // Сборки подписаны рабочим ключом PRIVOX — обновляются поверх предыдущих.
   // ?v= обязателен и должен расти с каждой сборкой: без него Cloudflare и
   // браузер отдадут закешированный APK со старым содержимым.
-  const androidApkUrl = '/downloads/privox-ptt-android.apk?v=10';
-  const t320ApkUrl = '/downloads/privox-ptt-t320.apk?v=9';
+  const androidApkUrl = '/downloads/privox-ptt-android.apk?v=11';
+  const t320ApkUrl = '/downloads/privox-ptt-t320.apk?v=10';
   const webAppUrl = '/app';
 
   return (
@@ -555,7 +555,7 @@ export function DownloadPage() {
             <Smartphone className="h-8 w-8 text-emerald-600" />
             <h2 className="mt-5 text-xl font-bold text-slate-950">Android APK</h2>
             <p className="mt-2 text-sm font-medium uppercase tracking-[0.12em] text-emerald-700">Signed release</p>
-            <p className="mt-3 text-sm leading-6 text-slate-600">v1.9 — works with the screen off and rings on incoming calls.</p>
+            <p className="mt-3 text-sm leading-6 text-slate-600">v2.0 — opens invitation links directly, works with the screen off, rings on incoming calls.</p>
             <a href={androidApkUrl} download className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-emerald-700">
               Download Android APK <Download className="h-4 w-4" />
             </a>
@@ -565,7 +565,7 @@ export function DownloadPage() {
             <h2 className="mt-5 text-xl font-bold text-slate-950">Inrico T320</h2>
             <p className="mt-2 text-sm font-medium uppercase tracking-[0.12em] text-orange-700">Hardware PTT radio</p>
             <p className="mt-3 text-sm leading-6 text-slate-600">Android-based radio with a dedicated PTT button. Runs the PRIVOX PTT app natively.</p>
-            <p className="mt-2 text-sm leading-6 text-slate-500">v1.8 — starts on its own after power-on, stays signed in, and receives incoming calls.</p>
+            <p className="mt-2 text-sm leading-6 text-slate-500">v1.9 — opens invitation links directly, starts on its own after power-on, stays signed in.</p>
             <a href={t320ApkUrl} download className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-md bg-orange-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-orange-700">
               Download T320 APK <Download className="h-4 w-4" />
             </a>

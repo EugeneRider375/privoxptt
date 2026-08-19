@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "tech.privox.ptt",
+      "sha256_cert_fingerprints": [
+        "7C:E9:EA:CB:33:66:1B:40:3C:08:DB:75:21:3A:09:B5:04:FD:B5:4D:AE:0B:EA:F3:5F:5E:F8:2D:50:F2:3E:E9"
+      ]
+    }
+  }
+]

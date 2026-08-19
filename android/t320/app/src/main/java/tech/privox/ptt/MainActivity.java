@@ -27,6 +27,8 @@ import androidx.webkit.WebViewCompat;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
+    /** Хост, ссылки которого приложение берёт на себя (см. assetlinks.json). */
+    private static final String APP_HOST = "ptt.privox.tech";
     private static final int MIN_WEBVIEW_MAJOR_VERSION = 100;
     private static final int RECORD_AUDIO_REQUEST_CODE = 100;
     private static final int CAMERA_REQUEST_CODE = 102;
@@ -82,6 +84,7 @@ public class MainActivity extends BridgeActivity {
         requestCameraPermission();
         warnIfWebViewIsOutdated();
         startPrivoxService();
+        handleInviteLink(getIntent());
     }
 
     public static boolean isAppInForeground() {
@@ -282,4 +285,47 @@ public class MainActivity extends BridgeActivity {
             startService(serviceIntent);
         }
     }
+
+    /**
+     * Приглашение по персональному QR: ссылка вида
+     * https://ptt.privox.tech/join/<токен> должна открыть приложение на нужной
+     * странице, а не главный экран.
+     *
+     * Приложение всегда грузит один адрес из capacitor.config.json, поэтому
+     * без этой обработки система открыла бы его, но человек оказался бы там,
+     * где был, и приглашение потерялось бы.
+     */
+    private void handleInviteLink(Intent intent) {
+        if (intent == null) return;
+
+        final Uri data = intent.getData();
+        if (data == null) return;
+        if (!"https".equals(data.getScheme())) return;
+        if (!APP_HOST.equals(data.getHost())) return;
+
+        final String path = data.getPath();
+        if (path == null || !path.startsWith("/join")) return;
+
+        if (getBridge() == null || getBridge().getWebView() == null) return;
+
+        final String url = data.toString();
+        // На старте WebView может быть ещё не готов принять loadUrl — уходим
+        // в его очередь, а не грузим прямо здесь.
+        getBridge().getWebView().post(new Runnable() {
+            @Override
+            public void run() {
+                getBridge().getWebView().loadUrl(url);
+            }
+        });
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        // launchMode singleTask: приложение уже запущено, и вторая ссылка
+        // приходит сюда, а не в onCreate.
+        setIntent(intent);
+        handleInviteLink(intent);
+    }
+
 }
