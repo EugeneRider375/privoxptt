@@ -30,8 +30,31 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        navigateFallbackDenylist: [/^\/downloads\//],
+        // Отдачу страницы из precache отключаем совсем: она регистрируется
+        // раньше наших правил и перехватывает все переходы, из-за чего
+        // NetworkFirst ниже никогда бы не сработал.
+        navigateFallback: undefined,
+        // Старый воркер отдавал страницу из кеша, и после каждого деплоя
+        // устройства продолжали жить на прошлой сборке: на компьютере, на
+        // iPhone и на рации это лечилось только ручной чисткой. Со сборками
+        // такой проблемы нет — у них хеш в имени, — а вот сама страница
+        // ссылается на эти имена, поэтому устаревала именно она.
+        //
+        // Теперь страница берётся из сети, а кеш служит запасом: при
+        // отсутствии связи или медленном ответе отдаётся последняя удачная
+        // копия. Для рации это даже лучше: без сети приложение всё равно
+        // бесполезно, зато обновления доезжают сами.
         runtimeCaching: [
+          {
+            urlPattern: ({ request, url }: { request: Request; url: URL }) =>
+              request.mode === 'navigate' && !url.pathname.startsWith('/downloads/'),
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'app-shell',
+              networkTimeoutSeconds: 4,
+              expiration: { maxEntries: 10 },
+            },
+          },
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: 'CacheFirst',
