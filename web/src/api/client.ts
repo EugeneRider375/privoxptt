@@ -175,6 +175,12 @@ export const onboardingApi = {
     api.post('/onboarding/preview', data, { timeout: 30_000 }).then((r) => r.data),
   create: (data: object) =>
     api.post('/onboarding/create', data, { timeout: 180_000 }).then((r) => r.data),
+
+  // Пополнение уже работающей группы — «пришёл новый сотрудник».
+  previewForGroup: (groupId: string, data: object) =>
+    api.post(`/onboarding/groups/${groupId}/preview`, data, { timeout: 30_000 }).then((r) => r.data),
+  addToGroup: (groupId: string, data: object) =>
+    api.post(`/onboarding/groups/${groupId}/add`, data, { timeout: 180_000 }).then((r) => r.data),
 };
 
 // ─── Приглашение по персональному QR ────────────────────────

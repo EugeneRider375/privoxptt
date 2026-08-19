@@ -200,8 +200,17 @@ interface PreviewRow {
 /**
  * Ядро предпросмотра: список позывных → что будет создано.
  * Ничего не пишет в базу.
+ *
+ * `groupMemberIds` передаётся при пополнении существующей группы: тех, кто уже
+ * в ней состоит, надо показать отдельно и по умолчанию пропустить — повторное
+ * добавление нарушило бы уникальность (userId, groupId) и откатило бы всю
+ * операцию целиком.
  */
-function buildPreviewRows(membersText: string, snapshot: OrgSnapshot) {
+function buildPreviewRows(
+  membersText: string,
+  snapshot: OrgSnapshot,
+  groupMemberIds?: ReadonlySet<string>
+) {
   const { callsigns, duplicates } = parseCallsignList(membersText);
 
   const rows: PreviewRow[] = [];
@@ -216,6 +225,7 @@ function buildPreviewRows(membersText: string, snapshot: OrgSnapshot) {
 
     const existing = snapshot.byCallsign.get(callsign.trim().toLowerCase());
     if (existing) {
+      const alreadyInGroup = groupMemberIds?.has(existing.id) ?? false;
       rows.push({
         callsign: callsign.trim(),
         status: 'EXISTING',
@@ -227,9 +237,11 @@ function buildPreviewRows(membersText: string, snapshot: OrgSnapshot) {
           email: existing.email,
           role: existing.role,
           isActive: existing.isActive,
+          alreadyInGroup,
         },
         // По умолчанию НЕ плодим дубли: берём существующего пользователя.
-        defaultAction: 'use_existing',
+        // А кто уже в группе — пропускается, добавлять его второй раз нечем.
+        defaultAction: alreadyInGroup ? 'skip' : 'use_existing',
       });
       continue;
     }
@@ -304,6 +316,292 @@ onboardingRouter.post('/preview', async (req: Request, res: Response, next: Next
   }
 });
 
+// ─── Общая часть: подготовка и вставка участников ───────────
+// Ею пользуются оба сценария — создание новой группы и добавление людей
+// в уже работающую. Логика одна, различается только откуда берётся группа.
+
+interface Prepared {
+  action: 'create' | 'use_existing';
+  callsign: string;
+  displayName: string;
+  login?: string;
+  userId?: string;
+  passwordHash?: string;
+  /** Показывается администратору один раз и нигде не сохраняется. */
+  plainPassword?: string;
+  role: UserRole;
+  canSpeak: boolean;
+  canMessage: boolean;
+  canShareLocation: boolean;
+  isGroupAdmin: boolean;
+  inviteToken: string;
+}
+
+type MemberInput = z.infer<typeof createSchema>['members'][number];
+type PasswordInput = z.infer<typeof createSchema>['password'];
+
+/** Общий пароль разрешён только с явным признанием риска. */
+function resolveSharedPassword(password: PasswordInput): string | null {
+  if (password.mode !== 'shared') return null;
+
+  if (!password.acknowledgeSharedRisk) {
+    throw new AppError(
+      400,
+      'A password shared by all members is a risk: any of them can sign in as another. ' +
+        'Confirm that you accept this risk to continue.'
+    );
+  }
+
+  const value = password.sharedPassword?.trim() || generateTempPassword();
+  const quality = checkSharedPassword(value);
+  if (!quality.ok) throw new AppError(400, quality.error!);
+  return value;
+}
+
+/**
+ * Всё тяжёлое считается ДО открытия транзакции: bcrypt при 12 раундах занимает
+ * ~250 мс на пароль, и держать транзакцию открытой всё это время — значит
+ * блокировать таблицы на десятки секунд.
+ */
+async function prepareMembers(opts: {
+  actorRole: UserRole;
+  organizationId: string;
+  members: MemberInput[];
+  sharedPassword: string | null;
+  takenLogins: Set<string>;
+}): Promise<Prepared[]> {
+  const { actorRole, organizationId, members, sharedPassword, takenLogins } = opts;
+
+  // Проход 1: проверки без обращений к базе.
+  const toCreate: (Prepared & { action: 'create' })[] = [];
+  const toReuse: {
+    userId: string;
+    callsign: string;
+    perms: Omit<Prepared, 'action' | 'callsign' | 'displayName'>;
+  }[] = [];
+
+  for (const m of members) {
+    const role = m.role ?? UserRole.USER;
+
+    if (role === UserRole.SUPERADMIN && actorRole !== UserRole.SUPERADMIN) {
+      throw new AppError(403, 'Cannot grant the superadmin role');
+    }
+
+    const perms = {
+      role,
+      canSpeak: m.canSpeak ?? true,
+      canMessage: m.canMessage ?? true,
+      canShareLocation: m.canShareLocation ?? true,
+      isGroupAdmin: m.isGroupAdmin ?? false,
+      inviteToken: generateInviteToken(),
+    };
+
+    if (m.action === 'use_existing') {
+      if (!m.userId) throw new AppError(400, `No existing user specified for "${m.callsign}"`);
+      toReuse.push({ userId: m.userId, callsign: m.callsign, perms });
+      continue;
+    }
+
+    const check = validateCallsign(m.callsign);
+    if (!check.ok) throw new AppError(400, check.error!);
+
+    const requested = m.login ? normalizeLogin(m.login) : normalizeLogin(m.callsign);
+    if (!requested) throw new AppError(400, `Cannot derive a login for "${m.callsign}"`);
+    if (takenLogins.has(requested)) {
+      throw new AppError(409, `Login "${requested}" is already taken — go back to preview`);
+    }
+    takenLogins.add(requested);
+
+    toCreate.push({
+      ...perms,
+      action: 'create',
+      callsign: m.callsign.trim().toUpperCase(),
+      displayName: m.displayName?.trim() || m.callsign.trim(),
+      login: requested,
+      plainPassword: sharedPassword ?? generateTempPassword(),
+    });
+  }
+
+  // Проход 2: существующие пользователи — ОДИН запрос вместо запроса на каждого.
+  const reusedById = new Map<string, { id: string; callsign: string; displayName: string }>();
+  if (toReuse.length) {
+    const found = await prisma.user.findMany({
+      where: { id: { in: toReuse.map((r) => r.userId) } },
+      select: { id: true, callsign: true, displayName: true, organizationId: true },
+    });
+    for (const u of found) {
+      if (u.organizationId !== organizationId) {
+        throw new AppError(400, `"${u.callsign}" belongs to another organization`);
+      }
+      reusedById.set(u.id, u);
+    }
+    for (const r of toReuse) {
+      if (!reusedById.has(r.userId)) {
+        throw new AppError(404, `User for "${r.callsign}" not found`);
+      }
+    }
+  }
+
+  // Проход 3: пароли считаются ПАРАЛЛЕЛЬНО. Последовательный цикл здесь
+  // упирался в 13 с на 50 участников — больше, чем таймаут веб-клиента.
+  const hashes = await Promise.all(
+    toCreate.map((c) => bcrypt.hash(c.plainPassword!, BCRYPT_ROUNDS))
+  );
+  toCreate.forEach((c, i) => {
+    c.passwordHash = hashes[i];
+  });
+
+  // Порядок сохраняем как во входном списке: сначала созданные, затем взятые.
+  return [
+    ...toCreate,
+    ...toReuse.map((r) => {
+      const u = reusedById.get(r.userId)!;
+      return {
+        ...r.perms,
+        action: 'use_existing' as const,
+        userId: u.id,
+        callsign: u.callsign,
+        displayName: u.displayName,
+      };
+    }),
+  ];
+}
+
+interface CreatedMember {
+  userId: string;
+  callsign: string;
+  displayName: string;
+  login: string | null;
+  isNew: boolean;
+  tempPassword?: string;
+  inviteId: string;
+  inviteToken: string;
+}
+
+/** Создание пользователей, участия в группе и приглашений. Только внутри транзакции. */
+async function insertMembers(
+  tx: Prisma.TransactionClient,
+  opts: {
+    groupId: string;
+    organizationId: string;
+    prepared: Prepared[];
+    inviteExpiresAt: Date;
+    singleUse: boolean;
+    actorId: string | null;
+    actorLabel: string;
+  }
+): Promise<CreatedMember[]> {
+  const created: CreatedMember[] = [];
+
+  for (const p of opts.prepared) {
+    let userId = p.userId!;
+
+    if (p.action === 'create') {
+      const user = await tx.user.create({
+        data: {
+          callsign: p.callsign,
+          displayName: p.displayName,
+          login: p.login!,
+          password: p.passwordHash!,
+          role: p.role,
+          organizationId: opts.organizationId,
+          mustChangePassword: true,
+        },
+        select: { id: true },
+      });
+      userId = user.id;
+    }
+
+    await tx.groupMember.create({
+      data: {
+        groupId: opts.groupId,
+        userId,
+        canSpeak: p.canSpeak,
+        canMessage: p.canMessage,
+        canShareLocation: p.canShareLocation,
+        isGroupAdmin: p.isGroupAdmin,
+      },
+    });
+
+    const invite = await tx.invite.create({
+      data: {
+        tokenHash: hashInviteToken(p.inviteToken),
+        userId,
+        groupId: opts.groupId,
+        organizationId: opts.organizationId,
+        expiresAt: opts.inviteExpiresAt,
+        maxUses: opts.singleUse ? 1 : 0, // 0 = без ограничения по числу
+        createdById: opts.actorId,
+        createdByLabel: opts.actorLabel,
+      },
+      select: { id: true },
+    });
+
+    created.push({
+      userId,
+      callsign: p.callsign,
+      displayName: p.displayName,
+      login: p.login ?? null,
+      isNew: p.action === 'create',
+      tempPassword: p.plainPassword,
+      inviteId: invite.id,
+      inviteToken: p.inviteToken,
+    });
+  }
+
+  return created;
+}
+
+/** Ответ администратору. Пароли и токены здесь видны в ПЕРВЫЙ и последний раз. */
+function serializeCreated(created: CreatedMember[]) {
+  return created.map((c) => ({
+    userId: c.userId,
+    callsign: c.callsign,
+    displayName: c.displayName,
+    login: c.login,
+    isNew: c.isNew,
+    tempPassword: c.tempPassword ?? null,
+    inviteId: c.inviteId,
+    inviteUrl: buildInviteUrl(config.publicWebUrl, c.inviteToken),
+  }));
+}
+
+async function loadActor(userId: string) {
+  const actor = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, callsign: true, login: true, email: true },
+  });
+  return {
+    id: actor?.id ?? null,
+    label: actor?.callsign || actor?.login || actor?.email || 'unknown',
+  };
+}
+
+/** Группа существует, доступна этому администратору и пригодна для пополнения. */
+async function loadWritableGroup(req: Request, groupId: string) {
+  const group = await prisma.group.findUnique({
+    where: { id: groupId },
+    include: {
+      organization: { select: { id: true, name: true, slug: true } },
+      members: { select: { userId: true } },
+    },
+  });
+  if (!group) throw new AppError(404, 'Group not found');
+
+  if (
+    req.user!.role !== UserRole.SUPERADMIN &&
+    group.organizationId !== req.user!.organizationId
+  ) {
+    throw new AppError(403, 'Access denied');
+  }
+
+  if (group.status === GroupStatus.ARCHIVED) {
+    throw new AppError(400, 'This group is archived — restore it before adding members');
+  }
+
+  return group;
+}
+
 // ─── POST /api/onboarding/create ────────────────────────────
 // Создаёт группу, пользователей, участников и приглашения ОДНОЙ транзакцией.
 
@@ -319,264 +617,79 @@ onboardingRouter.post('/create', async (req: Request, res: Response, next: NextF
     });
     if (!organization) throw new AppError(404, 'Organization not found');
 
-    const actor = await prisma.user.findUnique({
-      where: { id: req.user!.userId },
-      select: { id: true, callsign: true, login: true, email: true },
-    });
-
-    // ── Общий пароль: только осознанно ─────────────────────
-    let sharedPassword: string | null = null;
-    if (data.password.mode === 'shared') {
-      if (!data.password.acknowledgeSharedRisk) {
-        throw new AppError(
-          400,
-          'A password shared by all members is a risk: any of them can sign in as another. ' +
-            'Confirm that you accept this risk to continue.'
-        );
-      }
-      sharedPassword = data.password.sharedPassword?.trim() || generateTempPassword();
-      const quality = checkSharedPassword(sharedPassword);
-      if (!quality.ok) throw new AppError(400, quality.error!);
-    }
+    const actor = await loadActor(req.user!.userId);
+    const sharedPassword = resolveSharedPassword(data.password);
 
     const wanted = data.members.filter((m) => m.action !== 'skip');
-    if (wanted.length === 0) {
-      throw new AppError(400, 'The group has no members');
-    }
+    if (wanted.length === 0) throw new AppError(400, 'The group has no members');
 
     const snapshot = await loadOrgSnapshot(organizationId);
-    const takenLogins = new Set(snapshot.takenLogins.map((l) => l.toLowerCase()));
-
-    // ── Подготовка вне транзакции ──────────────────────────
-    // Всё тяжёлое считается ДО открытия транзакции: bcrypt при 12 раундах
-    // занимает ~250 мс на пароль, и держать транзакцию открытой всё это
-    // время — значит блокировать таблицы на десятки секунд.
-    interface Prepared {
-      action: 'create' | 'use_existing';
-      callsign: string;
-      displayName: string;
-      login?: string;
-      userId?: string;
-      passwordHash?: string;
-      /** Показывается администратору один раз и нигде не сохраняется. */
-      plainPassword?: string;
-      role: UserRole;
-      canSpeak: boolean;
-      canMessage: boolean;
-      canShareLocation: boolean;
-      isGroupAdmin: boolean;
-      inviteToken: string;
-    }
-
-    // Проход 1: проверки без обращений к базе.
-    const toCreate: (Prepared & { action: 'create' })[] = [];
-    const toReuse: { userId: string; callsign: string; perms: Omit<Prepared, 'action' | 'callsign' | 'displayName'> }[] = [];
-
-    for (const m of wanted) {
-      const role = m.role ?? UserRole.USER;
-
-      if (role === UserRole.SUPERADMIN && req.user!.role !== UserRole.SUPERADMIN) {
-        throw new AppError(403, 'Cannot grant the superadmin role');
-      }
-
-      const perms = {
-        role,
-        canSpeak: m.canSpeak ?? true,
-        canMessage: m.canMessage ?? true,
-        canShareLocation: m.canShareLocation ?? true,
-        isGroupAdmin: m.isGroupAdmin ?? false,
-        inviteToken: generateInviteToken(),
-      };
-
-      if (m.action === 'use_existing') {
-        if (!m.userId) throw new AppError(400, `No existing user specified for "${m.callsign}"`);
-        toReuse.push({ userId: m.userId, callsign: m.callsign, perms });
-        continue;
-      }
-
-      const check = validateCallsign(m.callsign);
-      if (!check.ok) throw new AppError(400, check.error!);
-
-      const requested = m.login ? normalizeLogin(m.login) : normalizeLogin(m.callsign);
-      if (!requested) throw new AppError(400, `Cannot derive a login for "${m.callsign}"`);
-      if (takenLogins.has(requested)) {
-        throw new AppError(409, `Login "${requested}" is already taken — go back to preview`);
-      }
-      takenLogins.add(requested);
-
-      toCreate.push({
-        ...perms,
-        action: 'create',
-        callsign: m.callsign.trim().toUpperCase(),
-        displayName: m.displayName?.trim() || m.callsign.trim(),
-        login: requested,
-        plainPassword: sharedPassword ?? generateTempPassword(),
-      });
-    }
-
-    // Проход 2: существующие пользователи — ОДИН запрос вместо запроса на каждого.
-    const reusedById = new Map<string, { id: string; callsign: string; displayName: string }>();
-    if (toReuse.length) {
-      const found = await prisma.user.findMany({
-        where: { id: { in: toReuse.map((r) => r.userId) } },
-        select: { id: true, callsign: true, displayName: true, organizationId: true },
-      });
-      for (const u of found) {
-        if (u.organizationId !== organizationId) {
-          throw new AppError(400, `"${u.callsign}" belongs to another organization`);
-        }
-        reusedById.set(u.id, u);
-      }
-      for (const r of toReuse) {
-        if (!reusedById.has(r.userId)) {
-          throw new AppError(404, `User for "${r.callsign}" not found`);
-        }
-      }
-    }
-
-    // Проход 3: пароли считаются ПАРАЛЛЕЛЬНО. Последовательный цикл здесь
-    // упирался в 13 с на 50 участников — больше, чем таймаут веб-клиента.
-    const hashes = await Promise.all(
-      toCreate.map((c) => bcrypt.hash(c.plainPassword!, BCRYPT_ROUNDS))
-    );
-    toCreate.forEach((c, i) => {
-      c.passwordHash = hashes[i];
+    const prepared = await prepareMembers({
+      actorRole: req.user!.role,
+      organizationId,
+      members: wanted,
+      sharedPassword,
+      takenLogins: new Set(snapshot.takenLogins.map((l) => l.toLowerCase())),
     });
 
-    // Порядок сохраняем как во входном списке: сначала созданные, затем взятые.
-    const prepared: Prepared[] = [
-      ...toCreate,
-      ...toReuse.map((r) => {
-        const u = reusedById.get(r.userId)!;
-        return {
-          ...r.perms,
-          action: 'use_existing' as const,
-          userId: u.id,
-          callsign: u.callsign,
-          displayName: u.displayName,
-        };
-      }),
-    ];
+    const inviteExpiresAt = new Date(Date.now() + data.invites.expiresInDays * 86_400_000);
 
-    const inviteExpiresAt = new Date(
-      Date.now() + data.invites.expiresInDays * 24 * 60 * 60 * 1000
-    );
-    const actorLabel = actor?.callsign || actor?.login || actor?.email || 'unknown';
-
-    // ── Одна транзакция: всё или ничего ────────────────────
-    const result = await prisma.$transaction(async (tx) => {
-      const group = await tx.group.create({
-        data: {
-          name: data.group.name,
-          description: data.group.description,
-          organizationId,
-          isPrivate: data.group.isPrivate,
-          priority: data.group.priority,
-          color: data.group.color,
-          startsAt: data.group.startsAt ? new Date(data.group.startsAt) : null,
-          endsAt: data.group.endsAt ? new Date(data.group.endsAt) : null,
-          status: data.group.activateNow ? GroupStatus.ACTIVE : GroupStatus.DRAFT,
-        },
-      });
-
-      const created: {
-        userId: string;
-        callsign: string;
-        displayName: string;
-        login: string | null;
-        isNew: boolean;
-        tempPassword?: string;
-        inviteId: string;
-        inviteToken: string;
-      }[] = [];
-
-      for (const p of prepared) {
-        let userId = p.userId!;
-
-        if (p.action === 'create') {
-          const user = await tx.user.create({
-            data: {
-              callsign: p.callsign,
-              displayName: p.displayName,
-              login: p.login!,
-              password: p.passwordHash!,
-              role: p.role,
-              organizationId,
-              mustChangePassword: true,
-            },
-            select: { id: true },
-          });
-          userId = user.id;
-        }
-
-        await tx.groupMember.create({
+    const result = await prisma.$transaction(
+      async (tx) => {
+        const group = await tx.group.create({
           data: {
-            groupId: group.id,
-            userId,
-            canSpeak: p.canSpeak,
-            canMessage: p.canMessage,
-            canShareLocation: p.canShareLocation,
-            isGroupAdmin: p.isGroupAdmin,
-          },
-        });
-
-        const invite = await tx.invite.create({
-          data: {
-            tokenHash: hashInviteToken(p.inviteToken),
-            userId,
-            groupId: group.id,
+            name: data.group.name,
+            description: data.group.description,
             organizationId,
-            expiresAt: inviteExpiresAt,
-            maxUses: data.invites.singleUse ? 1 : 0, // 0 = без ограничения по числу
-            createdById: actor?.id ?? null,
-            createdByLabel: actorLabel,
+            isPrivate: data.group.isPrivate,
+            priority: data.group.priority,
+            color: data.group.color,
+            startsAt: data.group.startsAt ? new Date(data.group.startsAt) : null,
+            endsAt: data.group.endsAt ? new Date(data.group.endsAt) : null,
+            status: data.group.activateNow ? GroupStatus.ACTIVE : GroupStatus.DRAFT,
           },
-          select: { id: true },
         });
 
-        created.push({
-          userId,
-          callsign: p.callsign,
-          displayName: p.displayName,
-          login: p.login ?? null,
-          isNew: p.action === 'create',
-          tempPassword: p.plainPassword,
-          inviteId: invite.id,
-          inviteToken: p.inviteToken,
-        });
-      }
-
-      await tx.adminAuditLog.create({
-        data: {
+        const created = await insertMembers(tx, {
+          groupId: group.id,
           organizationId,
-          actorId: actor?.id ?? null,
-          actorLabel,
-          action: 'group.create_with_members',
-          targetType: 'group',
-          targetId: group.id,
-          // Пароли и токены сюда НЕ попадают — только счётчики и имена.
-          meta: {
-            groupName: group.name,
-            status: group.status,
-            endsAt: group.endsAt,
-            membersTotal: created.length,
-            membersCreated: created.filter((c) => c.isNew).length,
-            membersExisting: created.filter((c) => !c.isNew).length,
-            invitesIssued: created.length,
-            inviteExpiresAt: inviteExpiresAt.toISOString(),
-            sharedPassword: data.password.mode === 'shared',
-          } as Prisma.InputJsonValue,
-          ip: req.ip ?? null,
-        },
-      });
+          prepared,
+          inviteExpiresAt,
+          singleUse: data.invites.singleUse,
+          actorId: actor.id,
+          actorLabel: actor.label,
+        });
 
-      return { group, created };
-    }, {
+        await tx.adminAuditLog.create({
+          data: {
+            organizationId,
+            actorId: actor.id,
+            actorLabel: actor.label,
+            action: 'group.create_with_members',
+            targetType: 'group',
+            targetId: group.id,
+            // Пароли и токены сюда НЕ попадают — только счётчики и имена.
+            meta: {
+              groupName: group.name,
+              status: group.status,
+              endsAt: group.endsAt,
+              membersTotal: created.length,
+              membersCreated: created.filter((c) => c.isNew).length,
+              membersExisting: created.filter((c) => !c.isNew).length,
+              invitesIssued: created.length,
+              inviteExpiresAt: inviteExpiresAt.toISOString(),
+              sharedPassword: data.password.mode === 'shared',
+            } as Prisma.InputJsonValue,
+            ip: req.ip ?? null,
+          },
+        });
+
+        return { group, created };
+      },
       // Массовое создание с bcrypt уже посчитанным заранее укладывается быстро,
       // но при 200 участниках запас нужен.
-      timeout: 60_000,
-      maxWait: 10_000,
-    });
+      { timeout: 60_000, maxWait: 10_000 }
+    );
 
     emitOrgDataChanged(req, organizationId, 'groups', { groupId: result.group.id, action: 'created' });
     emitOrgDataChanged(req, organizationId, 'users', { action: 'created' });
@@ -603,27 +716,177 @@ onboardingRouter.post('/create', async (req: Request, res: Response, next: NextF
         priority: result.group.priority,
       },
       organization,
-      /**
-       * Пароли и токены приглашений возвращаются ЕДИНСТВЕННЫЙ раз — здесь.
-       * В базе от них только хеши, повторно показать их невозможно,
-       * можно лишь перевыпустить.
-       */
-      members: result.created.map((c) => ({
-        userId: c.userId,
-        callsign: c.callsign,
-        displayName: c.displayName,
-        login: c.login,
-        isNew: c.isNew,
-        tempPassword: c.tempPassword ?? null,
-        inviteId: c.inviteId,
-        inviteUrl: buildInviteUrl(config.publicWebUrl, c.inviteToken),
-      })),
+      members: serializeCreated(result.created),
       invites: {
         expiresAt: inviteExpiresAt,
         singleUse: data.invites.singleUse,
         count: result.created.length,
       },
-      sharedPassword: data.password.mode === 'shared' ? sharedPassword : null,
+      sharedPassword,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── POST /api/onboarding/groups/:groupId/preview ────────────
+// Пополнение УЖЕ работающей группы: «бригада в деле, пришёл новый человек».
+// Ничего не создаёт.
+
+onboardingRouter.post('/groups/:groupId/preview', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const groupId = z.string().uuid().parse(req.params.groupId);
+    const { membersText } = z.object({ membersText: z.string().default('') }).parse(req.body);
+
+    const group = await loadWritableGroup(req, groupId);
+    const snapshot = await loadOrgSnapshot(group.organizationId);
+    const memberIds = new Set(group.members.map((m) => m.userId));
+
+    const { rows, duplicates } = buildPreviewRows(membersText, snapshot, memberIds);
+
+    const warnings: string[] = [];
+    if (duplicates.length) {
+      warnings.push(`Duplicates in the list were skipped: ${duplicates.join(', ')}`);
+    }
+    const alreadyIn = rows.filter((r) => r.existing?.alreadyInGroup).length;
+    if (alreadyIn) {
+      warnings.push(`${alreadyIn} of them are already in this group and will be skipped`);
+    }
+
+    res.json({
+      organization: group.organization,
+      group: {
+        id: group.id,
+        name: group.name,
+        status: group.status,
+        endsAt: group.endsAt,
+        unlimited: !group.endsAt,
+        currentMembers: group.members.length,
+      },
+      totals: {
+        total: rows.length,
+        toCreate: rows.filter((r) => r.status === 'NEW').length,
+        existing: rows.filter((r) => r.status === 'EXISTING' && !r.existing?.alreadyInGroup).length,
+        alreadyInGroup: alreadyIn,
+        rejected: rows.filter((r) => r.status === 'REJECTED').length,
+        invites: rows.filter((r) => r.defaultAction !== 'skip').length,
+      },
+      rows,
+      warnings,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── POST /api/onboarding/groups/:groupId/add ────────────────
+// Добавляет людей в существующую группу и выдаёт им приглашения. Одна транзакция.
+
+const addToGroupSchema = createSchema.omit({ group: true, organizationId: true });
+
+onboardingRouter.post('/groups/:groupId/add', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const groupId = z.string().uuid().parse(req.params.groupId);
+    const data = addToGroupSchema.parse(req.body);
+
+    const group = await loadWritableGroup(req, groupId);
+    const organizationId = group.organizationId;
+    const actor = await loadActor(req.user!.userId);
+    const sharedPassword = resolveSharedPassword(data.password);
+
+    // Кто уже в группе — молча пропускаем: повторное добавление упало бы на
+    // уникальности (userId, groupId) и откатило бы всю операцию.
+    const memberIds = new Set(group.members.map((m) => m.userId));
+    const wanted = data.members.filter(
+      (m) => m.action !== 'skip' && !(m.userId && memberIds.has(m.userId))
+    );
+    const skippedAsMembers = data.members.filter((m) => m.userId && memberIds.has(m.userId)).length;
+
+    if (wanted.length === 0) {
+      throw new AppError(400, 'Nobody to add — everyone from the list is already in this group');
+    }
+
+    const snapshot = await loadOrgSnapshot(organizationId);
+    const prepared = await prepareMembers({
+      actorRole: req.user!.role,
+      organizationId,
+      members: wanted,
+      sharedPassword,
+      takenLogins: new Set(snapshot.takenLogins.map((l) => l.toLowerCase())),
+    });
+
+    const inviteExpiresAt = new Date(Date.now() + data.invites.expiresInDays * 86_400_000);
+
+    const created = await prisma.$transaction(
+      async (tx) => {
+        const rows = await insertMembers(tx, {
+          groupId: group.id,
+          organizationId,
+          prepared,
+          inviteExpiresAt,
+          singleUse: data.invites.singleUse,
+          actorId: actor.id,
+          actorLabel: actor.label,
+        });
+
+        await tx.adminAuditLog.create({
+          data: {
+            organizationId,
+            actorId: actor.id,
+            actorLabel: actor.label,
+            action: 'group.add_members',
+            targetType: 'group',
+            targetId: group.id,
+            meta: {
+              groupName: group.name,
+              membersAdded: rows.length,
+              membersCreated: rows.filter((c) => c.isNew).length,
+              membersExisting: rows.filter((c) => !c.isNew).length,
+              skippedAlreadyInGroup: skippedAsMembers,
+              invitesIssued: rows.length,
+              inviteExpiresAt: inviteExpiresAt.toISOString(),
+              sharedPassword: data.password.mode === 'shared',
+            } as Prisma.InputJsonValue,
+            ip: req.ip ?? null,
+          },
+        });
+
+        return rows;
+      },
+      { timeout: 60_000, maxWait: 10_000 }
+    );
+
+    emitOrgDataChanged(req, organizationId, 'members', { groupId: group.id, action: 'member_added' });
+    emitOrgDataChanged(req, organizationId, 'users', { action: 'created' });
+
+    logger.info({
+      msg: 'Участники добавлены в существующую группу',
+      groupId: group.id,
+      groupName: group.name,
+      organizationId,
+      added: created.length,
+      skippedAlreadyInGroup: skippedAsMembers,
+    });
+
+    res.status(201).json({
+      group: {
+        id: group.id,
+        name: group.name,
+        status: group.status,
+        endsAt: group.endsAt,
+        unlimited: !group.endsAt,
+        color: group.color,
+        priority: group.priority,
+      },
+      organization: group.organization,
+      members: serializeCreated(created),
+      invites: {
+        expiresAt: inviteExpiresAt,
+        singleUse: data.invites.singleUse,
+        count: created.length,
+      },
+      skippedAlreadyInGroup: skippedAsMembers,
+      sharedPassword,
     });
   } catch (err) {
     next(err);

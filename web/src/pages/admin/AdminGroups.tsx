@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, Users, X, UserPlus, UserMinus, MicOff, Mic, Wand2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Users, X, UserPlus, UserMinus, MicOff, Mic, Wand2, UserRoundPlus } from 'lucide-react';
 import { groupsApi, usersApi, orgsApi, sensorsApi } from '@/api/client';
 import { useStore } from '@/store/useStore';
 import type { Group, User, GroupMember, Organization, Sensor } from '@/types';
@@ -43,6 +43,8 @@ export function AdminGroups() {
   const [selectedOrgId, setSelectedOrgId] = useState('');
   const [modal, setModal] = useState<'create' | 'edit' | 'members' | null>(null);
   const [wizardOpen, setWizardOpen] = useState(false);
+  // Пополнение существующей группы — тот же вопросник, но без шага параметров.
+  const [addToGroup, setAddToGroup] = useState<Group | null>(null);
   const [selected, setSelected] = useState<Group | null>(null);
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [form, setForm] = useState({ name: '', description: '', color: '#3DDC84', priority: 0, isPrivate: false, organizationId: '' });
@@ -174,6 +176,17 @@ export function AdminGroups() {
         />
       )}
 
+      {addToGroup && (
+        <GroupWizard
+          organizations={orgs}
+          defaultOrgId={addToGroup.organizationId}
+          isSuperAdmin={isSuperAdmin}
+          existingGroup={{ id: addToGroup.id, name: addToGroup.name }}
+          onClose={() => setAddToGroup(null)}
+          onCreated={load}
+        />
+      )}
+
       {isSuperAdmin && (
         <div className="card p-3">
           <label className="font-mono text-ptt-muted text-xs tracking-widest block mb-1">ORGANIZATION</label>
@@ -231,6 +244,11 @@ export function AdminGroups() {
             <div className="flex items-center gap-2 pt-1 border-t border-ptt-border/50">
               <button onClick={() => openMembers(g)} className="flex items-center gap-1 text-ptt-blue hover:text-white transition-colors font-mono text-xs">
                 <Users className="w-3 h-3" /> Members
+              </button>
+              <button onClick={() => setAddToGroup(g)}
+                title="Add members with personal QR invitations"
+                className="flex items-center gap-1 text-ptt-green hover:text-white transition-colors font-mono text-xs">
+                <UserRoundPlus className="w-3 h-3" /> Add
               </button>
               <button onClick={() => openEdit(g)} className="ml-auto text-ptt-muted hover:text-white transition-colors">
                 <Pencil className="w-3.5 h-3.5" />

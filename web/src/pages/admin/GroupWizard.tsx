@@ -77,10 +77,19 @@ interface Props {
   onClose: () => void;
   /** Вызывается после успешного создания, чтобы список групп обновился. */
   onCreated: () => void;
+  /**
+   * Задана — вопросник работает в режиме пополнения: шаг с параметрами группы
+   * пропускается, участники добавляются в неё. Не задана — создаём новую.
+   */
+  existingGroup?: { id: string; name: string };
 }
 
-export function GroupWizard({ organizations, defaultOrgId, isSuperAdmin, onClose, onCreated }: Props) {
-  const [step, setStep] = useState(0);
+export function GroupWizard({
+  organizations, defaultOrgId, isSuperAdmin, onClose, onCreated, existingGroup,
+}: Props) {
+  // В режиме пополнения первый шаг не нужен: группа уже выбрана.
+  const firstStep = existingGroup ? 1 : 0;
+  const [step, setStep] = useState(firstStep);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -186,11 +195,13 @@ export function GroupWizard({ organizations, defaultOrgId, isSuperAdmin, onClose
     setLoading(true);
     setError('');
     try {
-      const data: WizardPreview = await onboardingApi.preview({
-        organizationId: isSuperAdmin ? organizationId : undefined,
-        group: groupPayload(),
-        membersText,
-      });
+      const data: WizardPreview = existingGroup
+        ? await onboardingApi.previewForGroup(existingGroup.id, { membersText })
+        : await onboardingApi.preview({
+            organizationId: isSuperAdmin ? organizationId : undefined,
+            group: groupPayload(),
+            membersText,
+          });
       setPreview(data);
       setActions(Object.fromEntries(data.rows.map((r) => [r.callsign, r.defaultAction])));
       setStep(4);
@@ -221,9 +232,7 @@ export function GroupWizard({ organizations, defaultOrgId, isSuperAdmin, onClose
         }))
         .filter((m) => m.action !== 'skip');
 
-      const data: WizardResult = await onboardingApi.create({
-        organizationId: isSuperAdmin ? organizationId : undefined,
-        group: groupPayload(),
+      const payload = {
         members,
         invites: { expiresInDays: inviteDays, singleUse },
         password: {
@@ -231,7 +240,15 @@ export function GroupWizard({ organizations, defaultOrgId, isSuperAdmin, onClose
           sharedPassword: passwordMode === 'shared' ? sharedPassword : undefined,
           acknowledgeSharedRisk,
         },
-      });
+      };
+
+      const data: WizardResult = existingGroup
+        ? await onboardingApi.addToGroup(existingGroup.id, payload)
+        : await onboardingApi.create({
+            organizationId: isSuperAdmin ? organizationId : undefined,
+            group: groupPayload(),
+            ...payload,
+          });
       setResult(data);
       setStep(5);
       onCreated();
@@ -337,12 +354,14 @@ export function GroupWizard({ organizations, defaultOrgId, isSuperAdmin, onClose
       <div className="card w-full max-w-3xl p-5 my-4">
         {/* Заголовок и шаги */}
         <div className="flex items-center justify-between mb-4">
-          <p className="font-orbitron text-white text-sm tracking-widest">NEW GROUP — GUIDED SETUP</p>
+          <p className="font-orbitron text-white text-sm tracking-widest">
+            {existingGroup ? `ADD MEMBERS — ${existingGroup.name.toUpperCase()}` : 'NEW GROUP — GUIDED SETUP'}
+          </p>
           <button onClick={onClose} className="text-ptt-muted hover:text-white"><X className="w-4 h-4" /></button>
         </div>
 
         <div className="flex items-center gap-1 mb-5 overflow-x-auto">
-          {STEPS.map((s, i) => (
+          {STEPS.map((s, i) => (i < firstStep ? null : (
             <div key={s} className="flex items-center gap-1 shrink-0">
               <div className={clsx(
                 'flex items-center gap-1.5 px-2 py-1 rounded font-mono text-[11px] tracking-wider',
@@ -359,7 +378,7 @@ export function GroupWizard({ organizations, defaultOrgId, isSuperAdmin, onClose
               </div>
               {i < STEPS.length - 1 && <span className="text-ptt-border">·</span>}
             </div>
-          ))}
+          )))}
         </div>
 
         {/* ── Шаг 1: параметры группы ───────────────────────── */}
@@ -651,11 +670,13 @@ export function GroupWizard({ organizations, defaultOrgId, isSuperAdmin, onClose
         {step === 5 && result && (
           <div className="space-y-4">
             <div className="rounded border border-ptt-green/40 bg-ptt-green/5 p-3">
-              <p className="font-orbitron text-ptt-green text-sm">{result.group.name} — CREATED</p>
+              <p className="font-orbitron text-ptt-green text-sm">
+                {result.group.name} — {existingGroup ? 'MEMBERS ADDED' : 'CREATED'}
+              </p>
               <p className="font-mono text-ptt-muted text-[11px] mt-1">
                 {result.organization.name} · status {result.group.status} ·{' '}
                 {result.group.unlimited ? 'no time limit' : `until ${new Date(result.group.endsAt!).toLocaleDateString()}`}
-                {' · '}{result.members.length} members · {result.invites.count} invitations
+                {' · '}{result.members.length} {existingGroup ? 'added' : 'members'} · {result.invites.count} invitations
               </p>
             </div>
 
@@ -839,7 +860,7 @@ export function GroupWizard({ organizations, defaultOrgId, isSuperAdmin, onClose
 
         {/* Навигация */}
         <div className="flex items-center gap-2 mt-5 pt-4 border-t border-ptt-border">
-          {step > 0 && step < 5 && (
+          {step > firstStep && step < 5 && (
             <button onClick={() => { setStep(step - 1); setError(''); }}
               className="flex items-center gap-1 font-mono text-xs text-ptt-muted hover:text-white">
               <ArrowLeft className="w-3 h-3" /> BACK
