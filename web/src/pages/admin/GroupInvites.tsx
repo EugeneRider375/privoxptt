@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  AlertTriangle, Ban, KeyRound, Link2, Loader2, RefreshCw, X,
+  AlertTriangle, Ban, History, KeyRound, Link2, Loader2, RefreshCw, X,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -45,6 +45,7 @@ export function GroupInvites({ group, onClose }: { group: Group; onClose: () => 
   const [fresh, setFresh] = useState<FreshLink | null>(null);
   const [secret, setSecret] = useState<Secret | null>(null);
   const [copied, setCopied] = useState('');
+  const [showHistory, setShowHistory] = useState(false);
 
   function load() {
     onboardingApi
@@ -100,6 +101,26 @@ export function GroupInvites({ group, onClose }: { group: Group; onClose: () => 
     } finally {
       setBusy('');
     }
+  }
+
+  /**
+   * Каждый перевыпуск гасит предыдущее приглашение, и мёртвые строки копятся:
+   * у одного человека их может стать десяток. Показываем только текущее —
+   * самое свежее для каждого участника, — а прежние прячем за переключателем.
+   * Сервер отдаёт список уже отсортированным от новых к старым.
+   */
+  function splitCurrentAndHistory(invites: GroupInvite[]) {
+    const seen = new Set<string>();
+    const current: GroupInvite[] = [];
+    const history: GroupInvite[] = [];
+    for (const i of invites) {
+      if (seen.has(i.user.id)) history.push(i);
+      else {
+        seen.add(i.user.id);
+        current.push(i);
+      }
+    }
+    return { current, history };
   }
 
   function copy(text: string, tag: string) {
@@ -197,7 +218,10 @@ export function GroupInvites({ group, onClose }: { group: Group; onClose: () => 
           </div>
         )}
 
-        {data && (
+        {data && (() => {
+          const { current, history } = splitCurrentAndHistory(data.invites);
+          const visible = showHistory ? [...current, ...history] : current;
+          return (
           <>
             <div className="border border-ptt-border rounded overflow-hidden">
               <div className="max-h-[26rem] overflow-y-auto">
@@ -212,7 +236,7 @@ export function GroupInvites({ group, onClose }: { group: Group; onClose: () => 
                     </tr>
                   </thead>
                   <tbody>
-                    {data.invites.map((i) => {
+                    {visible.map((i) => {
                       const st = STATUS_STYLE[i.status];
                       const working = busy === i.id;
                       return (
@@ -271,6 +295,16 @@ export function GroupInvites({ group, onClose }: { group: Group; onClose: () => 
               </p>
             )}
 
+            {history.length > 0 && (
+              <button onClick={() => setShowHistory(!showHistory)}
+                className="flex items-center gap-1.5 font-mono text-[11px] text-ptt-muted hover:text-white mt-3">
+                <History className="w-3 h-3" />
+                {showHistory
+                  ? 'hide superseded invitations'
+                  : `show ${history.length} superseded ${history.length === 1 ? 'invitation' : 'invitations'}`}
+              </button>
+            )}
+
             {data.membersWithoutInvite.length > 0 && (
               <p className="font-mono text-ptt-muted text-[11px] mt-3">
                 In the group but without an invitation (added manually):{' '}
@@ -284,7 +318,8 @@ export function GroupInvites({ group, onClose }: { group: Group; onClose: () => 
               immediately.
             </p>
           </>
-        )}
+          );
+        })()}
       </div>
     </div>
   );
