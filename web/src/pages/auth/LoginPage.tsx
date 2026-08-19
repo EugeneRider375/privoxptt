@@ -36,10 +36,13 @@ export function LoginPage() {
     }
   }
 
+  // overflow-hidden здесь стоял на всей странице ради фонового декора, и на
+  // экране рации кнопка входа уезжала за край без возможности прокрутить.
+  // Прокрутку возвращаем странице, а декор прячем внутри своего слоя.
   return (
-    <div className="min-h-screen bg-ptt-dark flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-ptt-dark flex items-center justify-center p-4 py-6 relative overflow-y-auto">
       {/* Фоновые декоративные элементы */}
-      <div className="absolute inset-0 pointer-events-none">
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-full scanlines opacity-30" />
         <div className="absolute top-1/4 left-1/4 w-64 h-64 rounded-full bg-ptt-green/5 blur-3xl" />
         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full bg-ptt-green/3 blur-3xl" />
@@ -55,28 +58,29 @@ export function LoginPage() {
 
       <div className="relative w-full max-w-sm">
         {/* Логотип */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-ptt-card border border-ptt-border mb-4 relative overflow-hidden">
+        {/* На низком экране (рация) шапку ужимаем, чтобы форма помещалась целиком. */}
+        <div className="text-center mb-4 sm:mb-8">
+          <div className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-ptt-card border border-ptt-border mb-2 sm:mb-4 relative overflow-hidden">
             <PrivoxLogo className="h-full w-full rounded-2xl" markClassName="h-10 w-10" />
             <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-ptt-green animate-ping-slow" />
           </div>
-          <h1 className="font-orbitron text-2xl font-bold text-white tracking-wider">
+          <h1 className="font-orbitron text-xl sm:text-2xl font-bold text-white tracking-wider">
             PRIVOX<span className="text-ptt-green">PTT</span>
           </h1>
-          <p className="font-mono text-ptt-text text-xs mt-1 tracking-widest">
+          <p className="hidden sm:block font-mono text-ptt-text text-xs mt-1 tracking-widest">
             SECURE PUSH-TO-TALK SYSTEM
           </p>
         </div>
 
         {/* Форма */}
-        <div className="card p-6 relative">
+        <div className="card p-4 sm:p-6 relative">
           {/* Угловые декоры */}
           <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-ptt-green" />
           <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-ptt-green" />
           <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-ptt-green" />
           <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-ptt-green" />
 
-          <p className="font-mono text-ptt-text text-xs tracking-widest mb-6 text-center">
+          <p className="font-mono text-ptt-text text-xs tracking-widest mb-4 sm:mb-6 text-center">
             &gt; SYSTEM AUTHORIZATION
           </p>
 
@@ -85,17 +89,28 @@ export function LoginPage() {
               <label className="font-mono text-ptt-text text-xs tracking-widest block mb-1">
                 EMAIL / LOGIN
               </label>
+              {/*
+                Тип намеренно text, а не email: браузер со своей проверкой не
+                давал отправить форму с коротким логином вроде "base1" — кнопка
+                нажималась, и ничего не происходило. На рации это выглядело как
+                неработающая кнопка. Сервер сам разберёт, email это или логин,
+                по наличию "@".
+              */}
               <input
-                type="email"
+                type="text"
+                inputMode="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 autoComplete="username"
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
                 className="w-full bg-ptt-dark border border-ptt-border rounded px-3 py-2.5
                            font-mono text-sm text-white placeholder-ptt-muted
                            focus:outline-none focus:border-ptt-green focus:ring-1 focus:ring-ptt-green/30
                            transition-colors"
-                placeholder="dispatch@company.com"
+                placeholder="base1 or dispatch@company.com"
               />
             </div>
 
