@@ -65,7 +65,7 @@ const features = [
 
 const platforms = [
   { title: 'Web', status: 'Available now', icon: Cloud, tone: 'text-sky-700 bg-sky-50 border-sky-100' },
-  { title: 'Android', status: 'PoC APK available', icon: Smartphone, tone: 'text-emerald-700 bg-emerald-50 border-emerald-100' },
+  { title: 'Android', status: 'Signed APK available', icon: Smartphone, tone: 'text-emerald-700 bg-emerald-50 border-emerald-100' },
   { title: 'Inrico T320', status: 'Hardware radio — verified', icon: Radio, tone: 'text-orange-700 bg-orange-50 border-orange-100' },
   { title: 'PRIVOX Mini Radio', status: 'Available — self-build', icon: Radio, tone: 'text-indigo-700 bg-indigo-50 border-indigo-100' },
   { title: 'iPhone', status: 'Use web version now', icon: BadgeCheck, tone: 'text-slate-700 bg-slate-50 border-slate-200' },
@@ -74,8 +74,8 @@ const platforms = [
 const docs = [
   {
     title: 'System overview',
-    text: 'PRIVOX PTT is a browser-based push-to-talk system with Android PoC wrapper support. The current platform uses the existing web interface, authorization, groups, WebRTC audio, dispatcher tools, and backend.',
-    items: ['Web app: /app', 'Android PoC APK: /download', 'Roles: superadmin, admin, dispatcher, user', 'Organizations isolate groups and users'],
+    text: 'PRIVOX PTT is a browser-based push-to-talk system with a signed Android wrapper. The platform uses the web interface, authorization, groups, WebRTC audio, dispatcher tools, and backend.',
+    items: ['Web app: /app', 'Signed Android APK: /download', 'Roles: superadmin, admin, dispatcher, user', 'Organizations isolate groups and users'],
   },
   {
     title: 'Quick start for testers',
@@ -179,7 +179,7 @@ const docs = [
   },
   {
     title: 'Current limitations',
-    text: 'These items are not part of the current production test build.',
+    text: 'These items are not part of the current release.',
     items: ['No native iOS/APNs wake-up yet', 'No Bluetooth headset certification yet', 'No Google Play or App Store distribution yet', 'PRIVOX Mini Radio cannot switch groups automatically after a call yet'],
   },
   {
@@ -262,7 +262,7 @@ const faqs = [
   ['What does the Android app support now?', 'It supports PTT, individual calls, CALL GROUP, Firebase wake-up, native ANSWER and DECLINE controls, and background availability through a foreground service.'],
   ['Does Android work with the screen locked?', 'Yes. A high-priority Firebase call can wake a registered sleeping Android phone and show the native incoming-call screen. Network access, notifications, and unrestricted battery settings must remain enabled.'],
   ['Does iPhone receive calls with the screen locked?', 'Not reliably in the current web version. Keep PRIVOX PTT open for active use. Guaranteed locked-screen wake-up will require a native iOS application with Apple Push Notification Service.'],
-  ['Why does Android ask to install an APK from the browser?', 'The current build is a trusted tester APK, not a Google Play release. Android will ask for confirmation before installing apps downloaded from a website.'],
+  ['Why does Android ask to install an APK from the browser?', 'PRIVOX PTT is distributed directly from this site rather than through Google Play, so Android asks you to confirm the installation. The build is signed with the production PRIVOX key.'],
   ['Why did an older Android phone show render errors?', 'Older devices may have an outdated Android System WebView. Update Android System WebView from Google Play, restart PRIVOX PTT, and test again.'],
   ['Who creates organizations?', 'A superadmin creates organizations and can assign users to them. Organization admins then manage users and groups inside their own organization.'],
   ['Can a user be moved to another organization?', 'Yes. A superadmin can edit an existing user and select another organization. The user must then be added to groups in the new organization.'],
@@ -644,7 +644,7 @@ export function DownloadPage() {
             If PRIVOX PTT asks to update Android System WebView, tap Update, install the update from Google Play, then restart the app.
           </div>
           <p className="mt-4 text-xs text-slate-500">
-            This is a PoC/debug build for trusted testing. Background operation, hardware PTT buttons, Bluetooth headset behavior, and Play Store distribution are planned later.
+            Signed release build, distributed directly from this site. Upgrading from an earlier test build requires uninstalling it first — the signing key changed. Play Store distribution is planned later.
           </p>
         </section>
         <section className="mx-auto mt-8 grid max-w-5xl gap-5 md:grid-cols-2">
