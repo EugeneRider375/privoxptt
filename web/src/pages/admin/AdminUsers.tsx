@@ -53,11 +53,16 @@ export function AdminUsers() {
 
   useEffect(() => { load(); }, [selectedOrgId]);
 
-  const filtered = users.filter((u) =>
-    u.callsign.toLowerCase().includes(search.toLowerCase()) ||
-    u.email.toLowerCase().includes(search.toLowerCase()) ||
-    u.displayName.toLowerCase().includes(search.toLowerCase())
-  );
+  // Массово созданные участники живут без email — ищем и по логину тоже.
+  const filtered = users.filter((u) => {
+    const q = search.toLowerCase();
+    return (
+      u.callsign.toLowerCase().includes(q) ||
+      (u.email ?? '').toLowerCase().includes(q) ||
+      (u.login ?? '').toLowerCase().includes(q) ||
+      u.displayName.toLowerCase().includes(q)
+    );
+  });
 
   function openCreate() {
     setForm({ ...EMPTY_FORM, organizationId: selectedOrgId || orgs[0]?.id || '' });
@@ -67,7 +72,7 @@ export function AdminUsers() {
 
   function openEdit(u: User) {
     setSelected(u);
-    setForm({ email: u.email, password: '', callsign: u.callsign, displayName: u.displayName, role: u.role, organizationId: u.organizationId });
+    setForm({ email: u.email ?? '', password: '', callsign: u.callsign, displayName: u.displayName, role: u.role, organizationId: u.organizationId });
     setError('');
     setModal('edit');
   }
@@ -191,7 +196,7 @@ export function AdminUsers() {
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by callsign or email..."
+          placeholder="Search by callsign, login or email..."
           className="w-full bg-ptt-card border border-ptt-border rounded pl-9 pr-4 py-2 font-mono text-sm text-white placeholder-ptt-muted focus:outline-none focus:border-ptt-green"
         />
       </div>
@@ -218,7 +223,9 @@ export function AdminUsers() {
                     <span className="callsign text-sm">{u.callsign}</span>
                   </td>
                   <td className="px-3 py-2.5 font-rajdhani text-white">{u.displayName}</td>
-                  <td className="px-3 py-2.5 font-mono text-ptt-text text-xs">{u.email}</td>
+                  <td className="px-3 py-2.5 font-mono text-ptt-text text-xs">
+                    {u.email ?? (u.login ? <span title="Signs in with a login">{u.login}</span> : '—')}
+                  </td>
                   {isSuperAdmin && (
                     <td className="px-3 py-2.5 font-mono text-ptt-muted text-xs">
                       {u.organization?.name ?? u.organizationId}

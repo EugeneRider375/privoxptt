@@ -14,8 +14,11 @@ import { AppError } from '../middleware/errorHandler';
 
 export const authRouter = Router();
 
+// Поле называется email ради совместимости: так его шлют уже выпущенные
+// клиенты, прошивки раций и мобильные сборки. Принимаем сюда и логин —
+// различаем по символу "@", которого в логине быть не может по построению.
 const loginSchema = z.object({
-  email: z.string().email('Invalid email'),
+  email: z.string().trim().min(1, 'Email or login is required'),
   password: z.string().min(1, 'Password is required'),
 });
 
@@ -26,12 +29,18 @@ const refreshSchema = z.object({
 // POST /api/auth/login
 authRouter.post('/login', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { email, password } = loginSchema.parse(req.body);
+    const { email: identifier, password } = loginSchema.parse(req.body);
 
-    const user = await prisma.user.findUnique({
-      where: { email },
-      include: { organization: { select: { id: true, name: true, slug: true } } },
-    });
+    const organization = { select: { id: true, name: true, slug: true } };
+    const user = identifier.includes('@')
+      ? await prisma.user.findUnique({
+          where: { email: identifier },
+          include: { organization },
+        })
+      : await prisma.user.findUnique({
+          where: { login: identifier.toLowerCase() },
+          include: { organization },
+        });
 
     if (!user || !user.isActive) {
       throw new AppError(401, 'Invalid email or password');
@@ -40,6 +49,11 @@ authRouter.post('/login', async (req: Request, res: Response, next: NextFunction
     const passwordMatch = await bcrypt.compare(password, user.password);
     if (!passwordMatch) {
       throw new AppError(401, 'Invalid email or password');
+    }
+
+    // Срок доступа. null = бессрочно, так у всех, кто был до этой возможности.
+    if (user.accessExpiresAt && user.accessExpiresAt < new Date()) {
+      throw new AppError(403, 'Access period has expired — contact your administrator');
     }
 
     const payload: JwtPayload = {
@@ -68,9 +82,12 @@ authRouter.post('/login', async (req: Request, res: Response, next: NextFunction
       user: {
         id: user.id,
         email: user.email,
+        login: user.login,
         callsign: user.callsign,
         displayName: user.displayName,
         role: user.role,
+        // Пароль выдан администратором как временный — клиент попросит сменить.
+        mustChangePassword: user.mustChangePassword,
         organization: user.organization,
       },
     });
@@ -96,6 +113,12 @@ authRouter.post('/refresh', async (req: Request, res: Response, next: NextFuncti
 
     if (!storedToken.user.isActive) {
       throw new AppError(401, 'User is deactivated');
+    }
+
+    // Без этой проверки истёкший доступ продлевался бы вечно: устройство
+    // ротирует refresh при каждом запуске и второй раз через /login не идёт.
+    if (storedToken.user.accessExpiresAt && storedToken.user.accessExpiresAt < new Date()) {
+      throw new AppError(403, 'Access period has expired — contact your administrator');
     }
 
     // Верифицируем подпись JWT
@@ -161,10 +184,13 @@ authRouter.get('/me', authenticate, async (req: Request, res: Response, next: Ne
       select: {
         id: true,
         email: true,
+        login: true,
         callsign: true,
         displayName: true,
         role: true,
         isActive: true,
+        mustChangePassword: true,
+        accessExpiresAt: true,
         lastSeen: true,
         createdAt: true,
         organization: { select: { id: true, name: true, slug: true } },

@@ -1,9 +1,13 @@
 export type UserRole = 'SUPERADMIN' | 'ADMIN' | 'DISPATCHER' | 'USER';
 export type ActivityLogType = 'USER_ONLINE' | 'USER_OFFLINE';
 
+export type GroupStatus = 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
+
 export interface User {
   id: string;
-  email: string;
+  /** Может отсутствовать: массово созданные участники входят по login. */
+  email: string | null;
+  login?: string | null;
   callsign: string;
   displayName: string;
   role: UserRole;
@@ -31,6 +35,11 @@ export interface Group {
   color: string;
   priority: number;
   isPrivate: boolean;
+  /** Появилось вместе с вопросником; у групп, созданных раньше, — ACTIVE. */
+  status?: GroupStatus;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  archivedAt?: string | null;
   organizationId: string;
   pttOwnerId?: string | null;
   members?: GroupMember[];
@@ -246,4 +255,60 @@ export interface ChatConversation {
   role?: UserRole;
   unreadCount: number;
   lastMessage: ChatMessage | null;
+}
+
+// ─── Вопросник суперадмина ──────────────────────────────────
+
+export interface WizardPermissions {
+  role: UserRole;
+  canSpeak: boolean;
+  canMessage: boolean;
+  canShareLocation: boolean;
+  isGroupAdmin: boolean;
+}
+
+export interface PreviewRow {
+  callsign: string;
+  status: 'NEW' | 'EXISTING' | 'REJECTED';
+  /** Предлагаемый логин — только для NEW. */
+  login?: string;
+  error?: string;
+  existing?: {
+    userId: string;
+    callsign: string;
+    displayName: string;
+    login: string | null;
+    email: string | null;
+    role: UserRole;
+    isActive: boolean;
+  };
+  defaultAction: 'create' | 'use_existing' | 'skip';
+}
+
+export interface WizardPreview {
+  organization: Pick<Organization, 'id' | 'name' | 'slug'>;
+  group: { name: string; status: GroupStatus; unlimited: boolean; endsAt?: string | null };
+  totals: { total: number; toCreate: number; existing: number; rejected: number; invites: number };
+  rows: PreviewRow[];
+  warnings: string[];
+}
+
+export interface CreatedMember {
+  userId: string;
+  callsign: string;
+  displayName: string;
+  login: string | null;
+  isNew: boolean;
+  /** Показывается ОДИН раз — в базе только хеш. */
+  tempPassword: string | null;
+  inviteId: string;
+  inviteUrl: string;
+}
+
+export interface WizardResult {
+  group: Group & { unlimited: boolean };
+  organization: Pick<Organization, 'id' | 'name' | 'slug'>;
+  members: CreatedMember[];
+  invites: { expiresAt: string; singleUse: boolean; count: number };
+  sharedPassword: string | null;
 }
