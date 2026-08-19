@@ -93,9 +93,15 @@ const createSchema = z.object({
   invites: z
     .object({
       expiresInDays: z.number().int().min(1).max(365).default(DEFAULT_INVITE_DAYS),
-      singleUse: z.boolean().default(true),
+      /**
+       * По умолчанию приглашение действует до истечения срока, а не один раз.
+       * Причина практическая: человек открывает ссылку в браузере, потом
+       * ставит приложение — у него своё хранилище, сессия туда не переезжает,
+       * и ссылка нужна второй раз. Одноразовость остаётся опцией.
+       */
+      singleUse: z.boolean().default(false),
     })
-    .default({ expiresInDays: DEFAULT_INVITE_DAYS, singleUse: true }),
+    .default({ expiresInDays: DEFAULT_INVITE_DAYS, singleUse: false }),
   password: z
     .object({
       /** individual — каждому свой (по умолчанию). shared — общий на всех. */

@@ -166,7 +166,6 @@ export const sensorsApi = {
   delete: (id: string) => api.delete(`/sensors/${id}`),
 };
 
-// ─── Activity log ─────────────────────────────────────────
 // ─── Вопросник суперадмина ──────────────────────────────────
 // Создание пачки участников упирается в bcrypt: 50 человек — около 4 секунд,
 // 200 — около 16. Глобальный таймаут (10 с) для этого мал, поэтому поднимаем
@@ -178,6 +177,16 @@ export const onboardingApi = {
     api.post('/onboarding/create', data, { timeout: 180_000 }).then((r) => r.data),
 };
 
+// ─── Приглашение по персональному QR ────────────────────────
+// Без авторизации: токен из ссылки и есть удостоверение.
+export const invitesApi = {
+  resolve: (token: string) =>
+    api.get(`/invites/${encodeURIComponent(token)}`).then((r) => r.data),
+  activate: (token: string) =>
+    api.post(`/invites/${encodeURIComponent(token)}/activate`).then((r) => r.data),
+};
+
+// ─── Activity log ─────────────────────────────────────────
 export const activityApi = {
   list: (params?: { limit?: number; type?: string }) =>
     api.get('/activity', { params }).then((r) => r.data),

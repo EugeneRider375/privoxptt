@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Component, useEffect, type ReactNode } from 'react';
 import { useStore } from '@/store/useStore';
 import { LoginPage } from '@/pages/auth/LoginPage';
+import { JoinPage } from '@/pages/auth/JoinPage';
 import { UserRadioPage } from '@/pages/user/UserRadioPage';
 import { DispatcherLayout } from '@/pages/dispatcher/DispatcherLayout';
 import { AdminLayout } from '@/pages/admin/AdminLayout';
@@ -76,6 +77,8 @@ export default function App() {
           <Route path="/support" element={<SupportPage />} />
           <Route path="/status" element={<StatusPage />} />
           <Route path="/login" element={<LoginPage />} />
+          {/* Персональный QR ведёт сюда. Публичный маршрут: токен и есть удостоверение. */}
+          <Route path="/join/:token" element={<JoinPage />} />
 
           <Route path="/app" element={<RequireAuth><RoleRouter /></RequireAuth>} />
 

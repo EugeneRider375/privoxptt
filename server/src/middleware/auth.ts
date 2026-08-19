@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { randomUUID } from 'crypto';
 import { config } from '../config';
 import { prisma } from '../database/prisma';
 import { UserRole } from '@prisma/client';
@@ -96,8 +97,17 @@ export function generateAccessToken(payload: JwtPayload): string {
   } as jwt.SignOptions);
 }
 
+/**
+ * Каждый refresh-токен получает собственный идентификатор.
+ *
+ * Без него токен полностью определялся полезной нагрузкой и меткой времени в
+ * СЕКУНДАХ: два выпуска подряд в пределах одной секунды давали одинаковую
+ * строку, а в БД на неё уникальный индекс — второй выпуск падал с 409. Ловится
+ * это редко, но закономерно: активация приглашения сначала в браузере, а сразу
+ * следом в приложении, или двойное нажатие кнопки входа.
+ */
 export function generateRefreshToken(payload: JwtPayload): string {
-  return jwt.sign(payload, config.REFRESH_TOKEN_SECRET, {
+  return jwt.sign({ ...payload, jti: randomUUID() }, config.REFRESH_TOKEN_SECRET, {
     expiresIn: config.REFRESH_TOKEN_EXPIRES_IN,
   } as jwt.SignOptions);
 }
