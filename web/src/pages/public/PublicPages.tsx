@@ -539,10 +539,11 @@ function HelpSection() {
 }
 
 export function DownloadPage() {
-  const androidApkUrl = '/downloads/privox-ptt-android-debug.apk?v=10';
-  // ?v= обязателен и должен расти с каждой прошивкой: без него Cloudflare и
+  // Сборки подписаны рабочим ключом PRIVOX — обновляются поверх предыдущих.
+  // ?v= обязателен и должен расти с каждой сборкой: без него Cloudflare и
   // браузер отдадут закешированный APK со старым содержимым.
-  const t320ApkUrl = '/downloads/privox-ptt-t320-debug.apk?v=8';
+  const androidApkUrl = '/downloads/privox-ptt-android.apk?v=10';
+  const t320ApkUrl = '/downloads/privox-ptt-t320.apk?v=9';
   const webAppUrl = '/app';
 
   return (
@@ -553,7 +554,8 @@ export function DownloadPage() {
           <div className="rounded-lg border border-emerald-200 bg-white p-6 shadow-sm">
             <Smartphone className="h-8 w-8 text-emerald-600" />
             <h2 className="mt-5 text-xl font-bold text-slate-950">Android APK</h2>
-            <p className="mt-2 text-sm font-medium uppercase tracking-[0.12em] text-emerald-700">PoC test build</p>
+            <p className="mt-2 text-sm font-medium uppercase tracking-[0.12em] text-emerald-700">Signed release</p>
+            <p className="mt-3 text-sm leading-6 text-slate-600">v1.9 — works with the screen off and rings on incoming calls.</p>
             <a href={androidApkUrl} download className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-emerald-700">
               Download Android APK <Download className="h-4 w-4" />
             </a>
@@ -563,7 +565,7 @@ export function DownloadPage() {
             <h2 className="mt-5 text-xl font-bold text-slate-950">Inrico T320</h2>
             <p className="mt-2 text-sm font-medium uppercase tracking-[0.12em] text-orange-700">Hardware PTT radio</p>
             <p className="mt-3 text-sm leading-6 text-slate-600">Android-based radio with a dedicated PTT button. Runs the PRIVOX PTT app natively.</p>
-            <p className="mt-2 text-sm leading-6 text-slate-500">v1.7 — starts on its own after power-on and stays signed in.</p>
+            <p className="mt-2 text-sm leading-6 text-slate-500">v1.8 — starts on its own after power-on, stays signed in, and receives incoming calls.</p>
             <a href={t320ApkUrl} download className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-md bg-orange-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-orange-700">
               Download T320 APK <Download className="h-4 w-4" />
             </a>
@@ -591,6 +593,19 @@ export function DownloadPage() {
             </Link>
           </div>
         </div>
+        <section className="mx-auto mt-8 max-w-5xl rounded-lg border border-amber-300 bg-amber-50 p-6">
+          <h2 className="text-lg font-bold text-slate-950">Upgrading from an earlier build? Uninstall it first</h2>
+          <p className="mt-3 leading-7 text-slate-700">
+            These builds are signed with the production PRIVOX key, while earlier ones were test builds. Android
+            refuses to install over an app signed with a different key, so remove the old PRIVOX PTT before
+            installing. You will sign in once more afterwards.
+          </p>
+          <p className="mt-2 leading-7 text-slate-700">
+            This is a one-time step. From now on new versions install straight over the previous one and keep you
+            signed in.
+          </p>
+        </section>
+
         <section className="mx-auto mt-8 max-w-5xl rounded-lg border border-sky-200 bg-white p-6 shadow-sm">
           <h2 className="text-xl font-bold text-slate-950">Web version for iPhone and computers</h2>
           <p className="mt-3 leading-7 text-slate-600">

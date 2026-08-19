@@ -18,9 +18,12 @@
 
 ## Current Android release
 
-- Phone APK: `1.9` (`versionCode 10`)
-- Inrico T320 APK: `1.6` (`versionCode 7`)
+- Phone APK: `1.9` (`versionCode 10`) — signed
+- Inrico T320 APK: `1.8` (`versionCode 9`) — signed, autostart + incoming calls
 - Package: `tech.privox.ptt`
+- Signed with the production PRIVOX key (kept outside the repository).
+  Upgrading from an earlier test build requires uninstalling it first —
+  Android will not install over a different signature.
 
 Phone and T320 APKs are different builds. Always install the APK from the
 matching project directory.
