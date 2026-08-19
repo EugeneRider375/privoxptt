@@ -39,6 +39,8 @@ export function AdminUsers() {
   const [selected, setSelected] = useState<User | null>(null);
   const [form, setForm] = useState<UserFormData>(EMPTY_FORM);
   const [newPass, setNewPass] = useState('');
+  /** Подтверждение смены пароля — иначе непонятно, сработало или нет. */
+  const [resetDone, setResetDone] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -134,13 +136,27 @@ export function AdminUsers() {
   }
 
   async function handleReset() {
-    if (!selected || !newPass) return;
+    if (!selected) return;
+
+    // Проверяем длину до отправки: сервер отклоняет короткий пароль сообщением
+    // «Validation error», и по нему непонятно, что именно не так.
+    if (newPass.length < 8) {
+      setError('Password must be at least 8 characters');
+      return;
+    }
+
     setLoading(true);
+    setError('');
     try {
       await usersApi.resetPassword(selected.id, newPass);
+      // Раньше окно просто закрывалось, и отличить успех от неудачи было
+      // нельзя. Теперь говорим прямо, что пароль сменён и сессии оборваны.
+      setResetDone(`${selected.callsign}: password changed, all sessions signed out`);
+      setTimeout(() => setResetDone(''), 6000);
       setModal(null);
+      setNewPass('');
     } catch (e: any) {
-      setError(e?.response?.data?.error ?? 'Error');
+      setError(e?.response?.data?.error ?? 'Could not change the password');
     } finally {
       setLoading(false);
     }
@@ -214,6 +230,7 @@ export function AdminUsers() {
                 <th className="text-left font-mono text-ptt-muted text-xs px-3 py-2 tracking-widest">CALLSIGN</th>
                 <th className="text-left font-mono text-ptt-muted text-xs px-3 py-2 tracking-widest">NAME</th>
                 <th className="text-left font-mono text-ptt-muted text-xs px-3 py-2 tracking-widest">EMAIL</th>
+                <th className="text-left font-mono text-ptt-muted text-xs px-3 py-2 tracking-widest">LOGIN</th>
                 {isSuperAdmin && <th className="text-left font-mono text-ptt-muted text-xs px-3 py-2 tracking-widest">ORG</th>}
                 <th className="text-left font-mono text-ptt-muted text-xs px-3 py-2 tracking-widest">ROLE</th>
                 <th className="text-left font-mono text-ptt-muted text-xs px-3 py-2 tracking-widest">STATUS</th>
@@ -227,8 +244,13 @@ export function AdminUsers() {
                     <span className="callsign text-sm">{u.callsign}</span>
                   </td>
                   <td className="px-3 py-2.5 font-rajdhani text-white">{u.displayName}</td>
-                  <td className="px-3 py-2.5 font-mono text-ptt-text text-xs">
-                    {u.email ?? (u.login ? <span title="Signs in with a login">{u.login}</span> : '—')}
+                  <td className="px-3 py-2.5 font-mono text-ptt-text text-xs">{u.email ?? '—'}</td>
+                  {/* Отдельный столбец: иначе не видно, кому логин уже задан,
+                      а кому нет — а для раций это первое, что нужно знать. */}
+                  <td className="px-3 py-2.5 font-mono text-xs">
+                    {u.login
+                      ? <span className="text-ptt-green">{u.login}</span>
+                      : <span className="text-ptt-muted">—</span>}
                   </td>
                   {isSuperAdmin && (
                     <td className="px-3 py-2.5 font-mono text-ptt-muted text-xs">
@@ -299,6 +321,12 @@ export function AdminUsers() {
           <p className="text-center font-mono text-ptt-muted text-xs py-8">NO USERS</p>
         )}
       </div>
+
+      {resetDone && (
+        <div className="rounded border border-ptt-green/40 bg-ptt-green/10 px-3 py-2">
+          <p className="font-mono text-ptt-green text-xs">{resetDone}</p>
+        </div>
+      )}
 
       {/* Модалки */}
       {(modal === 'create' || modal === 'edit') && (
@@ -378,7 +406,10 @@ export function AdminUsers() {
           <p className="callsign text-sm mb-3">{selected?.callsign}</p>
           <Field label="NEW PASSWORD">
             <input type="password" value={newPass} onChange={(e) => setNewPass(e.target.value)}
-              className={inputCls} minLength={8} />
+              className={inputCls} minLength={8} autoFocus />
+            <p className="font-mono text-ptt-muted text-[11px] mt-1">
+              At least 8 characters. The member is signed out of every device and will need the new password.
+            </p>
           </Field>
           {error && <p className="font-mono text-ptt-danger text-xs mt-2">{error}</p>}
           <button
