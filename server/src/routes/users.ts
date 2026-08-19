@@ -247,6 +247,25 @@ usersRouter.put('/:id', async (req: Request, res: Response, next: NextFunction) 
               'and must start with a letter or digit'
           );
         }
+        // Логин уникален на всю систему, а не внутри организации. Занятость
+        // проверяем заранее: иначе Prisma отдаёт «Record already exists
+        // (login)», по которому непонятно ни что занято, ни кем.
+        if (candidate !== target.login) {
+          const owner = await prisma.user.findUnique({
+            where: { login: candidate },
+            select: { id: true, callsign: true, organizationId: true },
+          });
+          if (owner && owner.id !== id) {
+            const sameOrg = owner.organizationId === target.organizationId;
+            throw new AppError(
+              409,
+              sameOrg
+                ? `Login "${candidate}" is already used by ${owner.callsign}`
+                : `Login "${candidate}" is already used in another organization — logins are unique across the whole system`
+            );
+          }
+        }
+
         login = candidate;
       }
     }
