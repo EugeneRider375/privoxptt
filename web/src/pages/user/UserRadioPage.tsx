@@ -8,6 +8,7 @@ import { useGeolocation } from '@/hooks/useGeolocation';
 import { groupsApi, authApi } from '@/api/client';
 import { useBattery } from '@/hooks/useBattery';
 import { unregisterNativePushDevice } from '@/hooks/useNativePush';
+import { InstallAppHint } from '@/components/ui/InstallAppHint';
 import { PTTButton } from '@/components/ui/PTTButton';
 import { Waveform } from '@/components/ui/Waveform';
 import { AlertPanel } from '@/components/ui/AlertPanel';
@@ -298,6 +299,9 @@ export function UserRadioPage() {
           <p className="font-mono text-ptt-muted text-xs tracking-widest">CHANNEL CLEAR</p>
         )}
       </div>
+
+      {/* Вошёл по ссылке и остался в браузере — про приложение иначе не узнает. */}
+      <InstallAppHint />
 
       {/* Центр — кнопка PTT */}
       <div className="flex-1 flex flex-col items-center justify-center gap-6 py-8">

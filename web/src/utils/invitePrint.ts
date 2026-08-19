@@ -107,8 +107,14 @@ export function buildInviteMessage(
     `PRIVOX PTT — ${groupName}`,
     `Callsign: ${member.callsign}`,
     '',
-    'Open this link on your phone:',
+    'Tap this link on your phone — it opens PRIVOX and puts you in the group:',
     member.inviteUrl,
+    '',
+    // Человек, открывший ссылку в браузере, уже на связи; про приложение он
+    // узнает только если ему сказать — кнопку на странице легко не заметить.
+    'It works right away in the browser. On Android you can also install the',
+    'app from the same page — it keeps working with the screen off and rings',
+    'on incoming calls. After installing, open this link once more.',
   ];
 
   if (member.login) {
