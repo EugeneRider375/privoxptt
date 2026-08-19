@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, Users, X, UserPlus, UserMinus, MicOff, Mic, Wand2, UserRoundPlus } from 'lucide-react';
+import { Plus, Pencil, Trash2, Users, X, UserPlus, UserMinus, MicOff, Mic, Wand2, UserRoundPlus, QrCode } from 'lucide-react';
 import { groupsApi, usersApi, orgsApi, sensorsApi } from '@/api/client';
 import { useStore } from '@/store/useStore';
 import type { Group, User, GroupMember, Organization, Sensor } from '@/types';
 import { GroupWizard } from './GroupWizard';
+import { GroupInvites } from './GroupInvites';
 import clsx from 'clsx';
 
 const inputCls = 'w-full bg-ptt-dark border border-ptt-border rounded px-3 py-2 font-mono text-sm text-white focus:outline-none focus:border-ptt-green';
@@ -45,6 +46,7 @@ export function AdminGroups() {
   const [wizardOpen, setWizardOpen] = useState(false);
   // Пополнение существующей группы — тот же вопросник, но без шага параметров.
   const [addToGroup, setAddToGroup] = useState<Group | null>(null);
+  const [invitesOf, setInvitesOf] = useState<Group | null>(null);
   const [selected, setSelected] = useState<Group | null>(null);
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [form, setForm] = useState({ name: '', description: '', color: '#3DDC84', priority: 0, isPrivate: false, organizationId: '' });
@@ -176,6 +178,8 @@ export function AdminGroups() {
         />
       )}
 
+      {invitesOf && <GroupInvites group={invitesOf} onClose={() => setInvitesOf(null)} />}
+
       {addToGroup && (
         <GroupWizard
           organizations={orgs}
@@ -249,6 +253,11 @@ export function AdminGroups() {
                 title="Add members with personal QR invitations"
                 className="flex items-center gap-1 text-ptt-green hover:text-white transition-colors font-mono text-xs">
                 <UserRoundPlus className="w-3 h-3" /> Add
+              </button>
+              <button onClick={() => setInvitesOf(g)}
+                title="Invitations: who activated, reissue, revoke"
+                className="flex items-center gap-1 text-ptt-muted hover:text-white transition-colors font-mono text-xs">
+                <QrCode className="w-3 h-3" /> Invites
               </button>
               <button onClick={() => openEdit(g)} className="ml-auto text-ptt-muted hover:text-white transition-colors">
                 <Pencil className="w-3.5 h-3.5" />

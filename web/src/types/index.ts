@@ -312,3 +312,26 @@ export interface WizardResult {
   invites: { expiresAt: string; singleUse: boolean; count: number };
   sharedPassword: string | null;
 }
+
+export type InviteStatus = 'CREATED' | 'OPENED' | 'ACTIVATED' | 'EXPIRED' | 'REVOKED';
+
+export interface GroupInvite {
+  id: string;
+  status: InviteStatus;
+  user: { id: string; callsign: string; displayName: string; login: string | null; isActive: boolean };
+  expiresAt: string;
+  maxUses: number;
+  usedCount: number;
+  singleUse: boolean;
+  firstOpenedAt: string | null;
+  activatedAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+  createdByLabel: string | null;
+}
+
+export interface GroupInvitesResponse {
+  group: { id: string; name: string };
+  invites: GroupInvite[];
+  membersWithoutInvite: GroupInvite['user'][];
+}

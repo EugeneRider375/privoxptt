@@ -181,6 +181,17 @@ export const onboardingApi = {
     api.post(`/onboarding/groups/${groupId}/preview`, data, { timeout: 30_000 }).then((r) => r.data),
   addToGroup: (groupId: string, data: object) =>
     api.post(`/onboarding/groups/${groupId}/add`, data, { timeout: 180_000 }).then((r) => r.data),
+
+  // Управление приглашениями. Ссылку нельзя показать повторно — только
+  // перевыпустить: в базе от токена остаётся лишь хеш.
+  invitesOfGroup: (groupId: string) =>
+    api.get(`/onboarding/groups/${groupId}/invites`).then((r) => r.data),
+  revokeInvite: (inviteId: string) =>
+    api.post(`/onboarding/invites/${inviteId}/revoke`).then((r) => r.data),
+  reissueInvite: (inviteId: string, data?: object) =>
+    api.post(`/onboarding/invites/${inviteId}/reissue`, data ?? {}).then((r) => r.data),
+  newPassword: (userId: string) =>
+    api.post(`/onboarding/users/${userId}/new-password`).then((r) => r.data),
 };
 
 // ─── Приглашение по персональному QR ────────────────────────

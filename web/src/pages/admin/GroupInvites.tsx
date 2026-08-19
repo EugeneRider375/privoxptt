@@ -1,0 +1,291 @@
+import { useEffect, useState } from 'react';
+import {
+  AlertTriangle, Ban, KeyRound, Link2, Loader2, RefreshCw, X,
+} from 'lucide-react';
+import clsx from 'clsx';
+
+import { onboardingApi } from '@/api/client';
+import { QrCode, downloadQr } from '@/components/ui/QrCode';
+import type { Group, GroupInvite, GroupInvitesResponse, InviteStatus } from '@/types';
+
+/**
+ * Приглашения группы: кто активировался, кто ещё нет, у кого истекло.
+ *
+ * Показать выданную ранее ссылку невозможно — в базе от токена остаётся только
+ * sha256. Поэтому вместо «посмотреть» здесь «выпустить заново»: новая ссылка
+ * появляется один раз, старая в тот же момент перестаёт работать.
+ */
+
+const STATUS_STYLE: Record<InviteStatus, { label: string; cls: string; hint: string }> = {
+  CREATED:   { label: 'sent',      cls: 'text-ptt-muted',  hint: 'Issued, the link has not been opened yet' },
+  OPENED:    { label: 'opened',    cls: 'text-ptt-blue',   hint: 'The link was opened but not confirmed' },
+  ACTIVATED: { label: 'activated', cls: 'text-ptt-green',  hint: 'The member is in the group' },
+  EXPIRED:   { label: 'expired',   cls: 'text-ptt-warn',   hint: 'Valid period is over — reissue to restore access' },
+  REVOKED:   { label: 'revoked',   cls: 'text-ptt-danger', hint: 'Cancelled by an administrator' },
+};
+
+interface FreshLink {
+  inviteId: string;
+  callsign: string;
+  url: string;
+  expiresAt: string;
+}
+
+interface Secret {
+  callsign: string;
+  login: string | null;
+  password: string;
+}
+
+export function GroupInvites({ group, onClose }: { group: Group; onClose: () => void }) {
+  const [data, setData] = useState<GroupInvitesResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState('');
+  const [error, setError] = useState('');
+  const [fresh, setFresh] = useState<FreshLink | null>(null);
+  const [secret, setSecret] = useState<Secret | null>(null);
+  const [copied, setCopied] = useState('');
+
+  function load() {
+    onboardingApi
+      .invitesOfGroup(group.id)
+      .then(setData)
+      .catch((e) => setError(e?.response?.data?.error ?? 'Could not load invitations'))
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(load, [group.id]);
+
+  async function handleReissue(invite: GroupInvite) {
+    setBusy(invite.id);
+    setError('');
+    try {
+      const r = await onboardingApi.reissueInvite(invite.id, { expiresInDays: 14, singleUse: false });
+      setFresh({
+        inviteId: r.id,
+        callsign: invite.user.callsign,
+        url: r.inviteUrl,
+        expiresAt: r.expiresAt,
+      });
+      load();
+    } catch (e: any) {
+      setError(e?.response?.data?.error ?? 'Reissue failed');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function handleRevoke(invite: GroupInvite) {
+    if (!confirm(`Revoke the invitation for ${invite.user.callsign}? The link stops working immediately.`)) return;
+    setBusy(invite.id);
+    setError('');
+    try {
+      await onboardingApi.revokeInvite(invite.id);
+      load();
+    } catch (e: any) {
+      setError(e?.response?.data?.error ?? 'Revoke failed');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function handleNewPassword(invite: GroupInvite) {
+    setBusy(invite.id);
+    setError('');
+    try {
+      const r = await onboardingApi.newPassword(invite.user.id);
+      setSecret({ callsign: r.callsign, login: r.login, password: r.tempPassword });
+    } catch (e: any) {
+      setError(e?.response?.data?.error ?? 'Could not issue a password');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  function copy(text: string, tag: string) {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(tag);
+      setTimeout(() => setCopied(''), 1500);
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/80 p-4 overflow-y-auto">
+      <div className="card w-full max-w-3xl p-5 my-4">
+        <div className="flex items-center justify-between mb-4">
+          <p className="font-orbitron text-white text-sm tracking-widest">
+            INVITATIONS · {group.name.toUpperCase()}
+          </p>
+          <button onClick={onClose} className="text-ptt-muted hover:text-white"><X className="w-4 h-4" /></button>
+        </div>
+
+        {loading && (
+          <div className="flex items-center gap-2 py-8 justify-center">
+            <Loader2 className="w-5 h-5 text-ptt-green animate-spin" />
+            <span className="font-mono text-ptt-muted text-xs">Loading…</span>
+          </div>
+        )}
+
+        {error && (
+          <p className="flex items-start gap-2 font-mono text-ptt-danger text-xs mb-3">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" /> {error}
+          </p>
+        )}
+
+        {/* Свежая ссылка — видна ровно сейчас и больше никогда. */}
+        {fresh && (
+          <div className="rounded border border-ptt-green/40 bg-ptt-green/5 p-3 mb-4 space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-orbitron text-ptt-green text-xs tracking-widest">
+                  NEW LINK FOR {fresh.callsign}
+                </p>
+                <p className="font-mono text-ptt-muted text-[11px] mt-1">
+                  Shown once. The previous link stopped working. Valid until{' '}
+                  {new Date(fresh.expiresAt).toLocaleDateString()}.
+                </p>
+              </div>
+              <button onClick={() => setFresh(null)} className="text-ptt-muted hover:text-white shrink-0">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <QrCode value={fresh.url} size={96} alt={`QR for ${fresh.callsign}`} />
+              <div className="min-w-0 space-y-2">
+                <p className="font-mono text-ptt-muted text-[10px] break-all">{fresh.url}</p>
+                <div className="flex flex-wrap gap-2">
+                  <button onClick={() => copy(fresh.url, 'fresh')}
+                    className="flex items-center gap-1 border border-ptt-border text-ptt-text font-mono text-[11px] px-2 py-1 rounded hover:text-white">
+                    <Link2 className="w-3 h-3" /> {copied === 'fresh' ? 'copied' : 'copy link'}
+                  </button>
+                  <button onClick={() => downloadQr(fresh.url, `${fresh.callsign}-invite`)}
+                    className="flex items-center gap-1 border border-ptt-border text-ptt-text font-mono text-[11px] px-2 py-1 rounded hover:text-white">
+                    save png
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Новый пароль — тоже единожды. */}
+        {secret && (
+          <div className="rounded border border-ptt-warn/40 bg-ptt-warn/5 p-3 mb-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-orbitron text-ptt-warn text-xs tracking-widest">
+                  NEW PASSWORD FOR {secret.callsign}
+                </p>
+                <p className="font-mono text-white text-sm mt-2">
+                  {secret.login} / {secret.password}
+                </p>
+                <p className="font-mono text-ptt-muted text-[11px] mt-1">
+                  Shown once. All existing sessions of this member were signed out.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button onClick={() => copy(`${secret.login} / ${secret.password}`, 'pw')}
+                  className="font-mono text-[11px] text-ptt-blue hover:text-white">
+                  {copied === 'pw' ? 'copied' : 'copy'}
+                </button>
+                <button onClick={() => setSecret(null)} className="text-ptt-muted hover:text-white">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {data && (
+          <>
+            <div className="border border-ptt-border rounded overflow-hidden">
+              <div className="max-h-[26rem] overflow-y-auto">
+                <table className="w-full text-left">
+                  <thead className="bg-ptt-dark sticky top-0">
+                    <tr className="font-mono text-ptt-muted text-[10px] tracking-widest">
+                      <th className="px-3 py-2">CALLSIGN</th>
+                      <th className="px-3 py-2">LOGIN</th>
+                      <th className="px-3 py-2">STATUS</th>
+                      <th className="px-3 py-2">VALID UNTIL</th>
+                      <th className="px-3 py-2">ACTIONS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.invites.map((i) => {
+                      const st = STATUS_STYLE[i.status];
+                      const working = busy === i.id;
+                      return (
+                        <tr key={i.id} className="border-t border-ptt-border/40">
+                          <td className="px-3 py-2 callsign text-xs">
+                            {i.user.callsign}
+                            {!i.user.isActive && (
+                              <span className="ml-2 font-mono text-[10px] text-ptt-danger">disabled</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 font-mono text-xs text-ptt-text">{i.user.login ?? '—'}</td>
+                          <td className="px-3 py-2">
+                            <span className={clsx('font-mono text-[11px]', st.cls)} title={st.hint}>
+                              {st.label}
+                            </span>
+                            {i.singleUse && (
+                              <span className="ml-2 font-mono text-[10px] text-ptt-muted">single use</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 font-mono text-[11px] text-ptt-muted">
+                            {new Date(i.expiresAt).toLocaleDateString()}
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="flex items-center gap-3">
+                              <button onClick={() => handleReissue(i)} disabled={working}
+                                title="Issue a new link — the old one stops working"
+                                className="flex items-center gap-1 font-mono text-[11px] text-ptt-green hover:text-white disabled:opacity-40">
+                                {working ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                                reissue
+                              </button>
+                              {i.status !== 'REVOKED' && (
+                                <button onClick={() => handleRevoke(i)} disabled={working}
+                                  title="Cancel this invitation"
+                                  className="flex items-center gap-1 font-mono text-[11px] text-ptt-muted hover:text-ptt-danger disabled:opacity-40">
+                                  <Ban className="w-3 h-3" /> revoke
+                                </button>
+                              )}
+                              <button onClick={() => handleNewPassword(i)} disabled={working}
+                                title="Issue a new temporary password"
+                                className="flex items-center gap-1 font-mono text-[11px] text-ptt-muted hover:text-white disabled:opacity-40">
+                                <KeyRound className="w-3 h-3" /> password
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {data.invites.length === 0 && (
+              <p className="font-mono text-ptt-muted text-xs text-center py-6">
+                No invitations in this group yet — use Add to issue them.
+              </p>
+            )}
+
+            {data.membersWithoutInvite.length > 0 && (
+              <p className="font-mono text-ptt-muted text-[11px] mt-3">
+                In the group but without an invitation (added manually):{' '}
+                {data.membersWithoutInvite.map((u) => u.callsign).join(', ')}
+              </p>
+            )}
+
+            <p className="font-mono text-ptt-muted text-[11px] mt-3">
+              A link cannot be shown twice — only the hash of it is stored. Lost one? Use{' '}
+              <span className="text-ptt-green">reissue</span>: a new link appears once and the old one dies
+              immediately.
+            </p>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

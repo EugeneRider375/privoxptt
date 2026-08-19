@@ -892,3 +892,293 @@ onboardingRouter.post('/groups/:groupId/add', async (req: Request, res: Response
     next(err);
   }
 });
+
+// ─── Управление приглашениями ───────────────────────────────
+// Токен хранится только хешем, поэтому «показать ещё раз» невозможно —
+// можно лишь перевыпустить. Отсюда набор действий: посмотреть состояние,
+// выпустить заново, отозвать.
+
+/** Состояние приглашения на текущий момент, а не то, что записано в поле. */
+function effectiveInviteStatus(invite: {
+  status: InviteStatus;
+  revokedAt: Date | null;
+  expiresAt: Date;
+  usedCount: number;
+  maxUses: number;
+}): InviteStatus {
+  if (invite.status === InviteStatus.REVOKED || invite.revokedAt) return InviteStatus.REVOKED;
+  if (invite.expiresAt < new Date()) return InviteStatus.EXPIRED;
+  // maxUses = 0 означает «без ограничения по числу».
+  if (invite.maxUses > 0 && invite.usedCount >= invite.maxUses) return InviteStatus.EXPIRED;
+  return invite.status;
+}
+
+async function loadInviteForAdmin(req: Request, inviteId: string) {
+  const invite = await prisma.invite.findUnique({
+    where: { id: inviteId },
+    include: {
+      user: { select: { id: true, callsign: true, displayName: true, login: true, isActive: true } },
+      group: { select: { id: true, name: true } },
+    },
+  });
+  if (!invite) throw new AppError(404, 'Invitation not found');
+
+  if (
+    req.user!.role !== UserRole.SUPERADMIN &&
+    invite.organizationId !== req.user!.organizationId
+  ) {
+    throw new AppError(403, 'Access denied');
+  }
+
+  return invite;
+}
+
+// ─── GET /api/onboarding/groups/:groupId/invites ─────────────
+// Кто активировался, кто ещё нет, у кого истекло.
+
+onboardingRouter.get('/groups/:groupId/invites', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const groupId = z.string().uuid().parse(req.params.groupId);
+    const group = await loadWritableGroup(req, groupId);
+
+    const invites = await prisma.invite.findMany({
+      where: { groupId: group.id },
+      include: {
+        user: { select: { id: true, callsign: true, displayName: true, login: true, isActive: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Участники без приглашения — например, добавленные вручную через Members.
+    const invitedUserIds = new Set(invites.map((i) => i.userId));
+    const uninvited = group.members
+      .map((m) => m.userId)
+      .filter((id) => !invitedUserIds.has(id));
+
+    const uninvitedUsers = uninvited.length
+      ? await prisma.user.findMany({
+          where: { id: { in: uninvited } },
+          select: { id: true, callsign: true, displayName: true, login: true, isActive: true },
+        })
+      : [];
+
+    res.json({
+      group: { id: group.id, name: group.name },
+      invites: invites.map((i) => ({
+        id: i.id,
+        status: effectiveInviteStatus(i),
+        user: i.user,
+        expiresAt: i.expiresAt,
+        maxUses: i.maxUses,
+        usedCount: i.usedCount,
+        singleUse: i.maxUses === 1,
+        firstOpenedAt: i.firstOpenedAt,
+        activatedAt: i.activatedAt,
+        revokedAt: i.revokedAt,
+        createdAt: i.createdAt,
+        createdByLabel: i.createdByLabel,
+        // Токена здесь нет и быть не может — в базе только его хеш.
+      })),
+      membersWithoutInvite: uninvitedUsers,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── POST /api/onboarding/invites/:inviteId/revoke ───────────
+
+onboardingRouter.post('/invites/:inviteId/revoke', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const inviteId = z.string().uuid().parse(req.params.inviteId);
+    const invite = await loadInviteForAdmin(req, inviteId);
+
+    if (invite.revokedAt) {
+      res.json({ id: invite.id, status: InviteStatus.REVOKED, alreadyRevoked: true });
+      return;
+    }
+
+    const actor = await loadActor(req.user!.userId);
+    const now = new Date();
+
+    await prisma.$transaction([
+      prisma.invite.update({
+        where: { id: invite.id },
+        data: { status: InviteStatus.REVOKED, revokedAt: now },
+      }),
+      prisma.adminAuditLog.create({
+        data: {
+          organizationId: invite.organizationId,
+          actorId: actor.id,
+          actorLabel: actor.label,
+          action: 'invite.revoke',
+          targetType: 'invite',
+          targetId: invite.id,
+          meta: {
+            callsign: invite.user.callsign,
+            groupName: invite.group?.name ?? null,
+            wasActivated: !!invite.activatedAt,
+          } as Prisma.InputJsonValue,
+          ip: req.ip ?? null,
+        },
+      }),
+    ]);
+
+    logger.info({
+      msg: 'Приглашение отозвано',
+      inviteId: invite.id,
+      callsign: invite.user.callsign,
+    });
+
+    res.json({ id: invite.id, status: InviteStatus.REVOKED, revokedAt: now });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── POST /api/onboarding/invites/:inviteId/reissue ──────────
+// Старое приглашение отзывается, выпускается новое. Ссылка видна один раз.
+
+const reissueSchema = z.object({
+  expiresInDays: z.number().int().min(1).max(365).default(DEFAULT_INVITE_DAYS),
+  singleUse: z.boolean().default(false),
+});
+
+onboardingRouter.post('/invites/:inviteId/reissue', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const inviteId = z.string().uuid().parse(req.params.inviteId);
+    const options = reissueSchema.parse(req.body ?? {});
+    const invite = await loadInviteForAdmin(req, inviteId);
+
+    const actor = await loadActor(req.user!.userId);
+    const token = generateInviteToken();
+    const expiresAt = new Date(Date.now() + options.expiresInDays * 86_400_000);
+    const now = new Date();
+
+    const fresh = await prisma.$transaction(async (tx) => {
+      // Старое обязательно гасим: иначе по рукам ходили бы две живые ссылки.
+      await tx.invite.update({
+        where: { id: invite.id },
+        data: { status: InviteStatus.REVOKED, revokedAt: invite.revokedAt ?? now },
+      });
+
+      const created = await tx.invite.create({
+        data: {
+          tokenHash: hashInviteToken(token),
+          userId: invite.userId,
+          groupId: invite.groupId,
+          organizationId: invite.organizationId,
+          expiresAt,
+          maxUses: options.singleUse ? 1 : 0,
+          createdById: actor.id,
+          createdByLabel: actor.label,
+        },
+        select: { id: true, expiresAt: true, maxUses: true },
+      });
+
+      await tx.adminAuditLog.create({
+        data: {
+          organizationId: invite.organizationId,
+          actorId: actor.id,
+          actorLabel: actor.label,
+          action: 'invite.reissue',
+          targetType: 'invite',
+          targetId: created.id,
+          meta: {
+            callsign: invite.user.callsign,
+            groupName: invite.group?.name ?? null,
+            replacedInviteId: invite.id,
+            expiresAt: expiresAt.toISOString(),
+          } as Prisma.InputJsonValue,
+          ip: req.ip ?? null,
+        },
+      });
+
+      return created;
+    });
+
+    logger.info({
+      msg: 'Приглашение перевыпущено',
+      oldInviteId: invite.id,
+      newInviteId: fresh.id,
+      callsign: invite.user.callsign,
+    });
+
+    res.status(201).json({
+      id: fresh.id,
+      status: InviteStatus.CREATED,
+      user: invite.user,
+      expiresAt: fresh.expiresAt,
+      singleUse: fresh.maxUses === 1,
+      // Ссылка видна ЕДИНСТВЕННЫЙ раз — дальше только новый перевыпуск.
+      inviteUrl: buildInviteUrl(config.publicWebUrl, token),
+      replacedInviteId: invite.id,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── POST /api/onboarding/users/:userId/new-password ─────────
+// Новый временный пароль, когда старый потерян. Показывается один раз.
+
+onboardingRouter.post('/users/:userId/new-password', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = z.string().uuid().parse(req.params.userId);
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, callsign: true, login: true, email: true, organizationId: true, role: true },
+    });
+    if (!user) throw new AppError(404, 'User not found');
+
+    if (
+      req.user!.role !== UserRole.SUPERADMIN &&
+      user.organizationId !== req.user!.organizationId
+    ) {
+      throw new AppError(403, 'Access denied');
+    }
+
+    if (user.role === UserRole.SUPERADMIN && req.user!.role !== UserRole.SUPERADMIN) {
+      throw new AppError(403, 'Cannot reset a superadmin password');
+    }
+
+    const actor = await loadActor(req.user!.userId);
+    const password = generateTempPassword();
+    const hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: user.id },
+        data: { password: hash, mustChangePassword: true },
+      }),
+      // Смена пароля обрывает все живые сессии — так же, как в /users/:id/reset-password.
+      prisma.refreshToken.deleteMany({ where: { userId: user.id } }),
+      prisma.adminAuditLog.create({
+        data: {
+          organizationId: user.organizationId,
+          actorId: actor.id,
+          actorLabel: actor.label,
+          action: 'user.new_password',
+          targetType: 'user',
+          targetId: user.id,
+          // Сам пароль в журнал НЕ попадает.
+          meta: { callsign: user.callsign } as Prisma.InputJsonValue,
+          ip: req.ip ?? null,
+        },
+      }),
+    ]);
+
+    logger.info({ msg: 'Выдан новый временный пароль', userId: user.id, callsign: user.callsign });
+
+    res.json({
+      userId: user.id,
+      callsign: user.callsign,
+      login: user.login,
+      // Виден один раз.
+      tempPassword: password,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
