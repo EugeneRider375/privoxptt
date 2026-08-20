@@ -10,6 +10,7 @@ import { DownloadPage, DocsPage, FaqPage, HomePage, StatusPage, SupportPage } fr
 import { unlockAudio } from '@/hooks/useWebRTC';
 import { useNativePush } from '@/hooks/useNativePush';
 import { MessengerPage } from '@/pages/messages/MessengerPage';
+import { ActiveCallScreen } from '@/components/ui/ActiveCallScreen';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null };
@@ -89,6 +90,8 @@ export default function App() {
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        {/* Глобально поверх любой страницы — приватный дуплекс-звонок не привязан к маршруту */}
+        <ActiveCallScreen />
       </BrowserRouter>
     </ErrorBoundary>
   );

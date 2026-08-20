@@ -76,6 +76,20 @@ function cleanupPeer(groupId: string, socketId: string): void {
   }
 }
 
+/**
+ * Закрывает всех пиров и роутер комнаты целиком — для эфемерных комнат
+ * (звонки 1:1), которые не переиспользуются повторно и должны быть убраны
+ * сразу по завершении, а не ждать socket disconnect каждого участника.
+ */
+export function closeGroupPeers(groupId: string): void {
+  const peers = groupPeers.get(groupId);
+  if (peers) {
+    for (const peer of peers.values()) peer.close();
+    groupPeers.delete(groupId);
+  }
+  mediasoupManager.closeGroupRouter(groupId);
+}
+
 export function setupMediasoupSocket(io: Server, socket: AuthenticatedSocket): void {
   const { userId } = socket.data;
   const socketId = socket.id;

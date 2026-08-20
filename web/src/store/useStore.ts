@@ -57,6 +57,10 @@ interface AppStore {
   outgoingUserCalls: UserCallStatusEvent[];
   updateOutgoingUserCall: (event: UserCallStatusEvent) => void;
 
+  // ─── Активный дуплексный 1:1 звонок ─────────────────────
+  activeCall: { callId: string; otherUserId: string; otherCallsign: string } | null;
+  setActiveCall: (call: { callId: string; otherUserId: string; otherCallsign: string } | null) => void;
+
   // ─── Сообщения ─────────────────────────────────────────
   unreadMessageCount: number;
   setUnreadMessageCount: (count: number) => void;
@@ -195,6 +199,10 @@ export const useStore = create<AppStore>()(
             : [event, ...s.outgoingUserCalls];
           return { outgoingUserCalls: calls.slice(0, 100) };
         }),
+
+      // Активный дуплексный 1:1 звонок
+      activeCall: null,
+      setActiveCall: (call) => set({ activeCall: call }),
 
       // Сообщения
       unreadMessageCount: 0,

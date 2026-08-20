@@ -1,0 +1,14 @@
+{
+	"appId": "tech.privox.ptt",
+	"appName": "PRIVOX PTT",
+	"webDir": "www",
+	"server": {
+		"url": "https://ptt.privox.tech/app",
+		"cleartext": false
+	},
+	"ios": {
+		"contentInset": "automatic",
+		"webContentsDebuggingEnabled": true
+	},
+	"packageClassList": []
+}

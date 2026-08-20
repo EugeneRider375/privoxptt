@@ -1,0 +1,9 @@
+node_modules/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+GoogleService-Info.plist
+*.p12
+*.mobileprovision
+ExportOptions.plist
+* 2.*

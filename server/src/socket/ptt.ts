@@ -16,7 +16,8 @@ import {
 import { logger } from '../utils/logger';
 import { notifyDeviceCall } from '../udp-bridge';
 import { hasReachablePushDevice, sendIncomingUserCallPush } from '../services/push';
-import { createTrackedCall, respondToCallAsUser, type UserCallKind } from '../services/calls';
+import { createTrackedCall, respondToCallAsUser, endCall, isCallParticipant, type UserCallKind } from '../services/calls';
+import { closeGroupPeers } from '../mediasoup/router';
 import type { AuthenticatedSocket } from './index';
 
 const groupWakeCooldowns = new Map<string, number>();
@@ -77,6 +78,8 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
       campaignId,
       kind,
       callerUserId: userId,
+      callerCallsign: callsign,
+      callerDisplayName: displayName,
       targetUserId,
       targetCallsign,
       groupId,
@@ -454,6 +457,37 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
   ) => {
     const accepted = respondToCallAsUser(io, callId, userId, status);
     callback?.(accepted ? { ok: true } : { ok: false, error: 'call_not_found_or_expired' });
+  });
+
+  // ─── Завершение дуплексного 1:1 звонка ────────────────────
+  socket.on('call-hangup', (
+    { callId }: { callId: string },
+    callback?: (data: { ok: boolean }) => void
+  ) => {
+    endCall(io, callId, userId);
+    closeGroupPeers(callId); // эфемерная комната, роутер/пиры больше не нужны
+    callback?.({ ok: true });
+  });
+
+  // ─── Комната дуплекс-звонка (аудио через ту же MediaSoup-инфраструктуру,
+  // callId передаётся как groupId — без PTT-лока, без канала группы;
+  // useWebRTC() на клиенте не знает разницы между группой и звонком) ──────
+  // Название поля — groupId, а не callId: useWebRTC() эмитит join-эвент с
+  // тем же payload, что и для обычной группы, значение внутри — id звонка.
+  socket.on('call-join', (
+    { groupId: callId }: { groupId: string },
+    callback?: (data: { ok: boolean; error?: string }) => void
+  ) => {
+    if (!isCallParticipant(callId, userId)) {
+      callback?.({ ok: false, error: 'not_a_participant' });
+      return;
+    }
+    socket.join(callId);
+    callback?.({ ok: true });
+  });
+
+  socket.on('call-leave', ({ groupId: callId }: { groupId: string }) => {
+    socket.leave(callId);
   });
 
   // ─── WebRTC сигналинг ─────────────────────────────────────

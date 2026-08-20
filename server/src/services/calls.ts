@@ -10,6 +10,8 @@ export interface TrackedCall {
   campaignId: string;
   kind: UserCallKind;
   callerUserId: string;
+  callerCallsign: string;
+  callerDisplayName?: string;
   targetUserId: string;
   targetCallsign: string;
   groupId: string;
@@ -24,6 +26,8 @@ export interface CreateTrackedCallInput {
   campaignId?: string;
   kind: UserCallKind;
   callerUserId: string;
+  callerCallsign: string;
+  callerDisplayName?: string;
   targetUserId: string;
   targetCallsign: string;
   groupId: string;
@@ -32,6 +36,7 @@ export interface CreateTrackedCallInput {
 
 const CALL_TIMEOUT_MS = 45_000;
 const CALL_RETENTION_MS = 120_000;
+const MAX_CALL_DURATION_MS = 4 * 60 * 60 * 1000; // аварийная самоочистка, если hangup не пришёл
 const calls = new Map<string, TrackedCall>();
 
 function emitStatus(io: Server, call: TrackedCall): void {
@@ -60,6 +65,8 @@ export function createTrackedCall(io: Server, input: CreateTrackedCallInput): Tr
     campaignId: input.campaignId ?? callId,
     kind: input.kind,
     callerUserId: input.callerUserId,
+    callerCallsign: input.callerCallsign,
+    callerDisplayName: input.callerDisplayName,
     targetUserId: input.targetUserId,
     targetCallsign: input.targetCallsign,
     groupId: input.groupId,
@@ -86,7 +93,32 @@ function completeCall(io: Server, call: TrackedCall, status: 'answered' | 'decli
   clearTimeout(call.timeout);
   call.status = status;
   emitStatus(io, call);
-  scheduleCleanup(call.callId);
+
+  // Дуплексный 1:1 звонок: не удаляем запись сразу — она нужна до explicit
+  // hangup (endCall), чтобы знать участников для завершения разговора.
+  // Аварийная самоочистка на случай, если ни один клиент не пришлёт hangup
+  // (краш вкладки и т.п.) — иначе запись висела бы в памяти вечно.
+  const isDuplexCall = status === 'answered' && call.kind === 'user';
+  if (!isDuplexCall) {
+    scheduleCleanup(call.callId);
+  } else {
+    setTimeout(() => calls.delete(call.callId), MAX_CALL_DURATION_MS).unref();
+  }
+
+  if (isDuplexCall) {
+    const connectedPayload = { callId: call.callId };
+    io.to(`user:${call.callerUserId}`).emit('call-connected', {
+      ...connectedPayload,
+      otherUserId: call.targetUserId,
+      otherCallsign: call.targetCallsign,
+    });
+    io.to(`user:${call.targetUserId}`).emit('call-connected', {
+      ...connectedPayload,
+      otherUserId: call.callerUserId,
+      otherCallsign: call.callerCallsign,
+    });
+  }
+
   logger.info({
     msg: 'User call response',
     callId: call.callId,
@@ -94,6 +126,26 @@ function completeCall(io: Server, call: TrackedCall, status: 'answered' | 'decli
     targetUserId: call.targetUserId,
     status,
   });
+  return true;
+}
+
+/** Может ли пользователь присоединиться к аудио-комнате звонка (caller или target активного дуплекс-звонка). */
+export function isCallParticipant(callId: string, userId: string): boolean {
+  const call = calls.get(callId);
+  if (!call) return false;
+  return call.status === 'answered' && (call.callerUserId === userId || call.targetUserId === userId);
+}
+
+export function endCall(io: Server, callId: string, endedByUserId: string): boolean {
+  const call = calls.get(callId);
+  if (!call) return false;
+  if (call.callerUserId !== endedByUserId && call.targetUserId !== endedByUserId) return false;
+
+  io.to(`user:${call.callerUserId}`).emit('call-ended', { callId, endedByUserId });
+  io.to(`user:${call.targetUserId}`).emit('call-ended', { callId, endedByUserId });
+  calls.delete(callId);
+
+  logger.info({ msg: 'Call ended', callId, endedByUserId });
   return true;
 }
 

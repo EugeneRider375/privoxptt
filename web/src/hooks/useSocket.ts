@@ -53,6 +53,11 @@ export function respondToIncomingUserCall(
   });
 }
 
+export function hangupCall(callId: string): void {
+  const socket = getPrivoxSocket();
+  socket?.emit('call-hangup', { callId });
+}
+
 function publishSocket(socket: Socket): void {
   (window as any).__privoxSocket = socket;
   window.dispatchEvent(new CustomEvent(PRIVOX_SOCKET_READY_EVENT, { detail: socket }));
@@ -225,6 +230,19 @@ export function useSocket() {
           callsign: event.targetCallsign,
           message: `${event.targetCallsign} ${label}`,
         });
+      }
+    });
+
+    socket.on('call-connected', ({ callId, otherUserId, otherCallsign }: {
+      callId: string; otherUserId: string; otherCallsign: string;
+    }) => {
+      useStore.getState().setActiveCall({ callId, otherUserId, otherCallsign });
+    });
+
+    socket.on('call-ended', ({ callId }: { callId: string }) => {
+      const current = useStore.getState().activeCall;
+      if (current?.callId === callId) {
+        useStore.getState().setActiveCall(null);
       }
     });
 

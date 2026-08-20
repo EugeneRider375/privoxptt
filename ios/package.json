@@ -1,0 +1,13 @@
+{
+  "name": "privox-ptt-ios-builds",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Shared Capacitor dependencies for the phone/ iOS project",
+  "dependencies": {
+    "@capacitor/core": "^8.3.4",
+    "@capacitor/ios": "^8.3.4"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.3.4"
+  }
+}

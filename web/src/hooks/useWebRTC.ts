@@ -21,7 +21,12 @@ const OPUS_CODEC_OPTIONS = {
 // не затрагиваются. Значение подбирается на устройстве.
 const RADIO_MIC_GAIN = 8.0;
 
-export function useWebRTC(groupId: string | null) {
+// Для приватных 1:1 звонков используется тот же MediaSoup-конвейер, но
+// комната — эфемерная (callId вместо groupId), а вход в неё идёт через
+// отдельный серверный эвент call-join (без проверки членства в реальной
+// группе и без PTT-лока). Payload при этом тот же — { groupId }, сервер
+// просто трактует значение как id звонка.
+export function useWebRTC(groupId: string | null, joinEvent: 'join-group' | 'call-join' = 'join-group') {
   const deviceRef = useRef<Device | null>(null);
   const sendTransportRef = useRef<Transport | null>(null);
   const recvTransportRef = useRef<Transport | null>(null);
@@ -454,7 +459,7 @@ export function useWebRTC(groupId: string | null) {
         recoveryTimer = null;
         if (disposed || !subscribedSocket?.connected) return;
         console.log(`[WebRTC] Recovering media session: ${reason}`);
-        subscribedSocket.emit('join-group', { groupId });
+        subscribedSocket.emit(joinEvent, { groupId });
         resetMediaSession();
         init().catch(console.error);
       }, 150);
@@ -498,7 +503,7 @@ export function useWebRTC(groupId: string | null) {
       socket.on('ms:producer-closed', handleProducerClosed);
       socket.on('connect', handleSocketConnect);
       if (socket.connected) {
-        socket.emit('join-group', { groupId });
+        socket.emit(joinEvent, { groupId });
         init().catch(console.error);
       }
     };
@@ -526,7 +531,7 @@ export function useWebRTC(groupId: string | null) {
         subscribedSocket.off('connect', handleSocketConnect);
       }
     };
-  }, [groupId, consumeProducer, createRecvTransport, emit, initDevice]);
+  }, [groupId, joinEvent, consumeProducer, createRecvTransport, emit, initDevice]);
 
   // Очистка при смене группы
   useEffect(() => {

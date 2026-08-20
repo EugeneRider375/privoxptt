@@ -61,7 +61,11 @@ function UserCallAlert({ alert }: { alert: Alert }) {
       await respondToIncomingUserCall(alert.callId, status).catch(() => {});
     }
     markRead(alert.id);
-    if (status === 'answered' && alert.groupId) {
+    // Групповой "будильник" — как раньше, просто заходим в канал группы.
+    // Индивидуальный звонок (kind: 'user') никуда не редиректит — сервер
+    // пришлёт отдельное событие call-connected, по которому откроется
+    // ActiveCallScreen поверх текущего экрана.
+    if (status === 'answered' && alert.groupId && alert.callKind === 'group') {
       setActiveGroup(alert.groupId);
       if (!window.location.pathname.startsWith('/radio')) {
         window.location.assign('/radio');
