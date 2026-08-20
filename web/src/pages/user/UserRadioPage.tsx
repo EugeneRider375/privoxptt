@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { LogOut, ChevronDown, Users, Radio, Signal, AlertTriangle, PhoneCall, MessageSquare, BatteryCharging, BatteryFull, BatteryMedium, BatteryLow, BatteryWarning } from 'lucide-react';
+import { LogOut, ChevronDown, Users, Radio, Signal, AlertTriangle, BellRing, PhoneCall, MessageSquare, BatteryCharging, BatteryFull, BatteryMedium, BatteryLow, BatteryWarning } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
 import { PRIVOX_DATA_CHANGED_EVENT, disconnectPrivoxSocket, useSocket } from '@/hooks/useSocket';
@@ -31,13 +31,15 @@ export function UserRadioPage() {
   const userGroups = useStore((s) => s.userGroups);
 
   const battery = useBattery();
-  const { joinGroup, leaveGroup, sendSos, callUser, callDispatcher } = useSocket();
+  const { joinGroup, leaveGroup, sendSos, callUser, wakeGroup, callDispatcher } = useSocket();
   const { startPtt, stopPtt } = usePTT(activeGroupId);
   useGeolocation(true);
 
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [showGroups, setShowGroups] = useState(false);
   const [callingDispatcher, setCallingDispatcher] = useState(false);
+  // Побудка всей группы — главная кнопка на экране рации.
+  const [wakingGroup, setWakingGroup] = useState(false);
   const [callingUserId, setCallingUserId] = useState<string | null>(null);
 
   const activeGroup = groups.find((g) => g.id === activeGroupId);
@@ -105,6 +107,27 @@ export function UserRadioPage() {
     disconnectPrivoxSocket();
     clearAuth();
     window.location.href = '/login';
+  }
+
+  async function handleWakeGroup() {
+    if (!activeGroupId || wakingGroup) return;
+    setWakingGroup(true);
+    try {
+      const result = await wakeGroup(activeGroupId);
+      useStore.getState().addAlert({
+        type: result.delivered ? 'info' : 'warn',
+        message: result.delivered
+          ? `Group alerted — ${result.delivered} of ${result.total} reachable`
+          : `Nobody is reachable right now (${result.total} in the group)`,
+      });
+    } catch (err) {
+      useStore.getState().addAlert({
+        type: 'warn',
+        message: err instanceof Error ? err.message : 'Failed to alert the group',
+      });
+    } finally {
+      setWakingGroup(false);
+    }
   }
 
   async function handleCallDispatcher() {
@@ -315,13 +338,17 @@ export function UserRadioPage() {
         />
 
         <div className="flex items-center gap-3">
+          {/* Главная кнопка помощи: поднимает всю группу, а не одного
+              дежурного — человеку в поле некогда выяснять, кто сегодня на
+              смене. Вызов лично диспетчера остался значком трубки в шапке. */}
           <button
-            onClick={handleCallDispatcher}
-            disabled={!activeGroupId || callingDispatcher}
+            onClick={handleWakeGroup}
+            disabled={!activeGroupId || wakingGroup}
+            title="Ring everyone in this group"
             className="flex items-center gap-2 px-4 py-2 border border-ptt-blue/50 rounded text-ptt-blue font-mono text-xs tracking-widest hover:bg-ptt-blue/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <PhoneCall className="w-3 h-3" />
-            {callingDispatcher ? 'CALLING' : 'DISPATCH'}
+            <BellRing className="w-3 h-3" />
+            {wakingGroup ? 'ALERTING' : 'ALERT GROUP'}
           </button>
 
           <button

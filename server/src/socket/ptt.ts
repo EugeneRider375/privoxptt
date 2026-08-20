@@ -380,11 +380,11 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
     }) => void
   ) => {
     try {
-      if (!isPrivileged) {
-        callback?.({ ok: false, error: 'forbidden', message: 'Only dispatchers and administrators can wake a group' });
-        return;
-      }
-
+      // Будить группу может любой её участник, а не только диспетчер: на
+      // рации это главная кнопка «позовите кого-нибудь», и человеку в поле
+      // некогда искать, кто сегодня дежурит. Доступ ограничен членством —
+      // canAccessGroup пускает только своих, — а частота ограничена
+      // задержкой в GROUP_WAKE_COOLDOWN_MS на каждого человека и группу.
       const access = await canAccessGroup(groupId);
       if (!access.ok || !access.group) {
         callback?.({ ok: false, error: 'forbidden', message: 'Access denied' });
