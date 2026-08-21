@@ -46,6 +46,32 @@ android/phone/local.properties       путь к Android SDK — свой на �
 android/t320/local.properties
 android/phone/app/google-services.json   настройки Firebase
 android/t320/app/google-services.json
+
+docs/SECRETS.local.md                логины и секреты — САМЫЙ важный файл
+PRODUCTION.md                        доступы к продакшену
+BACKUP_INSTRUCTIONS.local.md         как снимать бэкап боевой базы
+STATUS_2026-05-18.md                 исторический срез состояния
+.claude/settings.json                настройки и разрешения Claude Code
+.claude/settings.local.json
+```
+
+⚠️ **Вторая половина списка — грабли, на которые уже наступили.** 21.08.2026
+при переносе рабочей копии с Рабочего стола в `~/Projects` перенесли то, что
+видит git, а игнорируемое осталось позади. Обнаружилось случайно, перед самым
+удалением старой папки: `docs/SECRETS.local.md` и `PRODUCTION.md` не были ни в
+одном коммите — ни в старом репозитории, ни в новом. Ещё бы минута, и доступы к
+продакшену исчезли бы навсегда.
+
+**Правило:** `git clone` переносит только то, что в git. Всё из этого списка —
+руками, и проверять глазами, что оно доехало. Перед удалением любой старой
+копии сверять её содержимое с новой, а не полагаться на `git status`.
+
+Ключ подписи и дамп базы лежат **на самом Рабочем столе**, а не внутри папки
+проекта, — при уборке их не задеть:
+
+```
+~/Desktop/privox-release.keystore    копия ключа подписи (вторая — в ~/PrivoxKeys/)
+~/Desktop/privoxptt-*.sql.gz         дамп боевой базы для локальной копии
 ```
 
 **Ключ подписи** `privox-release.keystore` лежит отдельно, вне репозитория:
@@ -96,6 +122,24 @@ cd web && npm run dev
 
 ⚠️ **Любой push в `main` уходит на боевой сервер** — автодеплой, около трёх
 минут. Хотите без выкатки — работайте в отдельной ветке.
+
+## Соседние проекты на Рабочем столе
+
+В `~/Desktop/IT PROJECT/` лежат **самостоятельные репозитории**, каждый со
+своим адресом на GitHub. Это не копии и не части PrivoxPTT:
+
+| Папка | Репозиторий |
+|---|---|
+| `PrivoxPTT` | `privoxptt` — этот проект (рабочая копия переехала в `~/Projects`) |
+| `PRIVOXPTT-Android` | `privoxptt-android` — **другой проект**, имя обманчиво похоже |
+| `InricoT320` | `privox-t320` |
+| `PrivoxMonitor` | `privox-monitor` |
+| `privox-sensors` | `privox-sensors` |
+| `Frigo` | `fridge-monitor` |
+
+⚠️ Папки `HomeClimate`, `PRIVOX-MINI-RADIO`, `ESP D1 Mini BLINK`, `Test-ESP8266`,
+`Test-esp32-C3MINI` **вообще не под контролем версий** — ни git, ни удалённой
+копии. Удаление любой из них необратимо.
 
 ## Что где собирается
 
