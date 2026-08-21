@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { PhoneCall, PhoneOff } from 'lucide-react';
+import { PhoneCall, PhoneOff, Volume2, Ear } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { useWebRTC } from '@/hooks/useWebRTC';
 import { hangupCall } from '@/hooks/useSocket';
+import { canRouteAudio, setAudioRoute } from '@/utils/audioRoute';
 
 function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60).toString().padStart(2, '0');
@@ -19,6 +20,10 @@ export function ActiveCallScreen() {
   const { startTransmitting, stopTransmitting } = useWebRTC(activeCall?.callId ?? null, 'call-join');
   const [duration, setDuration] = useState(0);
   const startedRef = useRef(false);
+  // Личный звонок звучит «в ухо», как обычный телефонный. Кнопка позволяет
+  // переключить на динамик — например, чтобы слышали рядом стоящие.
+  const [speaker, setSpeaker] = useState(false);
+  const canRoute = canRouteAudio();
 
   useEffect(() => {
     if (!activeCall) {
@@ -32,8 +37,16 @@ export function ActiveCallScreen() {
       console.error('[Call] Не удалось начать передачу в звонке:', err);
     });
 
+    // Звонок — в наушник. Ставим после старта передачи: браузер меняет
+    // маршрут именно в этот момент, раньше нас всё равно бы перебило.
+    setSpeaker(false);
+    setAudioRoute('earpiece');
+
     return () => {
       stopTransmitting();
+      // Возвращаем громкий режим: дальше человек снова в группе, где
+      // рация должна быть слышна.
+      setAudioRoute('speaker');
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCall?.callId]);
@@ -63,9 +76,23 @@ export function ActiveCallScreen() {
         <p className="callsign text-xl mt-2">{activeCall.otherCallsign}</p>
         <p className="font-mono text-ptt-muted text-sm mt-1">{formatDuration(duration)}</p>
 
+        {canRoute && (
+          <button
+            onClick={() => {
+              const next = !speaker;
+              setSpeaker(next);
+              setAudioRoute(next ? 'speaker' : 'earpiece');
+            }}
+            className="mt-5 w-full flex items-center justify-center gap-2 border border-ptt-border text-ptt-text font-mono text-xs tracking-widest rounded py-2.5 hover:text-white transition-colors"
+          >
+            {speaker ? <Volume2 className="w-4 h-4" /> : <Ear className="w-4 h-4" />}
+            {speaker ? 'SPEAKER' : 'EARPIECE'}
+          </button>
+        )}
+
         <button
           onClick={handleHangup}
-          className="mt-6 w-full flex items-center justify-center gap-2 border border-ptt-danger/60 text-ptt-danger font-mono text-xs tracking-widest rounded py-3 hover:bg-ptt-danger/10 transition-colors"
+          className="mt-3 w-full flex items-center justify-center gap-2 border border-ptt-danger/60 text-ptt-danger font-mono text-xs tracking-widest rounded py-3 hover:bg-ptt-danger/10 transition-colors"
         >
           <PhoneOff className="w-4 h-4" />
           HANG UP

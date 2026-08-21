@@ -1,0 +1,122 @@
+package tech.privox.ptt;
+
+import android.content.Context;
+import android.media.AudioManager;
+import android.os.Handler;
+import android.os.Looper;
+
+import com.getcapacitor.JSObject;
+import com.getcapacitor.Plugin;
+import com.getcapacitor.PluginCall;
+import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.CapacitorPlugin;
+
+/**
+ * Куда направлять звук: в громкий динамик или в тихий разговорный наушник.
+ *
+ * Веб-часть сама этого не может: браузер переводит устройство в
+ * MODE_IN_COMMUNICATION, как только одновременно работают микрофон и
+ * воспроизведение, и по умолчанию уводит звук в наушник. Никакого веб-API,
+ * чтобы это перебить, не существует — только нативный AudioManager.
+ *
+ * Отсюда два режима:
+ *   speaker  — групповой канал: рацию держат в руке или в кармане, слышно
+ *              должно быть всем вокруг;
+ *   earpiece — личный звонок один на один: подносят к уху, как телефон.
+ *
+ * Браузер сбрасывает маршрут на каждом включении микрофона, поэтому режим
+ * приходится переустанавливать по таймеру, а не один раз.
+ */
+@CapacitorPlugin(name = "PrivoxAudio")
+public class PrivoxAudioPlugin extends Plugin {
+
+    /** Как часто перебивать выбор браузера. */
+    private static final long REASSERT_MS = 1500;
+
+    private AudioManager audioManager;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+
+    /** null = режим не задан, ничего не навязываем и таймер не крутим. */
+    private Boolean wantSpeaker = null;
+
+    /**
+     * Виден нативному коду за пределами плагина. У T320 есть собственный цикл,
+     * который держит динамик включённым всегда — во время личного звонка он
+     * дрался бы с выбранным режимом. Флаг позволяет ему отступить.
+     */
+    private static volatile boolean earpieceRequested = false;
+
+    public static boolean isEarpieceRequested() {
+        return earpieceRequested;
+    }
+
+    private final Runnable reassert = new Runnable() {
+        @Override
+        public void run() {
+            applyRoute();
+            handler.postDelayed(this, REASSERT_MS);
+        }
+    };
+
+    @Override
+    public void load() {
+        audioManager = (AudioManager) getContext().getSystemService(Context.AUDIO_SERVICE);
+    }
+
+    /**
+     * mode: "speaker" | "earpiece" | "auto"
+     * auto — перестать вмешиваться и отдать решение браузеру.
+     */
+    @PluginMethod
+    public void setMode(PluginCall call) {
+        final String mode = call.getString("mode", "auto");
+
+        if ("auto".equals(mode)) {
+            wantSpeaker = null;
+            earpieceRequested = false;
+            handler.removeCallbacks(reassert);
+            call.resolve(result("auto"));
+            return;
+        }
+
+        wantSpeaker = "speaker".equals(mode);
+        earpieceRequested = !wantSpeaker;
+        applyRoute();
+
+        // Перезапускаем таймер: браузер вернёт своё при следующем PTT.
+        handler.removeCallbacks(reassert);
+        handler.postDelayed(reassert, REASSERT_MS);
+
+        call.resolve(result(mode));
+    }
+
+    /** Текущее состояние — чтобы веб мог показать положение переключателя. */
+    @PluginMethod
+    public void getMode(PluginCall call) {
+        if (wantSpeaker == null) {
+            call.resolve(result("auto"));
+            return;
+        }
+        call.resolve(result(wantSpeaker ? "speaker" : "earpiece"));
+    }
+
+    private void applyRoute() {
+        if (audioManager == null || wantSpeaker == null) return;
+        if (audioManager.isSpeakerphoneOn() != wantSpeaker) {
+            audioManager.setSpeakerphoneOn(wantSpeaker);
+        }
+    }
+
+    private JSObject result(String mode) {
+        final JSObject data = new JSObject();
+        data.put("mode", mode);
+        data.put("speakerOn", audioManager != null && audioManager.isSpeakerphoneOn());
+        return data;
+    }
+
+    @Override
+    protected void handleOnDestroy() {
+        handler.removeCallbacks(reassert);
+        super.handleOnDestroy();
+    }
+}

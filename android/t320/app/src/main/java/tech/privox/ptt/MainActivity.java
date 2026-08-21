@@ -62,6 +62,7 @@ public class MainActivity extends BridgeActivity {
     protected void onCreate(Bundle savedInstanceState) {
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         registerPlugin(PrivoxPushPlugin.class);
+        registerPlugin(PrivoxAudioPlugin.class);
         super.onCreate(savedInstanceState);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
@@ -121,6 +122,11 @@ public class MainActivity extends BridgeActivity {
 
     private void forceSpeakerphone() {
         if (audioManager == null) {
+            return;
+        }
+        // Личный звонок просят «в ухо» — не перебиваем, иначе этот цикл
+        // возвращал бы динамик каждые полторы секунды.
+        if (PrivoxAudioPlugin.isEarpieceRequested()) {
             return;
         }
         if (!audioManager.isSpeakerphoneOn()) {

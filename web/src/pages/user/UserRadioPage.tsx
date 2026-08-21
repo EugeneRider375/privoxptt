@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { LogOut, ChevronDown, Users, Radio, Signal, AlertTriangle, BellRing, PhoneCall, MessageSquare, BatteryCharging, BatteryFull, BatteryMedium, BatteryLow, BatteryWarning } from 'lucide-react';
+import { LogOut, ChevronDown, Users, Radio, Signal, AlertTriangle, BellRing, PhoneCall, MessageSquare, BatteryCharging, BatteryFull, BatteryMedium, BatteryLow, BatteryWarning, Volume2, Ear } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
 import { PRIVOX_DATA_CHANGED_EVENT, disconnectPrivoxSocket, useSocket } from '@/hooks/useSocket';
 import { usePTT } from '@/hooks/usePTT';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { groupsApi, authApi } from '@/api/client';
+import { canRouteAudio, setAudioRoute } from '@/utils/audioRoute';
 import { useBattery } from '@/hooks/useBattery';
 import { unregisterNativePushDevice } from '@/hooks/useNativePush';
 import { InstallAppHint } from '@/components/ui/InstallAppHint';
@@ -40,6 +41,10 @@ export function UserRadioPage() {
   const [callingDispatcher, setCallingDispatcher] = useState(false);
   // Побудка всей группы — главная кнопка на экране рации.
   const [wakingGroup, setWakingGroup] = useState(false);
+  // Групповой канал звучит в динамик: рацию держат в руке или в кармане.
+  // Переключатель — на случай, когда рядом люди и слушать надо тихо.
+  const [speakerOn, setSpeakerOn] = useState(true);
+  const canRoute = canRouteAudio();
   const [callingUserId, setCallingUserId] = useState<string | null>(null);
 
   const activeGroup = groups.find((g) => g.id === activeGroupId);
@@ -108,6 +113,14 @@ export function UserRadioPage() {
     clearAuth();
     window.location.href = '/login';
   }
+
+  // Вошли в группу — возвращаем громкий режим. Экран звонка на время
+  // разговора переключает на наушник и возвращает обратно сам.
+  useEffect(() => {
+    if (!activeGroupId) return;
+    setSpeakerOn(true);
+    setAudioRoute('speaker');
+  }, [activeGroupId]);
 
   async function handleWakeGroup() {
     if (!activeGroupId || wakingGroup) return;
@@ -244,6 +257,19 @@ export function UserRadioPage() {
               </span>
             )}
           </button>
+          {canRoute && (
+            <button
+              onClick={() => {
+                const next = !speakerOn;
+                setSpeakerOn(next);
+                setAudioRoute(next ? 'speaker' : 'earpiece');
+              }}
+              title={speakerOn ? 'Loud speaker — tap for earpiece' : 'Earpiece — tap for loud speaker'}
+              className="text-ptt-text hover:text-white transition-colors"
+            >
+              {speakerOn ? <Volume2 className="w-4 h-4" /> : <Ear className="w-4 h-4" />}
+            </button>
+          )}
           <button
             onClick={handleCallDispatcher}
             disabled={!activeGroupId || callingDispatcher}
