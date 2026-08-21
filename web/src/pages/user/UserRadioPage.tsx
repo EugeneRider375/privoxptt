@@ -16,6 +16,7 @@ import { AlertPanel } from '@/components/ui/AlertPanel';
 import { RadioDeviceScreen } from '@/components/radio/RadioDeviceScreen';
 import { isRadioDevice } from '@/utils/device';
 import type { Group, GroupMember } from '@/types';
+import { groupWindowState } from '@/utils/groupWindow';
 
 export function UserRadioPage() {
   const navigate = useNavigate();
@@ -312,20 +313,29 @@ export function UserRadioPage() {
 
         {showGroups && (
           <div className="absolute z-10 top-full left-0 right-0 bg-ptt-panel border border-ptt-border rounded-b-lg shadow-xl max-h-56 overflow-y-auto">
-            {groups.map((g) => (
-              <button
-                key={g.id}
-                onClick={() => { setActiveGroup(g.id); setShowGroups(false); }}
-                className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-ptt-muted/20 transition-colors border-b border-ptt-border/50 last:border-0 ${g.id === activeGroupId ? 'bg-ptt-green/10' : ''}`}
-              >
-                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: g.color }} />
-                <div className="text-left flex-1">
-                  <p className="font-rajdhani font-semibold text-sm text-white">{g.name}</p>
-                  <p className="font-mono text-xs text-ptt-text">{g._count?.members ?? 0} members</p>
-                </div>
-                {g.pttOwnerId && <span className="w-2 h-2 rounded-full bg-ptt-green animate-pulse" />}
-              </button>
-            ))}
+            {groups.map((g) => {
+              // Закрытую по сроку группу сервер всё равно не пустит, но список
+              // приходит целиком: показываем причину здесь, чтобы отказ не был
+              // неожиданностью посреди смены.
+              const state = groupWindowState(g);
+              return (
+                <button
+                  key={g.id}
+                  onClick={() => { setActiveGroup(g.id); setShowGroups(false); }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-ptt-muted/20 transition-colors border-b border-ptt-border/50 last:border-0 ${g.id === activeGroupId ? 'bg-ptt-green/10' : ''} ${state.open ? '' : 'opacity-50'}`}
+                >
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: g.color }} />
+                  <div className="text-left flex-1">
+                    <p className="font-rajdhani font-semibold text-sm text-white">{g.name}</p>
+                    <p className="font-mono text-xs text-ptt-text">{g._count?.members ?? 0} members</p>
+                  </div>
+                  {!state.open && (
+                    <span className="font-mono text-[10px] tracking-widest text-ptt-warn">{state.label}</span>
+                  )}
+                  {state.open && g.pttOwnerId && <span className="w-2 h-2 rounded-full bg-ptt-green animate-pulse" />}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>

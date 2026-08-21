@@ -52,6 +52,10 @@ export interface GroupMember {
   userId: string;
   groupId: string;
   canSpeak: boolean;
+  /** Права внутри группы; у участников, заведённых до них, — true. */
+  canMessage?: boolean;
+  canShareLocation?: boolean;
+  isGroupAdmin?: boolean;
   isOnline?: boolean;
   isReachable?: boolean;
   user: Pick<User, 'id' | 'callsign' | 'displayName' | 'role'>;
@@ -95,7 +99,15 @@ export interface ChannelLockedEvent {
   groupId: string;
   lockedBy?: string;
   lockedByCallsign?: string;
-  reason: 'channel_busy' | 'no_speak_permission';
+  reason:
+    | 'channel_busy'
+    | 'no_speak_permission'
+    | 'forbidden'
+    // Срок действия группы: канал закрыт, дело не в занятости и не в правах.
+    | 'group_draft'
+    | 'group_archived'
+    | 'group_not_started'
+    | 'group_expired';
   message: string;
 }
 

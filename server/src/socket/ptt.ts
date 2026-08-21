@@ -18,6 +18,7 @@ import { notifyDeviceCall } from '../udp-bridge';
 import { hasReachablePushDevice, sendIncomingUserCallPush } from '../services/push';
 import { createTrackedCall, respondToCallAsUser, endCall, isCallParticipant, type UserCallKind } from '../services/calls';
 import { closeGroupPeers } from '../mediasoup/router';
+import { checkGroupWindow, openGroupFilter, GROUP_WINDOW_SELECT } from '../services/groupAccess';
 import type { AuthenticatedSocket } from './index';
 
 const groupWakeCooldowns = new Map<string, number>();
@@ -28,10 +29,12 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
   const heldPttGroups = new Set<string>();
   const isPrivileged = ['SUPERADMIN', 'ADMIN', 'DISPATCHER'].includes(role);
 
+  const groupSelect = { id: true, name: true, organizationId: true, ...GROUP_WINDOW_SELECT };
+
   const canAccessGroup = async (groupId: string) => {
     const member = await prisma.groupMember.findUnique({
       where: { userId_groupId: { userId, groupId } },
-      include: { group: { select: { id: true, name: true, organizationId: true } } },
+      include: { group: { select: groupSelect } },
     });
 
     if (member && member.group.organizationId === organizationId) {
@@ -41,12 +44,86 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
     if (isPrivileged) {
       const group = await prisma.group.findFirst({
         where: role === 'SUPERADMIN' ? { id: groupId } : { id: groupId, organizationId },
-        select: { id: true, name: true, organizationId: true },
+        select: groupSelect,
       });
       if (group) return { ok: true, group };
     }
 
     return { ok: false, group: null };
+  };
+
+  /**
+   * Доступ + открытое окно. Для всего, что НАЧИНАЕТ трафик: вход в группу,
+   * PTT, звонок, вызов диспетчера. Срок группы действует на все роли, включая
+   * SUPERADMIN, — просроченная группа это закрытый канал, а не канал с
+   * исключениями (D7). Завершающие действия (ptt-stop, leave-group, ответ на
+   * звонок, call-hangup) окно не проверяют: истечение срока посреди эфира не
+   * должно оставлять висеть PTT-локи и комнаты mediasoup.
+   */
+  const canUseGroup = async (groupId: string) => {
+    const access = await canAccessGroup(groupId);
+    if (!access.ok || !access.group) {
+      return { ok: false as const, group: null, reason: 'forbidden' as const, message: 'Access denied' };
+    }
+
+    const groupWindow = checkGroupWindow(access.group);
+    if (!groupWindow.open) {
+      logger.debug({ msg: 'Группа закрыта', userId, groupId, reason: groupWindow.reason });
+      return { ok: false as const, group: access.group, reason: groupWindow.reason, message: groupWindow.message };
+    }
+
+    return { ok: true as const, group: access.group, reason: undefined, message: undefined };
+  };
+
+  /**
+   * Право делиться координатами (GroupMember.canShareLocation).
+   *
+   * location-update прилетает с частотой GPS, поэтому право кешируем на
+   * LOCATION_PERMISSION_TTL_MS: состав групп меняется несравнимо реже, чем
+   * приходят точки, а поход в БД на каждую точку положил бы базу.
+   *
+   * Привязка к группе: пока человек на канале — судим по его правам именно в
+   * этой группе. Когда он не в группе, координаты всё равно уходят диспетчерам
+   * org-wide, поэтому разрешаем, только если хотя бы одно членство в открытой
+   * группе это позволяет — иначе запрет обходился бы выходом из группы.
+   */
+  let locationPermission: { allowed: boolean; groupId: string | null; checkedAt: number } | null = null;
+  const LOCATION_PERMISSION_TTL_MS = 30_000;
+
+  const resolveLocationPermission = async (currentGroupId: string | null) => {
+    // Диспетчеры и администраторы не ограничиваются членскими правами — так же,
+    // как для canSpeak в ptt-start.
+    if (isPrivileged) return true;
+
+    if (currentGroupId) {
+      const member = await prisma.groupMember.findUnique({
+        where: { userId_groupId: { userId, groupId: currentGroupId } },
+        select: { canShareLocation: true },
+      });
+      return member?.canShareLocation ?? false;
+    }
+
+    const permissive = await prisma.groupMember.findFirst({
+      where: { userId, canShareLocation: true, group: openGroupFilter() },
+      select: { id: true },
+    });
+    return permissive !== null;
+  };
+
+  const canShareLocationNow = async () => {
+    const currentGroupId = await getUserCurrentGroup(userId);
+    const cached = locationPermission;
+    if (
+      cached &&
+      cached.groupId === currentGroupId &&
+      Date.now() - cached.checkedAt < LOCATION_PERMISSION_TTL_MS
+    ) {
+      return cached.allowed;
+    }
+
+    const allowed = await resolveLocationPermission(currentGroupId);
+    locationPermission = { allowed, groupId: currentGroupId, checkedAt: Date.now() };
+    return allowed;
   };
 
   const deliverUserCall = async ({
@@ -134,9 +211,9 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
   // ─── Присоединиться к группе ──────────────────────────────
   socket.on('join-group', async ({ groupId }: { groupId: string }) => {
     try {
-      const access = await canAccessGroup(groupId);
+      const access = await canUseGroup(groupId);
       if (!access.ok) {
-        socket.emit('error', { code: 'FORBIDDEN', message: 'Access denied' });
+        socket.emit('error', { code: access.reason.toUpperCase(), message: access.message });
         return;
       }
 
@@ -187,13 +264,13 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
     callback?: (data: { ok: boolean; error?: string; message?: string }) => void
   ) => {
     try {
-      const access = await canAccessGroup(groupId);
+      const access = await canUseGroup(groupId);
       if (!access.ok) {
-        callback?.({ ok: false, error: 'forbidden', message: 'Access denied' });
+        callback?.({ ok: false, error: access.reason, message: access.message });
         socket.emit('channel-locked', {
           groupId,
-          reason: 'no_speak_permission',
-          message: 'Access denied',
+          reason: access.reason,
+          message: access.message,
         });
         return;
       }
@@ -307,9 +384,9 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
         return;
       }
 
-      const access = await canAccessGroup(groupId);
+      const access = await canUseGroup(groupId);
       if (!access.ok || !access.group) {
-        callback?.({ ok: false, error: 'forbidden', message: 'Access denied' });
+        callback?.({ ok: false, error: access.reason, message: access.message });
         return;
       }
 
@@ -383,11 +460,11 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
       // Будить группу может любой её участник, а не только диспетчер: на
       // рации это главная кнопка «позовите кого-нибудь», и человеку в поле
       // некогда искать, кто сегодня дежурит. Доступ ограничен членством —
-      // canAccessGroup пускает только своих, — а частота ограничена
+      // canUseGroup пускает только своих, — а частота ограничена
       // задержкой в GROUP_WAKE_COOLDOWN_MS на каждого человека и группу.
-      const access = await canAccessGroup(groupId);
+      const access = await canUseGroup(groupId);
       if (!access.ok || !access.group) {
-        callback?.({ ok: false, error: 'forbidden', message: 'Access denied' });
+        callback?.({ ok: false, error: access.reason, message: access.message });
         return;
       }
 
@@ -504,10 +581,12 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
   });
 
   // ─── GPS местоположение ───────────────────────────────────
-  socket.on('location-update', (data: {
+  socket.on('location-update', async (data: {
     lat: number; lng: number;
     heading?: number; speed?: number; timestamp: number;
   }) => {
+    if (!(await canShareLocationNow())) return;
+
     // Рассылаем диспетчерам и администраторам в организации
     socket.to(`org:${organizationId}`).emit('user-location', {
       userId,
@@ -521,6 +600,9 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
   });
 
   // ─── SOS алерт ────────────────────────────────────────────
+  // Намеренно без проверки срока группы (D7): это аварийный сигнал, он уходит
+  // не только в группу, но и всей организации. Глушить крик о помощи из-за
+  // календарной даты нельзя.
   socket.on('sos', async ({ groupId, message }: { groupId: string; message: string }) => {
     logger.warn({ msg: 'SOS!', userId, callsign, groupId });
     // Рассылаем всем в группе и в организации
@@ -534,9 +616,9 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
     callback?: (data: { ok: boolean; callId?: string; error?: string; message?: string }) => void
   ) => {
     try {
-      const access = await canAccessGroup(groupId);
+      const access = await canUseGroup(groupId);
       if (!access.ok || !access.group) {
-        callback?.({ ok: false, error: 'forbidden', message: 'Access denied' });
+        callback?.({ ok: false, error: access.reason, message: access.message });
         return;
       }
 
@@ -572,6 +654,10 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
         return;
       }
 
+      // Намеренно canAccessGroup, а не canUseGroup: это ЗАВЕРШЕНИЕ уже
+      // размещённого вызова. Вызов не мог быть создан в закрытой группе, а
+      // истечение срока в секунду между запросом и ответом не повод бросить
+      // человека без диспетчера.
       const access = await canAccessGroup(groupId);
       if (!access.ok) {
         callback?.({ ok: false, error: 'forbidden', message: 'Access denied' });

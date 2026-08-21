@@ -133,6 +133,17 @@ export function useSocket() {
       console.error('[Socket] Connection error:', err.message);
     });
 
+    // Сервер отказывает по 'error' — в частности когда группа закрыта по сроку
+    // (D7). Без этого обработчика вход в группу проваливался молча, и человек в
+    // поле видел просто нерабочую рацию без единого намёка на причину.
+    socket.on('error', ({ code, message }: { code?: string; message?: string }) => {
+      console.warn('[Socket] Server error:', code, message);
+      useStore.getState().addAlert({
+        type: 'warn',
+        message: message || 'The server rejected the request',
+      });
+    });
+
     // Используем getState() вместо useStore() — не создаём лишние React-подписки
     socket.on('presence-snapshot', ({ users }: { users: Array<{ userId: string; callsign: string; displayName: string; currentGroupId?: string | null }> }) => {
       const state = useStore.getState();

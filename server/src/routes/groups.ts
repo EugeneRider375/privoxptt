@@ -3,10 +3,11 @@ import { z } from 'zod';
 import { prisma } from '../database/prisma';
 import { authenticate, requireAdmin } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
-import { UserRole } from '@prisma/client';
+import { GroupStatus, UserRole } from '@prisma/client';
 import { getPttLockOwner, isUserOnline } from '../database/redis';
 import { emitOrgDataChanged } from '../utils/realtime';
 import { hasReachablePushDevice } from '../services/push';
+import { assertPeriodOrder } from '../services/groupAccess';
 
 export const groupsRouter = Router();
 
@@ -29,13 +30,54 @@ const createGroupSchema = z.object({
     .regex(/^#[0-9A-Fa-f]{6}$/, 'Color format: #RRGGBB')
     .default('#3DDC84'),
   organizationId: z.string().uuid().optional(),
+  // Срок действия. null = бессрочно, как у всех групп, созданных до сроков.
+  // Раньше эти поля задавались только мастером при создании — продлить или
+  // заново активировать группу было нечем, и с включённой проверкой срока
+  // истёкшая группа осталась бы неисправимой.
+  startsAt: z.string().datetime().nullish(),
+  endsAt: z.string().datetime().nullish(),
+  status: z.nativeEnum(GroupStatus).optional(),
 });
 
 const updateGroupSchema = createGroupSchema.partial();
 
+/**
+ * Сводит присланные даты с уже сохранёнными: undefined — оставить как было,
+ * null — снять ограничение (сделать бессрочным), строка — новая дата.
+ * Порядок проверяем на слитом результате: администратор вправе прислать один
+ * только endsAt, и сравнивать его надо с сохранённым startsAt, а не с пустотой.
+ */
+function resolvePeriod(
+  data: { startsAt?: string | null; endsAt?: string | null },
+  current: { startsAt: Date | null; endsAt: Date | null } = { startsAt: null, endsAt: null },
+) {
+  const startsAt =
+    data.startsAt === undefined ? current.startsAt : data.startsAt ? new Date(data.startsAt) : null;
+  const endsAt =
+    data.endsAt === undefined ? current.endsAt : data.endsAt ? new Date(data.endsAt) : null;
+
+  assertPeriodOrder(startsAt, endsAt);
+  return { startsAt, endsAt };
+}
+
+/**
+ * Права участника внутри группы. Все по умолчанию true — ровно то поведение,
+ * что было до того, как эти флаги начали проверяться.
+ */
+const memberPermissionsSchema = z
+  .object({
+    canSpeak: z.boolean(),
+    canMessage: z.boolean(),
+    canShareLocation: z.boolean(),
+  })
+  .partial()
+  .refine((v) => Object.keys(v).length > 0, { message: 'No permissions provided' });
+
 const addMemberSchema = z.object({
   userId: z.string().uuid(),
   canSpeak: z.boolean().default(true),
+  canMessage: z.boolean().default(true),
+  canShareLocation: z.boolean().default(true),
 });
 
 // GET /api/groups — мои группы
@@ -147,6 +189,8 @@ groupsRouter.post('/', requireAdmin, async (req: Request, res: Response, next: N
         ? data.organizationId
         : req.user!.organizationId;
 
+    const period = resolvePeriod(data);
+
     const group = await prisma.group.create({
       data: {
         name: data.name,
@@ -155,6 +199,9 @@ groupsRouter.post('/', requireAdmin, async (req: Request, res: Response, next: N
         priority: data.priority,
         color: data.color,
         organizationId: orgId,
+        startsAt: period.startsAt,
+        endsAt: period.endsAt,
+        ...(data.status ? { status: data.status } : {}),
       },
     });
 
@@ -179,8 +226,15 @@ groupsRouter.put('/:id', requireAdmin, async (req: Request, res: Response, next:
       throw new AppError(403, 'Access denied');
     }
 
-    const data = updateGroupSchema.parse(req.body);
-    const updated = await prisma.group.update({ where: { id }, data });
+    const { organizationId: _ignoredOrgId, startsAt, endsAt, ...rest } = updateGroupSchema.parse(req.body);
+    // organizationId намеренно отбрасывается: раньше он уходил в update как
+    // есть, и администратор мог перенести группу в чужую организацию.
+    const period = resolvePeriod({ startsAt, endsAt }, group);
+
+    const updated = await prisma.group.update({
+      where: { id },
+      data: { ...rest, startsAt: period.startsAt, endsAt: period.endsAt },
+    });
     emitOrgDataChanged(req, group.organizationId, 'groups', { groupId: id, action: 'updated' });
     res.json(updated);
   } catch (err) {
@@ -214,7 +268,7 @@ groupsRouter.delete('/:id', requireAdmin, async (req: Request, res: Response, ne
 groupsRouter.post('/:id/members', requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const groupId = param(req.params.id, 'group id');
-    const { userId, canSpeak } = addMemberSchema.parse(req.body);
+    const { userId, ...permissions } = addMemberSchema.parse(req.body);
 
     const group = await prisma.group.findUnique({ where: { id: groupId } });
     if (!group) throw new AppError(404, 'Group not found');
@@ -234,7 +288,7 @@ groupsRouter.post('/:id/members', requireAdmin, async (req: Request, res: Respon
     }
 
     const member = await prisma.groupMember.create({
-      data: { groupId, userId, canSpeak },
+      data: { groupId, userId, ...permissions },
       include: {
         user: { select: { id: true, callsign: true, displayName: true } },
       },
@@ -271,12 +325,14 @@ groupsRouter.delete('/:id/members/:userId', requireAdmin, async (req: Request, r
   }
 });
 
-// PATCH /api/groups/:id/members/:userId — изменить права участника (canSpeak)
+// PATCH /api/groups/:id/members/:userId — изменить права участника
+// canSpeak/canMessage/canShareLocation правятся по отдельности: присланные
+// поля меняются, остальные остаются как были.
 groupsRouter.patch('/:id/members/:userId', requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const groupId = param(req.params.id, 'group id');
     const userId = param(req.params.userId, 'user id');
-    const { canSpeak } = z.object({ canSpeak: z.boolean() }).parse(req.body);
+    const permissions = memberPermissionsSchema.parse(req.body);
 
     const member = await prisma.groupMember.findUnique({
       where: { userId_groupId: { userId, groupId } },
@@ -293,7 +349,7 @@ groupsRouter.patch('/:id/members/:userId', requireAdmin, async (req: Request, re
 
     const updated = await prisma.groupMember.update({
       where: { userId_groupId: { userId, groupId } },
-      data: { canSpeak },
+      data: permissions,
     });
 
     emitOrgDataChanged(req, member.group.organizationId, 'members', { groupId, userId, action: 'member_updated' });

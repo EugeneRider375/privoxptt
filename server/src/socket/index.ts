@@ -58,11 +58,20 @@ export function setupSocketIO(httpServer: HttpServer): Server {
           isActive: true,
           organizationId: true,
           role: true,
+          accessExpiresAt: true,
         },
       });
 
       if (!user || !user.isActive) {
         return next(new Error('User not found or deactivated'));
+      }
+
+      // Срок доступа проверялся только при логине и refresh, а access-токен
+      // живёт JWT_EXPIRES_IN (по умолчанию 7 дней) — то есть рация человека с
+      // истёкшим сроком продолжала работать почти неделю. null = бессрочно,
+      // так у всех, кто был до появления этой возможности.
+      if (user.accessExpiresAt && user.accessExpiresAt < new Date()) {
+        return next(new Error('Access period has expired'));
       }
 
       // Сохраняем данные пользователя в socket.data

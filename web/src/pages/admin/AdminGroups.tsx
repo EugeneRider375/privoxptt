@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, Users, X, UserPlus, UserMinus, MicOff, Mic, Wand2, UserRoundPlus, QrCode } from 'lucide-react';
+import { Plus, Pencil, Trash2, Users, X, UserPlus, UserMinus, MicOff, Mic, MessageSquare, MessageSquareOff, MapPin, MapPinOff, Wand2, UserRoundPlus, QrCode } from 'lucide-react';
 import { groupsApi, usersApi, orgsApi, sensorsApi } from '@/api/client';
 import { useStore } from '@/store/useStore';
-import type { Group, User, GroupMember, Organization, Sensor } from '@/types';
+import type { Group, GroupStatus, User, GroupMember, Organization, Sensor } from '@/types';
 import { GroupWizard } from './GroupWizard';
 import { GroupInvites } from './GroupInvites';
 import clsx from 'clsx';
@@ -34,6 +34,23 @@ function Modal({ title, children, onClose }: { title: string; children: React.Re
 
 const COLORS = ['#3DDC84', '#4A9EFF', '#FFB800', '#FF4444', '#B44AFF', '#FF6B35'];
 
+/**
+ * Срок действия группы. Пустое поле = бессрочно (на сервере null) — именно так
+ * живут все группы, заведённые до появления сроков.
+ * <input type="datetime-local"> работает в местном времени, поэтому вход и
+ * выход конвертируем явно, а не режем ISO-строку.
+ */
+function toLocalInput(iso?: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function fromLocalInput(value: string): string | null {
+  return value ? new Date(value).toISOString() : null;
+}
+
 export function AdminGroups() {
   const currentUser = useStore((s) => s.user);
   const isSuperAdmin = currentUser?.role === 'SUPERADMIN';
@@ -49,7 +66,7 @@ export function AdminGroups() {
   const [invitesOf, setInvitesOf] = useState<Group | null>(null);
   const [selected, setSelected] = useState<Group | null>(null);
   const [members, setMembers] = useState<GroupMember[]>([]);
-  const [form, setForm] = useState({ name: '', description: '', color: '#3DDC84', priority: 0, isPrivate: false, organizationId: '' });
+  const [form, setForm] = useState({ name: '', description: '', color: '#3DDC84', priority: 0, isPrivate: false, organizationId: '', status: 'ACTIVE' as GroupStatus, startsAt: '', endsAt: '' });
   const [addUserId, setAddUserId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -73,14 +90,19 @@ export function AdminGroups() {
   }
 
   function openCreate() {
-    setForm({ name: '', description: '', color: '#3DDC84', priority: 0, isPrivate: false, organizationId: selectedOrgId || orgs[0]?.id || '' });
+    setForm({ name: '', description: '', color: '#3DDC84', priority: 0, isPrivate: false, organizationId: selectedOrgId || orgs[0]?.id || '', status: 'ACTIVE', startsAt: '', endsAt: '' });
     setError('');
     setModal('create');
   }
 
   function openEdit(g: Group) {
     setSelected(g);
-    setForm({ name: g.name, description: g.description ?? '', color: g.color, priority: g.priority, isPrivate: g.isPrivate, organizationId: g.organizationId });
+    setForm({
+      name: g.name, description: g.description ?? '', color: g.color, priority: g.priority,
+      isPrivate: g.isPrivate, organizationId: g.organizationId,
+      status: g.status ?? 'ACTIVE',
+      startsAt: toLocalInput(g.startsAt), endsAt: toLocalInput(g.endsAt),
+    });
     setError('');
     setModal('edit');
   }
@@ -98,14 +120,22 @@ export function AdminGroups() {
     setLoading(true);
     setError('');
     try {
+      // Срок и статус правит и обычный админ: без этого истёкшую группу
+      // некому было бы продлить, а сервер теперь такую группу глушит.
+      const period = {
+        status: form.status,
+        startsAt: fromLocalInput(form.startsAt),
+        endsAt: fromLocalInput(form.endsAt),
+      };
       const payload = isSuperAdmin
-        ? form
+        ? { ...form, ...period }
         : {
             name: form.name,
             description: form.description,
             color: form.color,
             priority: form.priority,
             isPrivate: form.isPrivate,
+            ...period,
           };
       if (modal === 'create') await groupsApi.create(payload);
       else if (modal === 'edit' && selected) await groupsApi.update(selected.id, payload);
@@ -139,7 +169,17 @@ export function AdminGroups() {
 
   async function handleToggleSpeak(member: GroupMember) {
     if (!selected) return;
-    await groupsApi.updateMember(selected.id, member.userId, !member.canSpeak);
+    await groupsApi.updateMember(selected.id, member.userId, { canSpeak: !member.canSpeak });
+    await loadMembers(selected.id);
+  }
+
+  /** canMessage / canShareLocation — те же права, что и canSpeak, только текстом и картой. */
+  async function handleTogglePermission(
+    member: GroupMember,
+    key: 'canMessage' | 'canShareLocation',
+  ) {
+    if (!selected) return;
+    await groupsApi.updateMember(selected.id, member.userId, { [key]: !(member[key] ?? true) });
     await loadMembers(selected.id);
   }
 
@@ -305,6 +345,29 @@ export function AdminGroups() {
                 ))}
               </div>
             </Field>
+            <Field label="STATUS">
+              <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as GroupStatus })}
+                className={inputCls}>
+                <option value="ACTIVE">ACTIVE — на связи</option>
+                <option value="DRAFT">DRAFT — создана, но не включена</option>
+                <option value="ARCHIVED">ARCHIVED — закрыта</option>
+              </select>
+            </Field>
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="STARTS AT">
+                <input type="datetime-local" value={form.startsAt}
+                  onChange={(e) => setForm({ ...form, startsAt: e.target.value })} className={inputCls} />
+              </Field>
+              <Field label="ENDS AT">
+                <input type="datetime-local" value={form.endsAt}
+                  onChange={(e) => setForm({ ...form, endsAt: e.target.value })} className={inputCls} />
+              </Field>
+            </div>
+            <p className="font-mono text-[10px] text-ptt-muted leading-relaxed">
+              Пустые даты = бессрочно. Вне срока или не в статусе ACTIVE группа глушится:
+              вход, PTT, звонки и сообщения запрещены всем, включая диспетчеров и админов.
+              История остаётся доступной.
+            </p>
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" checked={form.isPrivate}
                 onChange={(e) => setForm({ ...form, isPrivate: e.target.checked })}
@@ -348,6 +411,16 @@ export function AdminGroups() {
                     className={`${m.canSpeak ? 'text-ptt-green' : 'text-ptt-muted'} hover:text-white transition-colors`}
                     title={m.canSpeak ? 'Disable speaking' : 'Allow speaking'}>
                     {m.canSpeak ? <Mic className="w-3.5 h-3.5" /> : <MicOff className="w-3.5 h-3.5" />}
+                  </button>
+                  <button onClick={() => handleTogglePermission(m, 'canMessage')}
+                    className={`${(m.canMessage ?? true) ? 'text-ptt-green' : 'text-ptt-muted'} hover:text-white transition-colors`}
+                    title={(m.canMessage ?? true) ? 'Disable messages' : 'Allow messages'}>
+                    {(m.canMessage ?? true) ? <MessageSquare className="w-3.5 h-3.5" /> : <MessageSquareOff className="w-3.5 h-3.5" />}
+                  </button>
+                  <button onClick={() => handleTogglePermission(m, 'canShareLocation')}
+                    className={`${(m.canShareLocation ?? true) ? 'text-ptt-green' : 'text-ptt-muted'} hover:text-white transition-colors`}
+                    title={(m.canShareLocation ?? true) ? 'Disable location sharing' : 'Allow location sharing'}>
+                    {(m.canShareLocation ?? true) ? <MapPin className="w-3.5 h-3.5" /> : <MapPinOff className="w-3.5 h-3.5" />}
                   </button>
                   <button onClick={() => handleRemoveMember(m.userId)}
                     className="text-ptt-muted hover:text-ptt-danger transition-colors">

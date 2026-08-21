@@ -17,6 +17,7 @@ import {
   generateTempPassword,
   hashInviteToken,
 } from '../utils/credentials';
+import { assertPeriodOrder } from '../services/groupAccess';
 
 /**
  * Вопросник суперадмина: создание группы вместе с участниками, учётными
@@ -123,11 +124,9 @@ function resolveOrgId(req: Request, requested?: string): string {
   return req.user!.organizationId;
 }
 
-/** Даты: конец не может быть раньше начала. */
+/** Даты: конец не может быть раньше начала. Правило общее с PUT /api/groups/:id. */
 function validatePeriod(startsAt?: string | null, endsAt?: string | null): void {
-  if (startsAt && endsAt && new Date(endsAt) <= new Date(startsAt)) {
-    throw new AppError(400, 'End date must be later than the start date');
-  }
+  assertPeriodOrder(startsAt ? new Date(startsAt) : null, endsAt ? new Date(endsAt) : null);
 }
 
 interface OrgSnapshot {

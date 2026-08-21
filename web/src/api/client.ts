@@ -142,8 +142,12 @@ export const groupsApi = {
     api.post(`/groups/${groupId}/members`, { userId, canSpeak }).then((r) => r.data),
   removeMember: (groupId: string, userId: string) =>
     api.delete(`/groups/${groupId}/members/${userId}`),
-  updateMember: (groupId: string, userId: string, canSpeak: boolean) =>
-    api.patch(`/groups/${groupId}/members/${userId}`, { canSpeak }),
+  /** Права правятся по отдельности: присланные меняются, остальные не трогаются. */
+  updateMember: (
+    groupId: string,
+    userId: string,
+    permissions: { canSpeak?: boolean; canMessage?: boolean; canShareLocation?: boolean },
+  ) => api.patch(`/groups/${groupId}/members/${userId}`, permissions),
 };
 
 // ─── Organizations ────────────────────────────────────────

@@ -33,6 +33,9 @@ const createUserSchema = z.object({
   role: z.nativeEnum(UserRole).default(UserRole.USER),
   organizationId: z.string().uuid().optional(),
   canSpeak: z.boolean().default(true),
+  // Срок доступа. null/отсутствует = бессрочно, как у всех существующих.
+  // Проверяется при логине, refresh и в socket-хендшейке.
+  accessExpiresAt: z.string().datetime().nullish(),
 });
 
 const updateUserSchema = z.object({
@@ -48,6 +51,12 @@ const updateUserSchema = z.object({
   organizationId: z.string().uuid().optional(),
   isActive: z.boolean().optional(),
   deviceToken: z.string().optional(),
+  /**
+   * Срок доступа. Поле читалось в четырёх местах (логин, refresh, активация
+   * приглашения, socket-хендшейк), но не записывалось нигде — то есть было
+   * мертво. null снимает срок и делает доступ бессрочным.
+   */
+  accessExpiresAt: z.string().datetime().nullish(),
 });
 
 const changePasswordSchema = z.object({
@@ -188,10 +197,11 @@ usersRouter.post('/', requireAdmin, async (req: Request, res: Response, next: Ne
         displayName: data.displayName,
         role: data.role,
         organizationId: orgId,
+        accessExpiresAt: data.accessExpiresAt ? new Date(data.accessExpiresAt) : null,
       },
       select: {
         id: true, email: true, callsign: true, displayName: true,
-        role: true, createdAt: true, organizationId: true,
+        role: true, createdAt: true, organizationId: true, accessExpiresAt: true,
       },
     });
 
@@ -275,6 +285,11 @@ usersRouter.put('/:id', async (req: Request, res: Response, next: NextFunction) 
       throw new AppError(403, 'Cannot change role');
     }
 
+    // Срок доступа человек себе не продлевает — иначе ограничение бессмысленно.
+    if (data.accessExpiresAt !== undefined && !isAdminOfOrg) {
+      throw new AppError(403, 'Cannot change the access period');
+    }
+
     if (data.role === UserRole.SUPERADMIN && req.user!.role !== UserRole.SUPERADMIN) {
       throw new AppError(403, 'Cannot assign superadmin role');
     }
@@ -299,6 +314,14 @@ usersRouter.put('/:id', async (req: Request, res: Response, next: NextFunction) 
       });
     }
 
+    // undefined = поле не трогаем, null = снимаем срок (бессрочно).
+    const accessExpiresAt =
+      data.accessExpiresAt === undefined
+        ? undefined
+        : data.accessExpiresAt
+          ? new Date(data.accessExpiresAt)
+          : null;
+
     const updated = await prisma.user.update({
       where: { id },
       data: {
@@ -306,10 +329,11 @@ usersRouter.put('/:id', async (req: Request, res: Response, next: NextFunction) 
         callsign: data.callsign?.toUpperCase(),
         // undefined = поле не трогаем, null = снимаем логин.
         login,
+        accessExpiresAt,
       },
       select: {
         id: true, email: true, login: true, callsign: true, displayName: true,
-        role: true, isActive: true, organizationId: true,
+        role: true, isActive: true, organizationId: true, accessExpiresAt: true,
         organization: { select: { name: true, slug: true } },
       },
     });
@@ -318,6 +342,14 @@ usersRouter.put('/:id', async (req: Request, res: Response, next: NextFunction) 
     // сессии (иначе устройство продлится по refresh-токену) и рвём живые сокеты.
     // Сценарий — потерянная или украденная рация.
     if (data.isActive === false && target.isActive) {
+      await prisma.refreshToken.deleteMany({ where: { userId: id } });
+      disconnectUserSockets(req, id);
+    }
+
+    // Срок, выставленный в прошлое, = то же самое отключение: без этого живой
+    // сокет доработал бы до реконнекта, а устройство продлилось бы по
+    // refresh-токену. Проверка в хендшейке ловит только НОВЫЕ подключения.
+    if (accessExpiresAt && accessExpiresAt < new Date()) {
       await prisma.refreshToken.deleteMany({ where: { userId: id } });
       disconnectUserSockets(req, id);
     }

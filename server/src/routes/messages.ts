@@ -9,6 +9,7 @@ import { prisma } from '../database/prisma';
 import { authenticate } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
 import { sendIncomingMessagePush } from '../services/push';
+import { checkGroupWindow, openGroupFilter, GROUP_WINDOW_SELECT } from '../services/groupAccess';
 import { logger } from '../utils/logger';
 
 export const messagesRouter = Router();
@@ -132,6 +133,7 @@ function serializeMessage(message: {
   };
 }
 
+/** Вызывается только путями отправки, поэтому проверки всегда 'write'. */
 async function resolveRecipients(
   target: z.infer<typeof targetSchema>,
   userId: string,
@@ -139,7 +141,7 @@ async function resolveRecipients(
   role: UserRole,
 ) {
   if (target.groupId) {
-    const group = await assertGroupAccess(target.groupId, userId, organizationId, role);
+    const group = await assertGroupAccess(target.groupId, userId, organizationId, role, 'write');
     const recipients = await prisma.user.findMany({
       where: {
         organizationId,
@@ -153,7 +155,7 @@ async function resolveRecipients(
     });
     return { recipientIds: recipients.map((recipient) => recipient.id), groupName: group.name };
   }
-  const recipient = await assertDirectAccess(target.userId!, userId, organizationId, role);
+  const recipient = await assertDirectAccess(target.userId!, userId, organizationId, role, 'write');
   return { recipientIds: [userId, recipient.id], groupName: undefined };
 }
 
@@ -209,40 +211,74 @@ async function accessibleGroups(userId: string, organizationId: string, role: Us
   });
 }
 
+/**
+ * `intent: 'read'` — история группы. Открыта всегда: срок закрывает канал, но
+ * не стирает уже сказанное, иначе разбор смены после её окончания стал бы
+ * невозможен.
+ * `intent: 'write'` — отправка. Требует открытого окна группы (для всех ролей,
+ * включая SUPERADMIN) и права canMessage у участника.
+ */
 async function assertGroupAccess(
   groupId: string,
   userId: string,
   organizationId: string,
   role: UserRole,
+  intent: 'read' | 'write' = 'read',
 ) {
   const group = await prisma.group.findFirst({
     where: privilegedRoles.includes(role)
       ? { id: groupId, organizationId }
       : { id: groupId, organizationId, members: { some: { userId } } },
-    select: { id: true, name: true, color: true, organizationId: true },
+    select: {
+      id: true,
+      name: true,
+      color: true,
+      organizationId: true,
+      ...GROUP_WINDOW_SELECT,
+      members: { where: { userId }, select: { canMessage: true } },
+    },
   });
   if (!group) throw new AppError(403, 'You do not have access to this group chat');
+
+  if (intent === 'write') {
+    const groupWindow = checkGroupWindow(group);
+    if (!groupWindow.open) throw new AppError(403, groupWindow.message);
+
+    // canMessage — членское право, и привилегированные роли его обходят так же,
+    // как обходят canSpeak в ptt-start.
+    const membership = group.members[0];
+    if (!privilegedRoles.includes(role) && membership && !membership.canMessage) {
+      throw new AppError(403, 'You are not allowed to send messages in this group');
+    }
+  }
+
   return group;
 }
 
-function directContactFilter(userId: string, organizationId: string, role: UserRole) {
-  return privilegedRoles.includes(role)
-    ? {
-        groupMembers: {
-          some: {
-            group: { organizationId },
-          },
-        },
-      }
-    : {
-        groupMembers: {
-          some: {
-            group: {
-              members: { some: { userId } },
-            },
-          },
-        },
-      };
+/**
+ * Право на личку выводится из общей группы. На запись общая группа должна быть
+ * ещё и открытой, а у отправителя в ней должен стоять canMessage — иначе запрет
+ * сообщений в группе обходился бы простой перепиской в личке.
+ *
+ * Привилегированные роли этим не ограничены: диспетчер обязан дозвониться до
+ * человека и тогда, когда его группа только что закрылась, — это путь эскалации.
+ */
+function directContactFilter(
+  userId: string,
+  organizationId: string,
+  role: UserRole,
+  intent: 'read' | 'write' = 'read',
+) {
+  if (privilegedRoles.includes(role)) {
+    return { groupMembers: { some: { group: { organizationId } } } };
+  }
+
+  const sharedGroup =
+    intent === 'write'
+      ? { ...openGroupFilter(), members: { some: { userId, canMessage: true } } }
+      : { members: { some: { userId } } };
+
+  return { groupMembers: { some: { group: sharedGroup } } };
 }
 
 async function assertDirectAccess(
@@ -250,6 +286,7 @@ async function assertDirectAccess(
   userId: string,
   organizationId: string,
   role: UserRole,
+  intent: 'read' | 'write' = 'read',
 ) {
   if (targetUserId === userId) throw new AppError(400, 'You cannot message yourself');
   const target = await prisma.user.findFirst({
@@ -257,11 +294,18 @@ async function assertDirectAccess(
       id: targetUserId,
       organizationId,
       isActive: true,
-      ...directContactFilter(userId, organizationId, role),
+      ...directContactFilter(userId, organizationId, role, intent),
     },
     select: { id: true, callsign: true, displayName: true, role: true },
   });
-  if (!target) throw new AppError(403, 'Direct messages require access to a shared group');
+  if (!target) {
+    throw new AppError(
+      403,
+      intent === 'write'
+        ? 'You are not allowed to send direct messages'
+        : 'Direct messages require access to a shared group',
+    );
+  }
   return target;
 }
 
