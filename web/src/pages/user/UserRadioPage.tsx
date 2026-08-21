@@ -189,6 +189,7 @@ export function UserRadioPage() {
           setActiveGroup={setActiveGroup}
           onCallUser={handleCallUser}
           onSos={() => { if (activeGroupId) sendSos(activeGroupId); }}
+          onAlertGroup={handleWakeGroup}
           onLogout={handleLogout}
         />
       </>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { LogOut, Signal, Radio, PhoneCall, ChevronLeft, AlertTriangle, Check } from 'lucide-react';
+import { LogOut, Signal, Radio, PhoneCall, ChevronLeft, AlertTriangle, Check, BellRing } from 'lucide-react';
 import type { Group, GroupMember, User, PttStatus } from '@/types';
 
 // Compact, D-pad–navigable screen for the Inrico T320 radio (240x320).
@@ -25,6 +25,8 @@ interface Props {
   setActiveGroup: (id: string) => void;
   onCallUser: (userId: string) => void;
   onSos: () => void;
+  /** Поднять всю группу — на рации это главный способ позвать помощь. */
+  onAlertGroup: () => void;
   onLogout: () => void;
 }
 
@@ -43,6 +45,7 @@ export function RadioDeviceScreen({
   setActiveGroup,
   onCallUser,
   onSos,
+  onAlertGroup,
   onLogout,
 }: Props) {
   const [view, setView] = useState<View>('groups');
@@ -287,6 +290,11 @@ export function RadioDeviceScreen({
       <div className="px-2 py-1 bg-ptt-panel border-t border-ptt-border flex items-center gap-2">
         <button onClick={onSos} title="SOS" className="text-ptt-danger shrink-0">
           <AlertTriangle className="w-4 h-4" />
+        </button>
+        {/* Побудка группы: на экране 240×320 подписи не помещаются, поэтому
+            только значок — колокольчик рядом с треугольником SOS. */}
+        <button onClick={onAlertGroup} title="Alert the whole group" className="text-ptt-blue shrink-0">
+          <BellRing className="w-4 h-4" />
         </button>
         <div className="flex-1 min-w-0 text-center">
           {transmitting ? (
