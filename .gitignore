@@ -9,3 +9,10 @@ STATUS_*.md
 WORKING_CHECKPOINT*.md
 docs/SECRETS.local.md
 *.local.md
+
+# Дубликаты, которые плодит iCloud Drive при синхронизации папки проекта
+# ("файл 2.ts"). Однажды такие уже попали в репозиторий и ломали сборку
+# Android с ошибкой Duplicate resources — в android/.gitignore правило было,
+# в корневом нет.
+* 2.*
+* 3.*
