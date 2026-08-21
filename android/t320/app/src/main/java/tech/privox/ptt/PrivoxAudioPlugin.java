@@ -1,7 +1,9 @@
 package tech.privox.ptt;
 
 import android.content.Context;
+import android.media.AudioDeviceInfo;
 import android.media.AudioManager;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 
@@ -75,6 +77,9 @@ public class PrivoxAudioPlugin extends Plugin {
             wantSpeaker = null;
             earpieceRequested = false;
             handler.removeCallbacks(reassert);
+            if (audioManager != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                audioManager.clearCommunicationDevice();
+            }
             call.resolve(result("auto"));
             return;
         }
@@ -100,17 +105,53 @@ public class PrivoxAudioPlugin extends Plugin {
         call.resolve(result(wantSpeaker ? "speaker" : "earpiece"));
     }
 
+    /**
+     * Начиная с Android 12 setSpeakerphoneOn устарел и работает наполовину:
+     * динамик включить получается, а вернуть звук в наушник — нет. На таких
+     * версиях устройство вывода выбирается явно, через setCommunicationDevice.
+     * Отсюда две ветки: не «на всякий случай», а потому что старый способ там
+     * действительно не возвращает наушник.
+     */
     private void applyRoute() {
         if (audioManager == null || wantSpeaker == null) return;
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            final int wanted = wantSpeaker
+                ? AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
+                : AudioDeviceInfo.TYPE_BUILTIN_EARPIECE;
+
+            final AudioDeviceInfo current = audioManager.getCommunicationDevice();
+            if (current != null && current.getType() == wanted) return;
+
+            for (AudioDeviceInfo device : audioManager.getAvailableCommunicationDevices()) {
+                if (device.getType() == wanted) {
+                    audioManager.setCommunicationDevice(device);
+                    return;
+                }
+            }
+            // Наушника нет вовсе — например, планшет. Тогда оставляем как есть,
+            // громкий динамик лучше тишины.
+            return;
+        }
+
         if (audioManager.isSpeakerphoneOn() != wantSpeaker) {
             audioManager.setSpeakerphoneOn(wantSpeaker);
         }
     }
 
+    private boolean isSpeakerActive() {
+        if (audioManager == null) return false;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            final AudioDeviceInfo current = audioManager.getCommunicationDevice();
+            return current != null && current.getType() == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER;
+        }
+        return audioManager.isSpeakerphoneOn();
+    }
+
     private JSObject result(String mode) {
         final JSObject data = new JSObject();
         data.put("mode", mode);
-        data.put("speakerOn", audioManager != null && audioManager.isSpeakerphoneOn());
+        data.put("speakerOn", isSpeakerActive());
         return data;
     }
 
