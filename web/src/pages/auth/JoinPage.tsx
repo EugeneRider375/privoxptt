@@ -28,8 +28,13 @@ interface InviteInfo {
   alreadyActivated: boolean;
 }
 
-/** Ссылка на APK — только для Android и только когда мы ещё в браузере. */
-const ANDROID_APK_URL = '/downloads/privox-ptt-android-debug.apk';
+/**
+ * Ссылка на APK — только для Android и только когда мы ещё в браузере.
+ * Указывает на тот же файл, что и остальной сайт: раньше здесь стоял
+ * privox-ptt-android-debug.apk, которого на сервере нет, и кнопка со страницы
+ * приглашения отдавала 404 — человек сканировал QR и упирался в ошибку.
+ */
+const ANDROID_APK_URL = '/downloads/privox-ptt-android.apk';
 
 function isAndroidBrowser(): boolean {
   const ua = navigator.userAgent;
