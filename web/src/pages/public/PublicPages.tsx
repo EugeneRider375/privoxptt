@@ -542,8 +542,8 @@ export function DownloadPage() {
   // Сборки подписаны рабочим ключом PRIVOX — обновляются поверх предыдущих.
   // ?v= обязателен и должен расти с каждой сборкой: без него Cloudflare и
   // браузер отдадут закешированный APK со старым содержимым.
-  const androidApkUrl = '/downloads/privox-ptt-android.apk?v=12';
-  const t320ApkUrl = '/downloads/privox-ptt-t320.apk?v=11';
+  const androidApkUrl = '/downloads/privox-ptt-android.apk?v=14';
+  const t320ApkUrl = '/downloads/privox-ptt-t320.apk?v=13';
   const webAppUrl = '/app';
 
   return (
