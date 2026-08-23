@@ -286,17 +286,29 @@ export function RadioDeviceScreen({
         )}
       </div>
 
-      {/* Footer: active group + TX/RX state */}
-      <div className="px-2 py-1 bg-ptt-panel border-t border-ptt-border flex items-center gap-2">
-        <button onClick={onSos} title="SOS" className="text-ptt-danger shrink-0">
+      {/* Footer: SOS слева, побудка справа, состояние канала между ними.
+          Раньше обе кнопки стояли вплотную (gap-2) голыми значками 16×16 без
+          отступов, то есть область нажатия равнялась самому значку. На экране
+          240×320 попасть пальцем было трудно, а промах стоил дорого и
+          несимметрично: не нажать побудку — досадно, нажать вместо неё SOS —
+          ложная тревога у всей организации. Поэтому две вещи: развели по
+          противоположным краям, чтобы промах физически не мог попасть в
+          соседнюю, и дали каждой настоящую область нажатия отступами.
+          Размер выбран по замерам на живой T320: у экрана devicePixelRatio
+          0.75, поэтому прежние 16 CSS-точек были всего 12 ФИЗИЧЕСКИХ (~1.8 мм).
+          p-3 даёт 30 физических (~4.6 мм) против 24 у p-2 — за 6 точек высоты
+          панели. На вопрос «трудно попасть пальцем» запас важнее строки списка. */}
+      <div className="px-1 py-1 bg-ptt-panel border-t border-ptt-border flex items-center gap-1">
+        <button
+          onClick={onSos}
+          title="SOS"
+          aria-label="SOS"
+          className="shrink-0 rounded p-3 text-ptt-danger active:bg-ptt-danger/25"
+        >
           <AlertTriangle className="w-4 h-4" />
         </button>
-        {/* Побудка группы: на экране 240×320 подписи не помещаются, поэтому
-            только значок — колокольчик рядом с треугольником SOS. */}
-        <button onClick={onAlertGroup} title="Alert the whole group" className="text-ptt-blue shrink-0">
-          <BellRing className="w-4 h-4" />
-        </button>
-        <div className="flex-1 min-w-0 text-center">
+
+        <div className="flex-1 min-w-0 flex items-center justify-center gap-1.5">
           {transmitting ? (
             <span className="font-mono text-[11px] text-ptt-green tracking-widest">● TRANSMITTING</span>
           ) : receiving ? (
@@ -306,8 +318,17 @@ export function RadioDeviceScreen({
               PTT → {activeGroup?.name ?? '—'}
             </span>
           )}
+          <div className={`shrink-0 w-2 h-2 rounded-full ${transmitting ? 'bg-ptt-green animate-pulse' : receiving ? 'bg-ptt-blue animate-pulse' : 'bg-ptt-border'}`} />
         </div>
-        <div className={`shrink-0 w-2 h-2 rounded-full ${transmitting ? 'bg-ptt-green animate-pulse' : receiving ? 'bg-ptt-blue animate-pulse' : 'bg-ptt-border'}`} />
+
+        <button
+          onClick={onAlertGroup}
+          title="Alert the whole group"
+          aria-label="Alert the whole group"
+          className="shrink-0 rounded p-3 text-ptt-blue active:bg-ptt-blue/25"
+        >
+          <BellRing className="w-4 h-4" />
+        </button>
       </div>
 
       {/* Logout confirmation — avoids accidental sign-out on the radio */}
