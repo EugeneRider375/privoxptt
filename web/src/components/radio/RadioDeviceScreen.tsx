@@ -31,6 +31,12 @@ interface Props {
 }
 
 type View = 'groups' | 'members';
+type Zone = 'list' | 'footer';
+
+/** Порядок слева направо, как кнопки стоят на экране. */
+const FOOTER_SOS = 0;
+const FOOTER_ALERT = 1;
+type FooterIdx = typeof FOOTER_SOS | typeof FOOTER_ALERT;
 
 export function RadioDeviceScreen({
   user,
@@ -51,6 +57,22 @@ export function RadioDeviceScreen({
   const [view, setView] = useState<View>('groups');
   const [selected, setSelected] = useState(0);
   const [confirmLogout, setConfirmLogout] = useState(false);
+  /**
+   * Куда сейчас смотрит D-pad: в список или в нижнюю панель.
+   *
+   * На рации целиться пальцем в значок 30×30 неудобно, а физический
+   * крестовина с центральной кнопкой под рукой. Поэтому вниз с последней
+   * строки списка фокус уходит в панель, ←/→ переключают кнопки,
+   * центральная нажимает, ↑ возвращает в список.
+   */
+  const [zone, setZone] = useState<Zone>('list');
+  /**
+   * Какая кнопка панели под фокусом. При входе в панель встаём на ПОБУДКУ,
+   * а не на SOS: побудка — повседневное действие, а ложная тревога не должна
+   * быть в одном небрежном нажатии центральной кнопки. До SOS надо осознанно
+   * шагнуть влево.
+   */
+  const [footerIdx, setFooterIdx] = useState<FooterIdx>(FOOTER_ALERT);
   const listRef = useRef<HTMLDivElement>(null);
 
   const list = view === 'groups' ? groups : members;
@@ -60,6 +82,12 @@ export function RadioDeviceScreen({
   useEffect(() => {
     setSelected((i) => (count === 0 ? 0 : Math.min(i, count - 1)));
   }, [count, view]);
+
+  // Смена вида всегда возвращает фокус в список: иначе после «назад» человек
+  // жмёт центральную кнопку, ожидая выбрать группу, а попадает по панели.
+  useEffect(() => {
+    setZone('list');
+  }, [view]);
 
   const enterGroup = useCallback(
     (g: Group) => {
@@ -119,10 +147,47 @@ export function RadioDeviceScreen({
     const onKey = (e: KeyboardEvent) => {
       if (document.activeElement?.tagName === 'INPUT') return;
       if (confirmLogout) return; // overlay shown — ignore list navigation
+      // Фокус в нижней панели — там своя раскладка, список не трогаем.
+      if (zone === 'footer') {
+        switch (e.key) {
+          case 'ArrowLeft':
+            e.preventDefault();
+            setFooterIdx(FOOTER_SOS);
+            break;
+          case 'ArrowRight':
+            e.preventDefault();
+            setFooterIdx(FOOTER_ALERT);
+            break;
+          case 'ArrowUp':
+            e.preventDefault();
+            setZone('list');
+            break;
+          case 'Enter':
+            e.preventDefault();
+            if (footerIdx === FOOTER_SOS) onSos();
+            else onAlertGroup();
+            break;
+          case 'Backspace':
+            e.preventDefault();
+            setZone('list');
+            break;
+          default:
+            break;
+        }
+        return;
+      }
+
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault();
-          setSelected((i) => (count === 0 ? 0 : (i + 1) % count));
+          // С последней строки (и из пустого списка) уходим в нижнюю панель —
+          // это единственный способ добраться до неё крестовиной.
+          if (count === 0 || selected === count - 1) {
+            setZone('footer');
+            setFooterIdx(FOOTER_ALERT);
+          } else {
+            setSelected((i) => i + 1);
+          }
           break;
         case 'ArrowUp':
           e.preventDefault();
@@ -151,7 +216,7 @@ export function RadioDeviceScreen({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [count, view, activate, goBackToGroups, confirmLogout]);
+  }, [count, view, activate, goBackToGroups, confirmLogout, zone, footerIdx, selected, onSos, onAlertGroup]);
 
   // Keep the highlighted row visible on the tiny screen.
   useEffect(() => {
@@ -303,13 +368,21 @@ export function RadioDeviceScreen({
           onClick={onSos}
           title="SOS"
           aria-label="SOS"
-          className="shrink-0 rounded p-3 text-ptt-danger active:bg-ptt-danger/25"
+          className={`shrink-0 rounded p-3 text-ptt-danger active:bg-ptt-danger/25 ${
+            zone === 'footer' && footerIdx === FOOTER_SOS
+              ? 'bg-ptt-danger/25 ring-1 ring-ptt-danger'
+              : ''
+          }`}
         >
           <AlertTriangle className="w-4 h-4" />
         </button>
 
         <div className="flex-1 min-w-0 flex items-center justify-center gap-1.5">
-          {transmitting ? (
+          {zone === 'footer' ? (
+            <span className="font-mono text-[10px] text-ptt-muted truncate">
+              {footerIdx === FOOTER_SOS ? 'SOS · OK' : 'ALERT GROUP · OK'}
+            </span>
+          ) : transmitting ? (
             <span className="font-mono text-[11px] text-ptt-green tracking-widest">● TRANSMITTING</span>
           ) : receiving ? (
             <span className="font-mono text-[11px] text-ptt-blue tracking-widest truncate">◀ {pttCallsign ?? ''}</span>
@@ -325,7 +398,11 @@ export function RadioDeviceScreen({
           onClick={onAlertGroup}
           title="Alert the whole group"
           aria-label="Alert the whole group"
-          className="shrink-0 rounded p-3 text-ptt-blue active:bg-ptt-blue/25"
+          className={`shrink-0 rounded p-3 text-ptt-blue active:bg-ptt-blue/25 ${
+            zone === 'footer' && footerIdx === FOOTER_ALERT
+              ? 'bg-ptt-blue/25 ring-1 ring-ptt-blue'
+              : ''
+          }`}
         >
           <BellRing className="w-4 h-4" />
         </button>
