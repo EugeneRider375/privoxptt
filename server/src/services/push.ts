@@ -3,6 +3,7 @@ import { getMessaging, type MulticastMessage } from 'firebase-admin/messaging';
 import { config } from '../config';
 import { prisma } from '../database/prisma';
 import { logger } from '../utils/logger';
+import { isApnsConfigured, isDeadTokenReason, sendApns } from './apns';
 
 export interface IncomingUserCallPush {
   callId: string;
@@ -62,21 +63,118 @@ export async function hasReachablePushDevice(userId: string): Promise<boolean> {
   return count > 0;
 }
 
+/**
+ * Prisma не сужает тип по `not: null` в фильтре, поэтому отбираем явно.
+ * Заодно страховка на случай, если запрос когда-нибудь забудут отфильтровать.
+ */
+function withPushToken<T extends { pushToken: string | null }>(devices: T[]): (T & { pushToken: string })[] {
+  return devices.filter((d): d is T & { pushToken: string } => d.pushToken !== null);
+}
+
+/**
+ * Звонок на iPhone. Отдельно от Android, потому что канал принципиально другой:
+ * не FCM, а VoIP-push прямо в APNs — только он поднимает выгруженное
+ * приложение и позволяет показать нативный экран входящего вызова.
+ *
+ * ⚠️ Нативная сторона ОБЯЗАНА на каждый такой push отчитаться о звонке через
+ * CallKit. Это условие Apple: не отчитался — iOS перестанет будить приложение.
+ */
+async function sendIosCallPush(
+  userId: string,
+  payload: IncomingUserCallPush,
+  responseUrl: string,
+): Promise<{ sent: number; failed: number }> {
+  if (!isApnsConfigured()) return { sent: 0, failed: 0 };
+
+  const devices = await prisma.device.findMany({
+    where: { userId, platform: 'IOS', enabled: true, voipToken: { not: null } },
+    select: { id: true, voipToken: true },
+  });
+  if (devices.length === 0) return { sent: 0, failed: 0 };
+
+  const body = {
+    type: 'incoming_user_call',
+    callId: payload.callId,
+    fromUserId: payload.fromUserId,
+    fromCallsign: payload.fromCallsign,
+    fromDisplayName: payload.fromDisplayName,
+    groupId: payload.groupId,
+    groupName: payload.groupName,
+    createdAt: payload.createdAt,
+    responseToken: payload.responseToken,
+    responseUrl,
+    kind: payload.kind,
+  };
+
+  const results = await Promise.all(devices.map(async (device) => {
+    const result = await sendApns(device.voipToken!, body, { pushType: 'voip', priority: 10 });
+    return { device, result };
+  }));
+
+  const dead = results
+    .filter(({ result }) => !result.ok && isDeadTokenReason(result.reason))
+    .map(({ device }) => device.id);
+
+  if (dead.length > 0) {
+    // Токен мёртв — гасим сам токен, а не устройство: у него может остаться
+    // рабочий обычный push-токен, и отключать его целиком было бы неверно.
+    await prisma.device.updateMany({ where: { id: { in: dead } }, data: { voipToken: null } });
+  }
+
+  const sent = results.filter(({ result }) => result.ok).length;
+  const failed = results.length - sent;
+
+  logger.info({
+    msg: 'iOS VoIP call push sent',
+    userId,
+    callId: payload.callId,
+    sent,
+    failed,
+    reasons: results.filter(({ result }) => !result.ok).map(({ result }) => result.reason),
+  });
+
+  return { sent, failed };
+}
+
+/**
+ * Звонок на телефоны получателя. Два независимых канала:
+ * Android — FCM, iPhone — VoIP-push в APNs. Отправляем в оба и складываем
+ * итог: у человека может быть и то, и другое устройство, и отказ одного
+ * канала не должен отменять доставку по второму.
+ */
 export async function sendIncomingUserCallPush(
+  userId: string,
+  payload: IncomingUserCallPush,
+): Promise<{ sent: number; failed: number }> {
+  const responseUrl = `${(config.SERVICE_URL_WEB ?? config.corsOrigins[0]).replace(/\/+$/, '')}/api/calls/respond`;
+
+  const [android, ios] = await Promise.all([
+    sendAndroidCallPush(userId, payload),
+    sendIosCallPush(userId, payload, responseUrl).catch((err) => {
+      logger.error({ msg: 'iOS VoIP call push failed', userId, callId: payload.callId, err });
+      return { sent: 0, failed: 0 };
+    }),
+  ]);
+
+  return { sent: android.sent + ios.sent, failed: android.failed + ios.failed };
+}
+
+async function sendAndroidCallPush(
   userId: string,
   payload: IncomingUserCallPush,
 ): Promise<{ sent: number; failed: number }> {
   if (!initFirebase()) return { sent: 0, failed: 0 };
 
   const devices = await prisma.device.findMany({
-    where: { userId, platform: 'ANDROID', enabled: true },
+    where: { userId, platform: 'ANDROID', enabled: true, pushToken: { not: null } },
     select: { id: true, pushToken: true },
   });
-  if (devices.length === 0) return { sent: 0, failed: 0 };
+  const targets = withPushToken(devices);
+  if (targets.length === 0) return { sent: 0, failed: 0 };
 
   const responseBaseUrl = (config.SERVICE_URL_WEB ?? config.corsOrigins[0]).replace(/\/+$/, '');
   const message: MulticastMessage = {
-    tokens: devices.map((device) => device.pushToken),
+    tokens: targets.map((device) => device.pushToken),
     data: {
       type: 'incoming_user_call',
       callId: payload.callId,
@@ -101,7 +199,7 @@ export async function sendIncomingUserCallPush(
     response = await getMessaging().sendEachForMulticast(message);
   } catch (err) {
     logger.error({ msg: 'Incoming user call push failed', userId, callId: payload.callId, err });
-    return { sent: 0, failed: devices.length };
+    return { sent: 0, failed: targets.length };
   }
 
   const invalidDeviceIds: string[] = [];
@@ -112,7 +210,7 @@ export async function sendIncomingUserCallPush(
       code === 'messaging/registration-token-not-registered' ||
       code === 'messaging/invalid-registration-token'
     ) {
-      invalidDeviceIds.push(devices[index].id);
+      invalidDeviceIds.push(targets[index].id);
     }
   });
 
@@ -141,13 +239,14 @@ export async function sendIncomingMessagePush(
   if (!initFirebase()) return { sent: 0, failed: 0 };
 
   const devices = await prisma.device.findMany({
-    where: { userId, platform: 'ANDROID', enabled: true },
+    where: { userId, platform: 'ANDROID', enabled: true, pushToken: { not: null } },
     select: { id: true, pushToken: true },
   });
-  if (devices.length === 0) return { sent: 0, failed: 0 };
+  const targets = withPushToken(devices);
+  if (targets.length === 0) return { sent: 0, failed: 0 };
 
   const message: MulticastMessage = {
-    tokens: devices.map((device) => device.pushToken),
+    tokens: targets.map((device) => device.pushToken),
     data: {
       type: 'new_message',
       messageId: payload.messageId,
@@ -170,7 +269,7 @@ export async function sendIncomingMessagePush(
     response = await getMessaging().sendEachForMulticast(message);
   } catch (err) {
     logger.error({ msg: 'Incoming message push failed', userId, messageId: payload.messageId, err });
-    return { sent: 0, failed: devices.length };
+    return { sent: 0, failed: targets.length };
   }
 
   const invalidDeviceIds: string[] = [];
@@ -181,7 +280,7 @@ export async function sendIncomingMessagePush(
       code === 'messaging/registration-token-not-registered' ||
       code === 'messaging/invalid-registration-token'
     ) {
-      invalidDeviceIds.push(devices[index].id);
+      invalidDeviceIds.push(targets[index].id);
     }
   });
 
@@ -223,13 +322,17 @@ export async function sendSensorAlertPushToUsers(
   // Все включённые устройства получателей (ANDROID + IOS). Раньше фильтр platform:'ANDROID'
   // вообще исключал iOS, а диспетчер с iPhone не получал тревогу.
   const devices = await prisma.device.findMany({
-    where: { userId: { in: userIds }, enabled: true },
+    // Раньше сюда попадали устройства всех платформ. Токен APNs — не токен
+    // FCM, и Firebase отвергает его целой пачкой; ограничиваем Android явно.
+    // Тревоги датчиков на iPhone — отдельная задача, обычным push через APNs.
+    where: { userId: { in: userIds }, enabled: true, platform: 'ANDROID', pushToken: { not: null } },
     select: { id: true, pushToken: true },
   });
-  if (devices.length === 0) return { sent: 0, failed: 0 };
+  const targets = withPushToken(devices);
+  if (targets.length === 0) return { sent: 0, failed: 0 };
 
   const message: MulticastMessage = {
-    tokens: devices.map((device) => device.pushToken),
+    tokens: targets.map((device) => device.pushToken),
     notification: {
       title: `⚠️ ${payload.sensorName}`,
       body: payload.message,
@@ -252,7 +355,7 @@ export async function sendSensorAlertPushToUsers(
     response = await getMessaging().sendEachForMulticast(message);
   } catch (err) {
     logger.error({ msg: 'Sensor alert push failed', sensorId: payload.sensorId, err });
-    return { sent: 0, failed: devices.length };
+    return { sent: 0, failed: targets.length };
   }
 
   const invalidDeviceIds: string[] = [];
@@ -263,7 +366,7 @@ export async function sendSensorAlertPushToUsers(
       code === 'messaging/registration-token-not-registered' ||
       code === 'messaging/invalid-registration-token'
     ) {
-      invalidDeviceIds.push(devices[index].id);
+      invalidDeviceIds.push(targets[index].id);
     }
   });
 

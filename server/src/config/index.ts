@@ -32,6 +32,24 @@ const envSchema = z.object({
   SUPERADMIN_CALLSIGN: z.string().default('ALPHA-0'),
 
   FIREBASE_SERVICE_ACCOUNT_JSON: z.string().optional(),
+
+  // ─── APNs: push на iPhone ────────────────────────────────────────────────
+  // Firebase на iOS не годится для звонка: FCM умеет обычные уведомления, а
+  // VoIP-push (PushKit) — отдельный тип, его шлют только напрямую в APNs.
+  // Ключ .p8 не истекает; при создании Apple отдаёт файл ровно один раз.
+  // Путь к файлу, а не содержимое: секрет не должен лежать в переменной
+  // окружения, которую видно в `docker inspect` и в списке процессов.
+  APNS_KEY_PATH: z.string().optional(),
+  APNS_KEY_ID: z.string().optional(),
+  APNS_TEAM_ID: z.string().optional(),
+  APNS_BUNDLE_ID: z.string().default('tech.privox.ptt'),
+  /**
+   * Сборка из Xcode на устройство ходит в sandbox, TestFlight и App Store —
+   * в production. Ключ .p8 годен для обоих, но АДРЕС РАЗНЫЙ, и push, отправленный
+   * не туда, молча не доходит. Ошибиться здесь легко, а найти трудно.
+   */
+  APNS_ENV: z.enum(['sandbox', 'production']).default('sandbox'),
+
   SERVICE_URL_WEB: z.string().url().optional(),
 
   // Адрес, который попадает в ссылку приглашения (QR): <адрес>/join/<токен>.

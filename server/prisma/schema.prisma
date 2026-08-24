@@ -74,7 +74,13 @@ model Device {
   userId     String
   user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   platform   DevicePlatform
-  pushToken  String         @unique
+  // Обычный push-токен: у Android это токен FCM, у iOS — токен APNs.
+  // Стал необязательным: iPhone может зарегистрироваться, имея только
+  // VoIP-токен (звонок), ещё не запросив разрешение на уведомления.
+  pushToken  String?        @unique
+  // Токен PushKit — ТОЛЬКО iOS и только для звонка. Это другой токен, не тот
+  // же самый: обычный push и VoIP-push на iPhone адресуются раздельно.
+  voipToken  String?        @unique
   deviceName String?
   appVersion String?
   enabled    Boolean        @default(true)
