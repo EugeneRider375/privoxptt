@@ -43,12 +43,23 @@ let cachedToken: { value: string; madeAt: number } | null = null;
 let client: http2.ClientHttp2Session | null = null;
 
 export function isApnsConfigured(): boolean {
-  return Boolean(config.APNS_KEY_PATH && config.APNS_KEY_ID && config.APNS_TEAM_ID);
+  return Boolean((config.APNS_KEY || config.APNS_KEY_PATH) && config.APNS_KEY_ID && config.APNS_TEAM_ID);
 }
 
+/**
+ * Ключ приходит либо содержимым (прод: переменная окружения из Coolify, файлов
+ * в контейнере нет), либо путём к файлу (машина разработчика). Содержимое
+ * приоритетнее: если задано и то и другое, значит окружение задано осознанно.
+ *
+ * В переменной перевод строки часто приходит как литеральное \n — Coolify и
+ * docker так сохраняют многострочные значения. Разворачиваем, иначе PEM не
+ * распарсится, а ошибка будет невнятной.
+ */
 function privateKey(): string {
   if (cachedKey) return cachedKey;
-  cachedKey = readFileSync(config.APNS_KEY_PATH!, 'utf8');
+  cachedKey = config.APNS_KEY
+    ? config.APNS_KEY.replace(/\\n/g, '\n')
+    : readFileSync(config.APNS_KEY_PATH!, 'utf8');
   return cachedKey;
 }
 

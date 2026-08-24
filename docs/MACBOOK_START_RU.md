@@ -33,10 +33,24 @@ iCloud подтянет. Размер должен быть **257 байт**.
 
     mkdir -p ~/PrivoxKeys && cp -n ~/Desktop/AuthKey_723D52BFNL.p8 ~/PrivoxKeys/
 
-## 3. Дописать настройки сервера
+## 3. Настройки сервера — но сперва поймите, ГДЕ они нужны
 
-⚠️ **`server/.env` в git не лежит и через iCloud не едет** — на этой машине его
-надо дополнить руками:
+⚠️ **Push на iPhone отправляет БОЕВОЙ сервер, а не MacBook.** Приложение на
+телефоне ходит на `https://ptt.privox.tech` (`server.url` в
+`capacitor.config.json`), значит и звонок ему шлёт прод. Поэтому настройки APNs
+обязательны **в Coolify**, а не здесь.
+
+Готовые значения для вставки лежат в `~/PrivoxKeys/apns-coolify-env.txt`
+(файл секретный, в git его нет). Coolify → проект PrivoxPTT → Environment →
+добавить пять переменных → передеплоить:
+
+    APNS_KEY_ID, APNS_TEAM_ID, APNS_BUNDLE_ID, APNS_ENV, APNS_KEY
+
+Ключ передаётся **содержимым**, а не путём к файлу: в контейнере файлов нет,
+секреты приходят переменными — так же, как `FIREBASE_SERVICE_ACCOUNT_JSON`.
+
+**На MacBook `server/.env` нужен только если поднимаете локальный сервер** для
+опытов. Для обычной работы с Xcode он не требуется. Если всё же нужен:
 
     cat >> ~/Projects/PrivoxPTT/server/.env <<'CONF'
 
