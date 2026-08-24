@@ -122,6 +122,24 @@ figcaption b{color:var(--text);font-weight:600}
 .dg-live{stroke:var(--live)} .dg-alert{stroke:var(--alert)} .dg-reach{stroke:var(--reach)}
 .dg-live-f{fill:var(--live)} .dg-alert-f{fill:var(--alert)} .dg-reach-f{fill:var(--reach)}
 
+
+/* ── снимки экранов и корпуса устройств ── */
+.shot{margin-top:36px;border:1px solid var(--line);background:var(--panel);padding:10px}
+.shot img{display:block;width:100%;height:auto}
+.shot figcaption,.shotcap{margin:12px 2px 2px;font-size:15px;color:var(--muted);line-height:1.5}
+.devices{display:flex;flex-wrap:wrap;gap:34px;align-items:flex-end;margin-top:40px}
+.device{flex:1 1 240px;max-width:330px}
+.device .bezel{background:var(--panel);border:1px solid var(--line);border-radius:22px;
+  padding:16px 10px;position:relative}
+.device.radio .bezel{border-radius:12px;padding:14px 12px 30px}
+.device .bezel::before{content:'';position:absolute;top:7px;left:50%;transform:translateX(-50%);
+  width:42px;height:3px;border-radius:2px;background:var(--line)}
+.device.radio .bezel::after{content:'';position:absolute;bottom:10px;left:50%;transform:translateX(-50%);
+  width:54px;height:10px;border-radius:5px;border:1px solid var(--line)}
+.device img{display:block;width:100%;height:auto;border-radius:6px}
+.device .cap{margin-top:14px;font-family:var(--data);font-size:11.5px;letter-spacing:.16em;color:var(--live)}
+.device .sub{margin:6px 0 0;font-size:15.5px;color:var(--muted);line-height:1.5}
+
 /* ── подвал ── */
 footer{padding:64px 0 88px}
 footer p{max-width:60ch}
@@ -245,6 +263,9 @@ footer p{max-width:60ch}
   </figure>
 
   <div class="note">
+    <p><strong>Distance is irrelevant.</strong> This is not a radio set with a coverage radius: everything runs through a server over ordinary internet. People in one group can sit in different cities and countries — on site, on a business trip, on another continent — and hear each other as if they stood together. All it needs is a connection: wired, Wi-Fi or cellular.</p>
+  </div>
+  <div class="note">
     <p><strong>You can see who is reachable before you try.</strong> The system tells three states apart, so nobody wastes time calling a phone that is switched off.</p>
     <div class="states">
       <span class="pill"><i class="i-live"></i><b>ON AIR</b><span>— hearing the channel right now</span></span>
@@ -271,6 +292,18 @@ footer p{max-width:60ch}
     </table>
   </div>
 
+  <div class="devices">
+    <div class="device">
+      <div class="bezel"><img src="../img/phone.jpg" alt="Phone app screen: active group, talk button, subscriber list"></div>
+      <p class="cap">PHONE</p>
+      <p class="sub">A large talk button, the list of groups and the shift roster showing who is on air.</p>
+    </div>
+    <div class="device radio">
+      <div class="bezel"><img src="../img/radio.jpg" alt="Inrico T320 radio screen: active group, channel list, emergency and group-alert keys"></div>
+      <p class="cap">T320 RADIO</p>
+      <p class="sub">A 240×320 screen built for one hand: the D-pad picks a channel, the hardware key talks.</p>
+    </div>
+  </div>
   <div class="grid g2">
     <div class="cell">
       <span class="kicker">MIXED FLEET</span>
@@ -412,6 +445,14 @@ footer p{max-width:60ch}
     </div>
   </div>
 
+  <figure class="shot">
+    <img src="../img/console.jpg" alt="Dispatcher console: channels, a sensor panel with one alarm, the live channel and the shift roster">
+    <figcaption>The dispatcher console. Channels on the left, then the site's sensors — one in alarm, two silent — the live channel in the middle, and the shift on the right with reachability and a call button for each person.</figcaption>
+  </figure>
+  <figure class="shot">
+    <img src="../img/map.jpg" alt="Dispatcher map with subscriber markers and callsigns in real time">
+    <figcaption>The shift on the map. Markers move with the people; the tooltip carries the callsign and current speed.</figcaption>
+  </figure>
   <div class="note">
     <p><strong>The map is a dispatch tool, not surveillance.</strong> Location sharing can be switched off for an individual — a contractor, or a driver in a private car. That permission is granted separately from the right to talk and to write.</p>
   </div>
@@ -446,6 +487,10 @@ footer p{max-width:60ch}
     </div>
   </div>
 
+  <figure class="shot">
+    <img src="../img/admin.jpg" alt="Admin area: group list with members, validity dates and permissions">
+    <figcaption>Group management: membership, validity dates, per-member permissions and invitation handling.</figcaption>
+  </figure>
   <div class="grid g2" style="margin-top:1px">
     <div class="cell">
       <span class="kicker">AUDIT</span>

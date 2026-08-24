@@ -123,6 +123,24 @@ figcaption b{color:var(--text);font-weight:600}
 .dg-live{stroke:var(--live)} .dg-alert{stroke:var(--alert)} .dg-reach{stroke:var(--reach)}
 .dg-live-f{fill:var(--live)} .dg-alert-f{fill:var(--alert)} .dg-reach-f{fill:var(--reach)}
 
+
+/* ── снимки экранов и корпуса устройств ── */
+.shot{margin-top:36px;border:1px solid var(--line);background:var(--panel);padding:10px}
+.shot img{display:block;width:100%;height:auto}
+.shot figcaption,.shotcap{margin:12px 2px 2px;font-size:15px;color:var(--muted);line-height:1.5}
+.devices{display:flex;flex-wrap:wrap;gap:34px;align-items:flex-end;margin-top:40px}
+.device{flex:1 1 240px;max-width:330px}
+.device .bezel{background:var(--panel);border:1px solid var(--line);border-radius:22px;
+  padding:16px 10px;position:relative}
+.device.radio .bezel{border-radius:12px;padding:14px 12px 30px}
+.device .bezel::before{content:'';position:absolute;top:7px;left:50%;transform:translateX(-50%);
+  width:42px;height:3px;border-radius:2px;background:var(--line)}
+.device.radio .bezel::after{content:'';position:absolute;bottom:10px;left:50%;transform:translateX(-50%);
+  width:54px;height:10px;border-radius:5px;border:1px solid var(--line)}
+.device img{display:block;width:100%;height:auto;border-radius:6px}
+.device .cap{margin-top:14px;font-family:var(--data);font-size:11.5px;letter-spacing:.16em;color:var(--live)}
+.device .sub{margin:6px 0 0;font-size:15.5px;color:var(--muted);line-height:1.5}
+
 /* ── подвал ── */
 footer{padding:64px 0 88px}
 footer p{max-width:60ch}
@@ -247,6 +265,9 @@ footer p{max-width:60ch}
   </figure>
 
   <div class="note">
+    <p><strong>Расстояние не имеет значения.</strong> Это не радиостанция с ограниченным радиусом: связь идёт через сервер по обычному интернету. Люди в одной группе могут находиться в разных городах и странах — на объекте, в командировке, на другом континенте — и слышать друг друга так же, как если бы стояли рядом. Нужен только интернет, любой: проводной, Wi-Fi или сотовый.</p>
+  </div>
+  <div class="note">
     <p><strong>Кого сейчас можно дозваться — видно заранее.</strong> Система различает три состояния, и диспетчер не тратит время на попытки достучаться до выключенного телефона.</p>
     <div class="states">
       <span class="pill"><i class="i-live"></i><b>В ЭФИРЕ</b><span>— слышит канал прямо сейчас</span></span>
@@ -273,6 +294,18 @@ footer p{max-width:60ch}
     </table>
   </div>
 
+  <div class="devices">
+    <div class="device">
+      <div class="bezel"><img src="img/phone.jpg" alt="Экран приложения на телефоне: активная группа, кнопка разговора, список абонентов"></div>
+      <p class="cap">ТЕЛЕФОН</p>
+      <p class="sub">Большая кнопка разговора, список групп и состав смены с признаком, кто сейчас на связи.</p>
+    </div>
+    <div class="device radio">
+      <div class="bezel"><img src="img/radio.jpg" alt="Экран рации Inrico T320: активная группа, выбор канала, кнопки тревоги и побудки"></div>
+      <p class="cap">РАЦИЯ T320</p>
+      <p class="sub">Экран 240×320 под управление одной рукой: крестовина выбирает канал, аппаратная кнопка говорит.</p>
+    </div>
+  </div>
   <div class="grid g2">
     <div class="cell">
       <span class="kicker">СМЕШАННЫЙ ПАРК</span>
@@ -414,6 +447,14 @@ footer p{max-width:60ch}
     </div>
   </div>
 
+  <figure class="shot">
+    <img src="img/console.jpg" alt="Пульт диспетчера: слева каналы, рядом панель датчиков с тревогой, в центре эфир, справа состав смены">
+    <figcaption>Пульт диспетчера. Слева каналы, следом датчики объекта — один в тревоге, два молчат, — в центре эфир, справа смена с признаком достижимости и кнопкой вызова у каждого.</figcaption>
+  </figure>
+  <figure class="shot">
+    <img src="img/map.jpg" alt="Карта диспетчера: метки абонентов с позывными в реальном времени">
+    <figcaption>Карта смены. Метки движутся вместе с людьми; в подсказке позывной и скорость.</figcaption>
+  </figure>
   <div class="note">
     <p><strong>Карта и координаты — не слежка, а инструмент диспетчера.</strong> Передачу координат можно отключить конкретному человеку: подрядчику или водителю на личном автомобиле. Право выдаётся отдельно от права говорить и писать.</p>
   </div>
@@ -448,6 +489,10 @@ footer p{max-width:60ch}
     </div>
   </div>
 
+  <figure class="shot">
+    <img src="img/admin.jpg" alt="Админка: список групп с составом, сроками и правами участников">
+    <figcaption>Управление группами: состав, сроки действия, права участников и выдача приглашений.</figcaption>
+  </figure>
   <div class="grid g2" style="margin-top:1px">
     <div class="cell">
       <span class="kicker">ЖУРНАЛ ДЕЙСТВИЙ</span>
