@@ -28,6 +28,7 @@ import { sensorsRouter } from './routes/sensors';
 import { telemetryRouter } from './routes/telemetry';
 import { publicRouter } from './routes/public';
 import { errorHandler, notFound } from './middleware/errorHandler';
+import { isApnsConfigured } from './services/apns';
 
 async function bootstrap() {
   const app = express();
@@ -78,6 +79,12 @@ async function bootstrap() {
       timestamp: new Date().toISOString(),
       arch: process.arch,
       mediasoup: { workers: msWorkers, ok: msWorkers > 0, error: mediasoupManager.initError },
+      // Настроен ли push на iPhone. Снаружи это иначе никак не видно, а когда
+      // звонок не прозвонит, первым делом надо знать, чья это половина —
+      // серверная или нативная. Секретов не раскрываем: только факт наличия
+      // ключа и окружение, в которое уйдёт push (перепутать sandbox с
+      // production легко, а push «не туда» молча не доходит).
+      apns: { configured: isApnsConfigured(), env: config.APNS_ENV },
     });
   });
 
