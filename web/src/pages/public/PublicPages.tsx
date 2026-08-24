@@ -34,6 +34,11 @@ import { useStore } from '@/store/useStore';
 
 const navLinks = [
   { to: '/download', label: 'Download' },
+  // Презентация системы — отдельная статическая страница (web/public/presentation),
+  // а не маршрут приложения. Поэтому external: обычная ссылка, не Link роутера —
+  // иначе роутер попытается отрисовать её сам и покажет пустоту.
+  // Из английского меню ведём на английскую версию; русскую дают ссылкой напрямую.
+  { to: '/presentation/en/', label: 'Overview', external: true },
   { to: '/docs', label: 'Docs' },
   { to: '/faq', label: 'FAQ' },
   { to: '/support', label: 'Support' },
@@ -303,11 +308,17 @@ function PublicLayout({ children }: { children: React.ReactNode }) {
             <span className="text-lg">PRIVOX PTT</span>
           </Link>
           <nav className="hidden items-center gap-6 text-sm font-medium text-slate-600 md:flex">
-            {navLinks.map((link) => (
-              <Link key={link.to} to={link.to} className="hover:text-sky-700">
-                {link.label}
-              </Link>
-            ))}
+            {navLinks.map((link) =>
+              link.external ? (
+                <a key={link.to} href={link.to} className="hover:text-sky-700">
+                  {link.label}
+                </a>
+              ) : (
+                <Link key={link.to} to={link.to} className="hover:text-sky-700">
+                  {link.label}
+                </Link>
+              )
+            )}
           </nav>
           <div className="flex items-center gap-2">
             {user && (
