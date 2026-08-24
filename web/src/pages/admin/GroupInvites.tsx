@@ -7,6 +7,7 @@ import clsx from 'clsx';
 import { onboardingApi } from '@/api/client';
 import { QrCode, downloadQr } from '@/components/ui/QrCode';
 import { openInviteSheet } from '@/utils/invitePrint';
+import { saveInvitePdf } from '@/utils/invitePdf';
 import type { CreatedMember, Group, GroupInvite, GroupInvitesResponse, InviteStatus } from '@/types';
 
 /**
@@ -256,6 +257,19 @@ export function GroupInvites({ group, onClose }: { group: Group; onClose: () => 
               className="flex items-center gap-2 bg-ptt-green text-ptt-dark font-orbitron text-xs px-3 py-1.5 rounded tracking-widest"
             >
               PRINT ALL QR
+            </button>
+            <button
+              onClick={() =>
+                saveInvitePdf(
+                  group.name,
+                  group.organization?.name ?? '',
+                  batch,
+                  new Date(Date.now() + 14 * 86_400_000).toISOString()
+                )
+              }
+              className="flex items-center gap-2 border border-ptt-border text-ptt-text font-mono text-xs px-3 py-1.5 rounded tracking-widest hover:text-white"
+            >
+              SAVE PDF
             </button>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-64 overflow-y-auto">

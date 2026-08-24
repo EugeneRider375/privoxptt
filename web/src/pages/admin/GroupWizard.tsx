@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle, ArrowLeft, ArrowRight, Check, Copy, Download, Eye, EyeOff,
-  ImageIcon, KeyRound, Link2, Printer, QrCode as QrIcon, Send, ShieldAlert, UserPlus, Users, X,
+  FileDown, ImageIcon, KeyRound, Link2, Printer, QrCode as QrIcon, Send, ShieldAlert, UserPlus, Users, X,
 } from 'lucide-react';
 import clsx from 'clsx';
 
 import { onboardingApi } from '@/api/client';
 import { QrCode, downloadQr } from '@/components/ui/QrCode';
 import { buildInviteMessage, openInviteSheet, shareInvite } from '@/utils/invitePrint';
+import { saveInvitePdf } from '@/utils/invitePdf';
 import { canCopyImage, copyInviteCard, downloadBlob, renderInviteCard, shareInviteCard } from '@/utils/inviteCard';
 import type {
   CreatedMember, Organization, PreviewRow, UserRole, WizardPreview, WizardResult,
@@ -697,6 +698,13 @@ export function GroupWizard({
                 }
                 className="flex items-center gap-2 bg-ptt-green text-ptt-dark font-orbitron text-xs px-3 py-1.5 rounded tracking-widest">
                 <Printer className="w-3 h-3" /> PRINT ALL QR
+              </button>
+              <button
+                onClick={() =>
+                  saveInvitePdf(result.group.name, result.organization.name, result.members, result.invites.expiresAt)
+                }
+                className="flex items-center gap-2 border border-ptt-border text-ptt-text font-mono text-xs px-3 py-1.5 rounded hover:text-white">
+                <FileDown className="w-3 h-3" /> SAVE PDF
               </button>
               <button onClick={downloadCsv}
                 className="flex items-center gap-2 border border-ptt-border text-ptt-text font-mono text-xs px-3 py-1.5 rounded hover:text-white">
