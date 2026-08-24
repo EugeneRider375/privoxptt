@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PRIVOX PTT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap">
+<style>
+:root{
+  --ground:#F7F9F6; --panel:#FFFFFF; --card:#FFFFFF; --line:#DCE4DA;
+  --muted:#657065; --text:#333B33; --bright:#111611;
+  /* Зелёный для текста и линий — приглушённый, иначе на светлом не читается.
+     Яркий сигнальный остаётся только у точек-индикаторов (--dot-live). */
+  --live:#0C8A4B; --alert:#C42B2B; --warn:#A9700A; --reach:#1A66C8;
+  --dot-live:#3DDC84;
+  --display:'Orbitron',ui-monospace,monospace;
+  --body:'Rajdhani','Segoe UI',system-ui,sans-serif;
+  --data:'Share Tech Mono',ui-monospace,'SF Mono',monospace;
+  --rail:76px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{animation:none!important;transition:none!important}}
+body{
+  margin:0;background:var(--ground);color:var(--text);
+  font-family:var(--body);font-size:18px;line-height:1.62;font-weight:500;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3{text-wrap:balance;margin:0}
+a{color:var(--live)}
+.wrap{max-width:1120px;margin:0 auto;padding:0 24px 0 calc(var(--rail) + 24px);position:relative}
+@media(max-width:820px){:root{--rail:0px}.wrap{padding:0 18px}}
+
+/* ── рейка каналов: отметки = реальные разделы, не украшение ── */
+.rail{position:fixed;left:0;top:0;bottom:0;width:var(--rail);border-right:1px solid var(--line);
+  background:var(--panel);display:flex;flex-direction:column;align-items:center;
+  padding:22px 0;gap:2px;z-index:10}
+@media(max-width:820px){.rail{display:none}}
+.rail .mark{writing-mode:vertical-rl;font-family:var(--data);font-size:11px;letter-spacing:.22em;
+  color:var(--muted);text-decoration:none;padding:14px 0;border-left:2px solid transparent;
+  transition:color .2s,border-color .2s}
+.rail .mark:hover,.rail .mark:focus-visible{color:var(--live);border-left-color:var(--live)}
+.rail .dot{width:7px;height:7px;border-radius:50%;background:var(--dot-live);margin-bottom:16px;
+  box-shadow:0 0 0 0 rgba(61,220,132,.55);animation:breathe 3.2s ease-in-out infinite}
+@keyframes breathe{0%,100%{box-shadow:0 0 0 0 rgba(61,220,132,.55)}50%{box-shadow:0 0 0 9px rgba(61,220,132,0)}}
+:focus-visible{outline:2px solid var(--live);outline-offset:3px}
+
+/* ── шапка ── */
+.hero{padding:96px 0 64px;border-bottom:1px solid var(--line)}
+.eyebrow{font-family:var(--data);font-size:12px;letter-spacing:.3em;color:var(--live);margin:0 0 22px}
+h1{font-family:var(--display);font-weight:900;font-size:clamp(38px,6.4vw,72px);line-height:1.02;
+  color:var(--bright);letter-spacing:-.01em}
+h1 .thin{color:var(--live)}
+.lede{font-size:clamp(19px,2.2vw,25px);max-width:30ch;margin:26px 0 0;color:var(--text);line-height:1.5}
+.pillars{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:1px;
+  background:var(--line);border:1px solid var(--line);margin-top:52px}
+.pillar{background:var(--panel);padding:24px 22px}
+.pillar h3{font-family:var(--data);font-size:12px;letter-spacing:.2em;color:var(--live);font-weight:400}
+.pillar p{margin:10px 0 0;font-size:16px;color:var(--muted);line-height:1.5}
+
+/* ── разделы ── */
+section{padding:76px 0;border-bottom:1px solid var(--line)}
+.tag{font-family:var(--data);font-size:11px;letter-spacing:.28em;color:var(--muted);margin:0 0 14px}
+h2{font-family:var(--display);font-weight:700;font-size:clamp(26px,3.4vw,38px);color:var(--bright);letter-spacing:-.005em}
+.intro{max-width:62ch;margin:20px 0 0;font-size:19px}
+
+/* ── карточки возможностей ── */
+.grid{display:grid;gap:1px;background:var(--line);border:1px solid var(--line);margin-top:40px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+.cell{background:var(--card);padding:26px 24px}
+.cell h3{font-family:var(--body);font-weight:700;font-size:20px;color:var(--bright);margin:0 0 8px}
+.cell p{margin:0;font-size:16.5px;color:var(--text);line-height:1.55}
+.cell p+p{margin-top:10px;color:var(--muted);font-size:15.5px}
+.kicker{font-family:var(--data);font-size:11px;letter-spacing:.2em;color:var(--live);display:block;margin-bottom:12px}
+
+/* ── статусные пилюли: словарь самой системы ── */
+.states{display:flex;flex-wrap:wrap;gap:10px;margin-top:26px}
+.pill{display:inline-flex;align-items:center;gap:9px;border:1px solid var(--line);
+  background:var(--panel);padding:9px 15px;font-family:var(--data);font-size:12.5px;letter-spacing:.08em}
+.pill i{width:8px;height:8px;border-radius:50%;flex:0 0 8px}
+.i-live{background:var(--dot-live)} .i-reach{background:var(--reach)}
+.i-off{background:var(--muted)} .i-alert{background:var(--alert)} .i-warn{background:var(--warn)}
+.pill b{color:var(--bright);font-weight:400} .pill span{color:var(--muted)}
+
+/* ── таблица ── */
+.tablewrap{overflow-x:auto;margin-top:36px;border:1px solid var(--line)}
+table{border-collapse:collapse;width:100%;min-width:560px;font-size:16px}
+th,td{text-align:left;padding:14px 18px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:var(--data);font-size:11px;letter-spacing:.18em;color:var(--muted);
+  font-weight:400;background:var(--panel)}
+td{background:var(--card);color:var(--text)}
+td:first-child{color:var(--bright);font-weight:600;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+.num{font-variant-numeric:tabular-nums;font-family:var(--data)}
+
+/* ── аудитории ── */
+.aud{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1px;
+  background:var(--line);border:1px solid var(--line);margin-top:40px}
+.audcard{background:var(--card);padding:28px 26px}
+.audcard h3{font-family:var(--body);font-size:21px;font-weight:700;color:var(--bright);margin:0 0 6px}
+.who{font-family:var(--data);font-size:11.5px;letter-spacing:.16em;color:var(--live);margin:0 0 16px}
+.audcard p{margin:0 0 14px;font-size:16.5px;line-height:1.55}
+.audcard ul{margin:0;padding-left:0;list-style:none;font-size:15.5px;color:var(--muted)}
+.audcard li{padding-left:18px;position:relative;margin-bottom:7px;line-height:1.45}
+.audcard li::before{content:'';position:absolute;left:0;top:9px;width:6px;height:1px;background:var(--live)}
+
+/* ── врезка ── */
+.note{border-left:2px solid var(--live);background:var(--panel);padding:22px 24px;margin-top:36px}
+.note p{margin:0;font-size:17px;color:var(--text)}
+.note strong{color:var(--bright)}
+
+/* ── схемы ── */
+figure{margin:44px 0 0;border:1px solid var(--line);background:var(--panel);padding:26px 24px 20px}
+figure svg{display:block;width:100%;max-width:100%;height:auto;color:var(--muted)}
+figcaption{margin-top:16px;font-size:15.5px;color:var(--muted);line-height:1.5;max-width:62ch}
+figcaption b{color:var(--text);font-weight:600}
+.dg-box{fill:var(--card);stroke:currentColor;stroke-width:1}
+.dg-t{fill:var(--bright);font-family:var(--body);font-size:15px;font-weight:600}
+.dg-s{fill:var(--muted);font-family:var(--data);font-size:11.5px;letter-spacing:.06em}
+.dg-l{fill:var(--muted);font-family:var(--data);font-size:11.5px;letter-spacing:.05em}
+.dg-line{stroke:currentColor;stroke-width:1.4;fill:none}
+.dg-live{stroke:var(--live)} .dg-alert{stroke:var(--alert)} .dg-reach{stroke:var(--reach)}
+.dg-live-f{fill:var(--live)} .dg-alert-f{fill:var(--alert)} .dg-reach-f{fill:var(--reach)}
+
+
+/* ── снимки экранов и корпуса устройств ── */
+.shot{margin-top:36px;border:1px solid var(--line);background:var(--panel);padding:10px;
+  box-shadow:0 1px 3px rgba(17,22,17,.06)}
+.shot img{display:block;width:100%;height:auto}
+.shot figcaption,.shotcap{margin:12px 2px 2px;font-size:15px;color:var(--muted);line-height:1.5}
+.devices{display:flex;flex-wrap:wrap;gap:34px;align-items:flex-end;margin-top:40px}
+.device{flex:1 1 240px;max-width:330px}
+.device .bezel{background:var(--panel);border:1px solid var(--line);border-radius:22px;
+  padding:16px 10px;position:relative;box-shadow:0 2px 8px rgba(17,22,17,.08)}
+.device.radio .bezel{border-radius:12px;padding:14px 12px 30px}
+.device .bezel::before{content:'';position:absolute;top:7px;left:50%;transform:translateX(-50%);
+  width:42px;height:3px;border-radius:2px;background:var(--line)}
+.device.radio .bezel::after{content:'';position:absolute;bottom:10px;left:50%;transform:translateX(-50%);
+  width:54px;height:10px;border-radius:5px;border:1px solid var(--line)}
+.device img{display:block;width:100%;height:auto;border-radius:6px}
+.device .cap{margin-top:14px;font-family:var(--data);font-size:11.5px;letter-spacing:.16em;color:var(--live)}
+.device .sub{margin:6px 0 0;font-size:15.5px;color:var(--muted);line-height:1.5}
+
+/* ── подвал ── */
+footer{padding:64px 0 88px}
+footer p{max-width:60ch}
+.foot-mark{font-family:var(--display);font-size:15px;letter-spacing:.16em;color:var(--live);margin:0 0 18px}
+.roadmap{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
+.chip{font-family:var(--data);font-size:12px;letter-spacing:.1em;color:var(--muted);
+  border:1px dashed var(--line);padding:7px 13px}
+.lang{position:absolute;top:34px;right:24px;display:flex;gap:8px}
+.lang a{font-family:var(--data);font-size:12px;letter-spacing:.14em;color:var(--muted);
+  text-decoration:none;border:1px solid var(--line);padding:7px 13px;
+  transition:color .2s,border-color .2s}
+.lang a:hover,.lang a:focus-visible{color:var(--live);border-color:var(--live)}
+</style>
+</head>
+<body>
+
+<nav class="rail" aria-label="Sections">
+  <span class="dot" aria-hidden="true"></span>
+  <a class="mark" href="#voix">VOIX</a>
+  <a class="mark" href="#appareils">APPAREILS</a>
+  <a class="mark" href="#capteurs">CAPTEURS</a>
+  <a class="mark" href="#console">CONSOLE</a>
+  <a class="mark" href="#controle">CONTRÔLE</a>
+  <a class="mark" href="#pour-qui">POUR QUI</a>
+</nav>
+
+<div class="wrap">
+
+<span class="lang"><a href="../">RU</a><a href="../en/">EN</a></span>
+
+<header class="hero">
+  <p class="eyebrow">VOIX · CAPTEURS · SUPERVISION</p>
+  <h1>PRIVOX <span class="thin">PTT</span></h1>
+  <p class="lede">Un talkie-walkie qui fonctionne sur tout ce que vous avez déjà. Et qui entend plus que les gens : il entend le site.</p>
+
+  <div class="pillars">
+    <div class="pillar">
+      <h3>APPUYER ET PARLER</h3>
+      <p>Votre voix atteint tout le groupe instantanément. Sans numéro à composer, sans attendre qu'on décroche.</p>
+    </div>
+    <div class="pillar">
+      <h3>LE SITE PARLE</h3>
+      <p>Les capteurs de température, de fuite et de mouvement alertent dans le canal même où travaille l'équipe.</p>
+    </div>
+    <div class="pillar">
+      <h3>TOUT SUR UN ÉCRAN</h3>
+      <p>Le régulateur voit qui est en ligne, où chacun se trouve et ce que fait le site — d'un seul coup d'œil.</p>
+    </div>
+  </div>
+</header>
+
+<section id="voix">
+  <p class="tag">01 · VOIX</p>
+  <h2>Quatre façons de joindre quelqu'un</h2>
+  <p class="intro">Un talkie-walkie ordinaire fait une chose : parler à un canal. Le travail réel en demande davantage — parfois une seule personne, parfois toute l'équipe, parfois à trois heures du matin.</p>
+
+  <div class="grid g2">
+    <div class="cell">
+      <span class="kicker">CANAL DE GROUPE</span>
+      <h3>Maintenir la touche, parler</h3>
+      <p>Le PTT classique. Vous maintenez la touche, tout le groupe vous entend. Un seul occupe le canal ; les autres voient qui parle.</p>
+      <p>Cette discipline est le principe même, pas une limite : contrairement à une conférence téléphonique, trois personnes ne parlent jamais en même temps.</p>
+    </div>
+    <div class="cell">
+      <span class="kicker">APPEL PRIVÉ</span>
+      <h3>Duplex intégral, en tête-à-tête</h3>
+      <p>Une conversation privée avec une personne, exactement comme un appel téléphonique : les deux parlent en même temps.</p>
+      <p>Le reste du groupe ne l'entend pas et le canal reste libre.</p>
+    </div>
+    <div class="cell">
+      <span class="kicker">RAPPEL DE GROUPE</span>
+      <h3>Rassembler tout le monde, tout de suite</h3>
+      <p>Un bouton, et le téléphone de chaque membre sonne pour de vrai — dans une poche, dans un sac, sur une table de nuit, même application fermée.</p>
+      <p>La personne répond et se retrouve directement sur le canal.</p>
+    </div>
+    <div class="cell">
+      <span class="kicker">URGENCE</span>
+      <h3>SOS et appel au régulateur</h3>
+      <p>Un bouton d'alerte distinct atteint toute l'organisation, au-delà des groupes. L'appel au régulateur va à celui qui est de service.</p>
+      <p>Rien ne bloque le SOS : ni un horaire, ni un réglage de groupe.</p>
+    </div>
+  </div>
+
+  <div class="note">
+    <p><strong>La distance n'entre pas en jeu.</strong> Ce n'est pas un poste radio avec un rayon de couverture : tout passe par un serveur, sur Internet ordinaire. Les membres d'un même groupe peuvent être dans des villes et des pays différents — sur site, en déplacement, sur un autre continent — et s'entendre comme s'ils étaient côte à côte. Il suffit d'une connexion : filaire, Wi-Fi ou mobile.</p>
+  </div>
+
+  <div class="note">
+    <p><strong>On sait qui est joignable avant d'essayer.</strong> Le système distingue trois états, et personne ne perd de temps à appeler un téléphone éteint.</p>
+    <div class="states">
+      <span class="pill"><i class="i-live"></i><b>EN LIGNE</b><span>— écoute le canal en ce moment</span></span>
+      <span class="pill"><i class="i-reach"></i><b>JOIGNABLE</b><span>— en veille, un appel le réveille</span></span>
+      <span class="pill"><i class="i-off"></i><b>HORS LIGNE</b><span>— téléphone éteint</span></span>
+    </div>
+  </div>
+</section>
+
+<section id="appareils">
+  <p class="tag">02 · APPAREILS</p>
+  <h2>Fonctionne avec ce que vous avez</h2>
+  <p class="intro">Inutile d'acheter une flotte de postes pour commencer : les téléphones que vos équipes ont en poche suffisent. Et là où un vrai talkie-walkie s'impose, il rejoint le même système.</p>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Appareil</th><th>Pour qui</th><th>Ce qu'il apporte</th></tr></thead>
+      <tbody>
+        <tr><td>Téléphone Android</td><td>Personnel de terrain</td><td>Un vrai talkie dans une application. L'appel réveille un téléphone en veille ; les notifications de messages fonctionnent.</td></tr>
+        <tr><td>iPhone</td><td>Personnel de terrain</td><td>Idem. Un appel entrant affiche l'écran d'appel natif, même téléphone verrouillé.</td></tr>
+        <tr><td>Navigateur</td><td>Régulateur, encadrement</td><td>Une console sur ordinateur : carte, équipe, canal en direct, messagerie. Rien à installer.</td></tr>
+        <tr><td>Poste Inrico T320</td><td>Terrain, entrepôt, chantier</td><td>Un vrai poste avec touche PTT physique et croix directionnelle. À une main, avec des gants.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="devices">
+    <div class="device">
+      <div class="bezel"><img src="../img/phone.jpg" alt="Écran de l'application : groupe actif, bouton de parole, liste des abonnés"></div>
+      <p class="cap">TÉLÉPHONE</p>
+      <p class="sub">Un grand bouton de parole, la liste des groupes et l'équipe avec l'indication de qui est en ligne.</p>
+    </div>
+    <div class="device radio">
+      <div class="bezel"><img src="../img/radio.jpg" alt="Écran du poste Inrico T320 : groupe actif, choix du canal, touches d'urgence et de rappel"></div>
+      <p class="cap">POSTE T320</p>
+      <p class="sub">Un écran 240×320 pensé pour une main : la croix choisit le canal, la touche physique parle.</p>
+    </div>
+  </div>
+
+  <div class="grid g2">
+    <div class="cell">
+      <span class="kicker">FLOTTE MIXTE</span>
+      <h3>Tous sur un même canal</h3>
+      <p>Un agent avec un poste, un agent avec un téléphone et un régulateur devant son écran sont dans le même groupe et s'entendent. Sans passerelle ni adaptateur.</p>
+    </div>
+    <div class="cell">
+      <span class="kicker">ARRIVÉE D'UN AGENT</span>
+      <h3>Entrée par QR code</h3>
+      <p>Chaque personne reçoit une carte imprimée avec son QR code personnel. Un scan avec l'appareil photo et elle est en ligne : sans identifiant, sans mot de passe, sans chercher le bon groupe.</p>
+      <p>Les cartes s'impriment en planche ou s'enregistrent en PDF pour être envoyées par messagerie.</p>
+    </div>
+  </div>
+</section>
+
+<section id="capteurs">
+  <p class="tag">03 · CAPTEURS ET ALERTES</p>
+  <h2>Le site rejoint le canal</h2>
+  <p class="intro">C'est ce qu'aucun talkie-walkie ordinaire ne fait. Un capteur est un abonné comme un autre : quand quelque chose déraille, il alerte dans le canal même où l'équipe travaille.</p>
+
+  <div class="grid g3">
+    <div class="cell">
+      <span class="kicker">RACCORDEMENT</span>
+      <h3>Sans toucher au matériel</h3>
+      <p>Le serveur interroge le capteur par son interface habituelle. Aucun firmware à modifier — l'équipement reste tel quel.</p>
+      <p>Un appareil peut aussi envoyer ses relevés lui-même, si cela lui convient mieux.</p>
+    </div>
+    <div class="cell">
+      <span class="kicker">SEUILS</span>
+      <h3>Sa propre normale pour chacun</h3>
+      <p>Chaque capteur a ses limites : une chambre froide entre 2 et 8 degrés, un entrepôt sous 70 % d'humidité.</p>
+      <p>On règle un minimum, un maximum, ou les deux.</p>
+    </div>
+    <div class="cell">
+      <span class="kicker">SANS DÉLUGE</span>
+      <h3>Une alerte, une seule fois</h3>
+      <p>L'alerte part au moment où la valeur franchit la limite, pas toutes les quinze secondes tant que le problème dure.</p>
+      <p>Sinon on s'habitue aux alertes et on cesse de les regarder.</p>
+    </div>
+  </div>
+
+  <p class="intro" style="margin-top:44px">Trois états que voit le régulateur :</p>
+  <div class="states">
+    <span class="pill"><i class="i-live"></i><b>NORMAL</b><span>— dans les limites</span></span>
+    <span class="pill"><i class="i-alert"></i><b>ALERTE</b><span>— seuil franchi</span></span>
+    <span class="pill"><i class="i-warn"></i><b>SILENCIEUX</b><span>— plus de données depuis trop longtemps</span></span>
+  </div>
+
+  <div class="note">
+    <p><strong>« Silencieux » est une alerte à part entière, et c'est essentiel.</strong> Un capteur qui a cessé de répondre est plus dangereux qu'un capteur aux mauvaises valeurs : un congélateur peut dégivrer depuis une heure alors que l'écran affiche encore la dernière température correcte. L'absence de données suffit à faire lever les équipes.</p>
+  </div>
+
+  <p class="intro" style="margin-top:44px">Où part l'alerte :</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Canal</th><th>À qui</th><th>Quand c'est utile</th></tr></thead>
+      <tbody>
+        <tr><td>Console du régulateur</td><td>À l'équipe de service</td><td>La fiche du capteur passe au rouge immédiatement.</td></tr>
+        <tr><td>Notification mobile</td><td>Au groupe rattaché au capteur</td><td>La nuit, le week-end, quand personne n'est devant la console.</td></tr>
+        <tr><td>Telegram</td><td>À un responsable, un prestataire</td><td>Ceux qui doivent savoir sans avoir accès au système.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="console">
+  <p class="tag">04 · CONSOLE DU RÉGULATEUR</p>
+  <h2>Tout sur un seul écran</h2>
+  <p class="intro">La console est l'endroit où le reste converge : les gens, le site et les échanges. Le régulateur ne change pas d'onglet pour comprendre la situation.</p>
+
+  <div class="grid g2">
+    <div class="cell">
+      <span class="kicker">CARTE EN DIRECT</span>
+      <h3>Où se trouve l'équipe</h3>
+      <p>Les marqueurs se déplacent avec les personnes, en temps réel. L'infobulle donne l'indicatif et la vitesse.</p>
+      <p>La vitesse compte plus qu'on ne croit : on voit si un véhicule roule ou s'il est arrêté depuis vingt minutes. Envoyer le plus proche devient un coup d'œil, pas une série d'appels.</p>
+    </div>
+    <div class="cell">
+      <span class="kicker">CONSOLE</span>
+      <h3>Groupes, agents et capteurs côte à côte</h3>
+      <p>Les canaux à gauche, l'équipe à droite avec son état de joignabilité, les capteurs dans leur panneau. Une alerte s'allume là, sans quitter l'écran.</p>
+      <p>Le régulateur parle dans n'importe quel groupe sans y entrer.</p>
+    </div>
+    <div class="cell">
+      <span class="kicker">JOURNAL</span>
+      <h3>Qui était en ligne, et quand</h3>
+      <p>Les connexions et déconnexions sont enregistrées. Reprendre une intervention le lendemain — savoir qui était joignable au moment des faits — reste possible.</p>
+    </div>
+    <div class="cell">
+      <span class="kicker">MESSAGES</span>
+      <h3>La messagerie dans la même fenêtre</h3>
+      <p>Discussions de groupe et privées à côté du canal. Une adresse, une plaque ou la photo d'une panne ne se perdent pas dans le flux vocal.</p>
+    </div>
+  </div>
+
+  <figure class="shot">
+    <img src="../img/console.jpg" alt="Console du régulateur : canaux, panneau de capteurs avec une alerte, canal en direct et équipe">
+    <figcaption>La console du régulateur. Les canaux à gauche, puis les capteurs du site — un en alerte, deux silencieux —, le canal au centre, et l'équipe à droite avec sa joignabilité et un bouton d'appel pour chacun.</figcaption>
+  </figure>
+
+  <figure class="shot">
+    <img src="../img/map.jpg" alt="Carte du régulateur avec les marqueurs des abonnés et leurs indicatifs en temps réel">
+    <figcaption>L'équipe sur la carte. Les marqueurs suivent les personnes ; l'infobulle porte l'indicatif et la vitesse.</figcaption>
+  </figure>
+
+  <div class="note">
+    <p><strong>La carte est un outil de régulation, pas de surveillance.</strong> Le partage de position peut être coupé pour une personne donnée — un prestataire, un chauffeur en véhicule personnel. Ce droit s'accorde séparément de celui de parler et d'écrire.</p>
+  </div>
+</section>
+
+<section id="controle">
+  <p class="tag">05 · CONTRÔLE</p>
+  <h2>Qui, où, et jusqu'à quand</h2>
+  <p class="intro">La communication sur un site ne se résume pas à s'entendre. C'est aussi savoir qui a le droit de parler, qui voit la position des autres, et ce que devient l'accès de celui qui est parti le mois dernier.</p>
+
+  <div class="grid g2">
+    <div class="cell">
+      <span class="kicker">RÔLES</span>
+      <h3>Quatre niveaux d'accès</h3>
+      <p>L'agent parle dans ses groupes. Le régulateur les entend tous et parle dans n'importe lequel. L'administrateur crée les personnes et les groupes. Le propriétaire voit l'ensemble.</p>
+    </div>
+    <div class="cell">
+      <span class="kicker">VALIDITÉ</span>
+      <h3>Un groupe pour la durée du chantier</h3>
+      <p>Un groupe peut porter une date de début et de fin. Une vacation, un événement, un contrat d'un mois : le canal se ferme de lui-même.</p>
+      <p>L'historique reste lisible : revenir sur une intervention après coup demeure possible.</p>
+    </div>
+    <div class="cell">
+      <span class="kicker">DROITS</span>
+      <h3>Des rôles différents dans un même groupe</h3>
+      <p>Un membre peut écouter sans parler, écrire sans partager sa position. Observateur, stagiaire, prestataire : à chacun ce qui lui revient.</p>
+    </div>
+    <div class="cell">
+      <span class="kicker">COMPTES</span>
+      <h3>Un accès avec date d'expiration</h3>
+      <p>Un saisonnier reçoit un accès jusqu'à une date, qui s'éteint tout seul. Un appareil perdu se coupe en une action, sessions actives comprises.</p>
+    </div>
+  </div>
+
+  <figure class="shot">
+    <img src="../img/admin.jpg" alt="Administration : liste des groupes avec membres, dates de validité et droits">
+    <figcaption>Gestion des groupes : composition, dates de validité, droits par membre et suivi des invitations.</figcaption>
+  </figure>
+
+  <div class="grid g2" style="margin-top:1px">
+    <div class="cell">
+      <span class="kicker">TRAÇABILITÉ</span>
+      <h3>Qui a modifié quoi</h3>
+      <p>Les actions des administrateurs — création de comptes, émission et retrait d'invitations — sont consignées à part.</p>
+    </div>
+    <div class="cell">
+      <span class="kicker">MESSAGERIE</span>
+      <h3>Écrire là où l'on parle</h3>
+      <p>Discussions de groupe et privées, historique sur le serveur, photos et documents jusqu'à 10 Mo. Un numéro de série ne se dicte pas à la voix.</p>
+    </div>
+  </div>
+</section>
+
+<section id="pour-qui">
+  <p class="tag">06 · POUR QUI</p>
+  <h2>Là où l'investissement se rembourse</h2>
+  <p class="intro">Ces situations ont un point commun : les gens doivent se joindre vite, et le site doit joindre les gens vite. Plus la minute d'arrêt ou l'alerte manquée coûte cher, plus le calcul est évident.</p>
+
+  <div class="aud">
+    <div class="audcard">
+      <p class="who">SÉCURITÉ</p>
+      <h3>Sociétés de gardiennage, services internes</h3>
+      <p>Une équipe sur le terrain, des rondes, des postes fixes. Il faut un contact immédiat et un bouton d'alerte qu'on trouve sans regarder.</p>
+      <ul>
+        <li>SOS depuis n'importe quel appareil, vers toute l'organisation</li>
+        <li>Le régulateur voit sur la carte qui est le plus proche</li>
+        <li>Les capteurs de porte et de mouvement alertent seuls</li>
+      </ul>
+    </div>
+
+    <div class="audcard">
+      <p class="who">COMMERCE ET RESTAURATION</p>
+      <h3>Enseignes, restaurants, cuisines</h3>
+      <p>Ici les capteurs se remboursent plus vite que la radio : une chambre froide perdue coûte plus qu'une année de service.</p>
+      <ul>
+        <li>Surveillance des chambres froides, alerte à tout écart</li>
+        <li>Une alerte de nuit réveille le responsable au lieu d'attendre le matin</li>
+        <li>Salle et cuisine sur un même canal</li>
+      </ul>
+    </div>
+
+    <div class="audcard">
+      <p class="who">BÂTIMENT ET INDUSTRIE</p>
+      <h3>Chantiers, ateliers, entrepôts</h3>
+      <p>Bruit, gants, casques. Il faut une touche physique et une liaison qui couvre le site sans discussion sur les forfaits.</p>
+      <ul>
+        <li>Des postes à vraie touche pour ceux qui sont dehors</li>
+        <li>Conducteurs de travaux et bureau sur le même canal, depuis un téléphone</li>
+        <li>Les groupes calés sur un contrat se ferment seuls</li>
+      </ul>
+    </div>
+
+    <div class="audcard">
+      <p class="who">EXPLOITATION ET SERVICES</p>
+      <h3>Gestion immobilière, maintenance</h3>
+      <p>Équipes d'astreinte, adresses dispersées, gardes de nuit. Les capteurs en sous-sol et en local technique préviennent avant les occupants.</p>
+      <ul>
+        <li>Fuites et dégâts des eaux signalés avant que l'eau ne se répande</li>
+        <li>La photo de la panne envoyée depuis le terrain</li>
+        <li>On voit quelle équipe est la plus proche</li>
+      </ul>
+    </div>
+
+    <div class="audcard">
+      <p class="who">LOGISTIQUE ET TRANSPORT</p>
+      <h3>Flottes, entrepôts, livraison</h3>
+      <p>Des chauffeurs sur la route, des préparateurs en allée, un régulateur en lien avec tous.</p>
+      <ul>
+        <li>Réveiller toute l'équipe d'un bouton</li>
+        <li>La position des véhicules sur la carte du régulateur</li>
+        <li>La température des groupes frigorifiques sous contrôle</li>
+      </ul>
+    </div>
+
+    <div class="audcard">
+      <p class="who">ÉVÉNEMENTIEL</p>
+      <h3>Organisateurs, salles, festivals</h3>
+      <p>Une équipe recrutée pour deux jours, et la liaison doit fonctionner tout de suite, sans formation.</p>
+      <ul>
+        <li>Entrée par QR : un scan et l'on est en ligne</li>
+        <li>Le groupe vit exactement le temps de l'événement</li>
+        <li>Fonctionne sur les téléphones personnels — pas de flotte à louer</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="note">
+    <p><strong>Un mot sur les saisonniers et les prestataires.</strong> C'est souvent là que le problème commence : on recrute pour un mois, et les accès restent pour toujours. Ici l'échéance se règle à la création du compte et s'éteint d'elle-même — sans dépendre de la mémoire ni de la rigueur de quiconque.</p>
+  </div>
+</section>
+
+<footer>
+  <p class="foot-mark">PRIVOX PTT</p>
+  <p>Voix, texte, capteurs et console de régulation fonctionnent ensemble — un serveur, un même compte. Commencez avec les téléphones que vos équipes ont déjà, et ajoutez postes et capteurs au fil des besoins.</p>
+  <p style="color:var(--muted);font-size:16px;margin-top:20px">En cours — capteurs de niveau d'eau, liaison LoRa pour les sites sans couverture, et un protocole unique pour tout type d'équipement.</p>
+  <div class="roadmap">
+    <span class="chip">NIVEAU D'EAU</span>
+    <span class="chip">LoRa</span>
+    <span class="chip">PROTOCOLE UNIFIÉ</span>
+  </div>
+</footer>
+
+</div>
+
+</body>
+</html>
