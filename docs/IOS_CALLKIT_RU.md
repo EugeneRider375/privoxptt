@@ -65,7 +65,9 @@ InvalidProviderToken`.
    `ios/phone/App/App.xcodeproj`.
 2. **Capabilities:** Push Notifications (в портале уже включён для App ID),
    Background Modes → Voice over IP (в `Info.plist` уже объявлено:
-   `UIBackgroundModes: audio, voip`).
+   `UIBackgroundModes: audio, voip`), **Associated Domains** со строкой
+   `applinks:ptt.privox.tech` — это включает Universal Links, серверная половина
+   которых уже готова (см. ниже).
 3. **`PKPushRegistry`** — зарегистрироваться на VoIP-push, получить токен,
    отправить его на `POST /api/devices/register` как `voipToken` с
    `platform: "IOS"`.
@@ -85,6 +87,34 @@ InvalidProviderToken`.
 6. **Отчёт о решении** — `responseUrl` (`POST /api/calls/respond`) с
    `responseToken`, как это делает Android в `CallResponseReporter.java`. Так
    звонящий видит «ответил» или «отклонил», не дожидаясь запуска WebView.
+
+## Universal Links — серверная половина готова
+
+Чтобы QR-приглашение открывало приложение, а не Safari (iOS-аналог Android App
+Links из D6), нужны две половины. **Серверная сделана:**
+
+`web/public/.well-known/apple-app-site-association` — файл проверки
+принадлежности. Отдаётся уже настроенным блоком nginx, где стоит
+`default_type application/json`: **у файла нет расширения**, и без этой строки
+он ушёл бы с неверным типом, а Apple такой файл не принимает.
+
+Область намеренно узкая — только `/join/*`:
+
+    "components": [{ "/": "/join/*" }]
+
+Заявлять весь домен нельзя: тогда и обычные страницы сайта начали бы
+открываться в приложении.
+
+**Осталась половина на MacBook:** entitlement Associated Domains со строкой
+`applinks:ptt.privox.tech` (шаг 2 выше). Пока его нет, файл просто лежит без
+дела и ничего не ломает.
+
+Проверить после выкатки:
+
+    curl -sI https://ptt.privox.tech/.well-known/apple-app-site-association
+
+Должно быть `200` и `content-type: application/json`, **без перенаправлений** —
+Apple их не прощает.
 
 ## Решающий опыт — поставить сразу после первого рабочего звонка
 

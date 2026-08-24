@@ -1,0 +1,15 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["2ND5G88WGD.tech.privox.ptt"],
+        "components": [
+          {
+            "/": "/join/*",
+            "comment": "Персональное приглашение по QR открывается в приложении, а не в Safari"
+          }
+        ]
+      }
+    ]
+  }
+}

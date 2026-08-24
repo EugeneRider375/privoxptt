@@ -56,9 +56,23 @@ function initFirebase(): boolean {
   }
 }
 
+/**
+ * Есть ли куда слать push. По этому признаку рисуется «синий» кружок
+ * достижимости и принимается решение доставлять ли вызов вообще
+ * (`deliverUserCall` в socket/ptt.ts), поэтому врать он не должен.
+ *
+ * Раньше считалось любое включённое устройство. Этого мало: у записи может не
+ * остаться НИ ОДНОГО токена — например, когда Apple объявила VoIP-токен мёртвым
+ * и мы его обнулили. Такое устройство недостижимо, а показывалось достижимым, и
+ * вызов отчитывался доставленным, хотя отправлять было некуда.
+ */
 export async function hasReachablePushDevice(userId: string): Promise<boolean> {
   const count = await prisma.device.count({
-    where: { userId, enabled: true },
+    where: {
+      userId,
+      enabled: true,
+      OR: [{ pushToken: { not: null } }, { voipToken: { not: null } }],
+    },
   });
   return count > 0;
 }
