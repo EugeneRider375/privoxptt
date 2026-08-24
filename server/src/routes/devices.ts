@@ -83,9 +83,26 @@ devicesRouter.post('/register', async (req: Request, res: Response, next: NextFu
 
 devicesRouter.post('/unregister', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { pushToken } = z.object({ pushToken: z.string().min(20).max(4096) }).parse(req.body);
+    // iPhone шлёт свой VoIP-токен как unregister-ключ (getToken() на iOS
+    // возвращает voipToken, см. useNativePush.ts) — pushToken там мог и не
+    // выдаваться вовсе, если человек не разрешил обычные уведомления.
+    const schema = z
+      .object({
+        pushToken: z.string().min(20).max(4096).optional(),
+        voipToken: z.string().min(20).max(4096).optional(),
+      })
+      .refine((v) => Boolean(v.pushToken || v.voipToken), {
+        message: 'Either pushToken or voipToken is required',
+      });
+    const { pushToken, voipToken } = schema.parse(req.body);
     await prisma.device.updateMany({
-      where: { pushToken, userId: req.user!.userId },
+      where: {
+        userId: req.user!.userId,
+        OR: [
+          ...(pushToken ? [{ pushToken }] : []),
+          ...(voipToken ? [{ voipToken }] : []),
+        ],
+      },
       data: { enabled: false },
     });
     res.json({ ok: true });

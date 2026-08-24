@@ -1,14 +1,40 @@
 import UIKit
 import Capacitor
+import PushKit
+import CallKit
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?
 
+    private var voipRegistry: PKPushRegistry!
+    private var callProvider: CXProvider!
+    // Не отчитавшиеся звонки: CXEndCallAction прилетает и при отклонении
+    // непринятого звонка, и при завершении уже отвеченного — по этому
+    // множеству различаем, что именно произошло.
+    private var answeredCallUUIDs = Set<UUID>()
+
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        setupVoipPush()
+        setupCallKit()
         return true
+    }
+
+    private func setupVoipPush() {
+        voipRegistry = PKPushRegistry(queue: .main)
+        voipRegistry.delegate = self
+        voipRegistry.desiredPushTypes = [.voIP]
+    }
+
+    private func setupCallKit() {
+        let configuration = CXProviderConfiguration()
+        configuration.supportsVideo = false
+        configuration.maximumCallGroups = 1
+        configuration.maximumCallsPerCallGroup = 1
+        configuration.supportedHandleTypes = [.generic]
+        callProvider = CXProvider(configuration: configuration)
+        callProvider.setDelegate(self, queue: nil)
     }
 
     func applicationWillResignActive(_ application: UIApplication) {
@@ -40,5 +66,109 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                                           sessionRole: connectingSceneSession.role)
         config.delegateClass = SceneDelegate.self
         return config
+    }
+}
+
+// MARK: - PushKit (VoIP push)
+
+extension AppDelegate: PKPushRegistryDelegate {
+    func pushRegistry(_ registry: PKPushRegistry, didUpdate pushCredentials: PKPushCredentials, for type: PKPushType) {
+        guard type == .voIP else { return }
+        let token = pushCredentials.token.map { String(format: "%02x", $0) }.joined()
+        PendingCallStore.setVoipToken(token)
+    }
+
+    func pushRegistry(_ registry: PKPushRegistry, didInvalidatePushTokenFor type: PKPushType) {
+        guard type == .voIP else { return }
+        PendingCallStore.setVoipToken(nil)
+    }
+
+    // ⚠️ Начиная с iOS 13, каждый VoIP-push ОБЯЗАН немедленно закончиться
+    // reportNewIncomingCall — иначе система сначала придержит доставку, а
+    // затем перестанет будить приложение вовсе. Отчитываемся всегда, даже
+    // если сам вызов уже неактуален (сервер и так закроет его по таймауту).
+    func pushRegistry(
+        _ registry: PKPushRegistry,
+        didReceiveIncomingPushWith payload: PKPushPayload,
+        for type: PKPushType,
+        completion: @escaping () -> Void
+    ) {
+        guard type == .voIP else { completion(); return }
+
+        let data = payload.dictionaryPayload
+        let callId = string(data, "callId") ?? UUID().uuidString
+        let fromCallsign = string(data, "fromCallsign") ?? ""
+        let fromDisplayName = string(data, "fromDisplayName") ?? ""
+        let groupId = string(data, "groupId") ?? ""
+        let groupName = string(data, "groupName") ?? ""
+        let responseUrl = string(data, "responseUrl") ?? ""
+        let responseToken = string(data, "responseToken") ?? ""
+        let kind = string(data, "kind") ?? "user"
+
+        PendingCallStore.save(
+            callId: callId, fromCallsign: fromCallsign, fromDisplayName: fromDisplayName,
+            groupId: groupId, groupName: groupName, responseUrl: responseUrl,
+            responseToken: responseToken, kind: kind
+        )
+
+        let uuid = UUID(uuidString: callId) ?? UUID()
+        let update = CXCallUpdate()
+        let handleValue = fromCallsign.isEmpty ? "PRIVOX PTT" : fromCallsign
+        update.remoteHandle = CXHandle(type: .generic, value: handleValue)
+        update.localizedCallerName = fromDisplayName.isEmpty ? fromCallsign : fromDisplayName
+        update.hasVideo = false
+
+        callProvider.reportNewIncomingCall(with: uuid, update: update) { _ in
+            completion()
+        }
+    }
+
+    private func string(_ data: [AnyHashable: Any], _ key: String) -> String? {
+        data[key] as? String
+    }
+}
+
+// MARK: - CallKit (экран входящего звонка, ответ/отклонение)
+
+extension AppDelegate: CXProviderDelegate {
+    func providerDidReset(_ provider: CXProvider) {
+        answeredCallUUIDs.removeAll()
+    }
+
+    func provider(_ provider: CXProvider, perform action: CXAnswerCallAction) {
+        answeredCallUUIDs.insert(action.callUUID)
+        reportPendingStatus("answered")
+        action.fulfill()
+    }
+
+    func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
+        let wasAnswered = answeredCallUUIDs.remove(action.callUUID) != nil
+        if !wasAnswered {
+            // Отклонили непринятый звонок — сообщаем об этом сразу, не
+            // дожидаясь запуска WebView (см. CallResponseReporter).
+            reportPendingStatus("declined")
+        }
+        // Завершение уже отвеченного разговора — та же логика, что и кнопка
+        // HANG UP внутри приложения (call-hangup через сокет), отдельного
+        // отчёта через APNs-канал тут не нужно.
+        action.fulfill()
+    }
+
+    private func reportPendingStatus(_ status: String) {
+        guard let pending = PendingCallStore.consume() else { return }
+        // consume() уже вычистил хранилище — кладём обратно с новым статусом,
+        // чтобы PrivoxPushPlugin.consumePendingCall() на стороне WebView всё
+        // ещё нашёл эти данные, когда приложение откроется.
+        PendingCallStore.save(
+            callId: pending.callId, fromCallsign: pending.fromCallsign,
+            fromDisplayName: pending.fromDisplayName, groupId: pending.groupId,
+            groupName: pending.groupName, responseUrl: pending.responseUrl,
+            responseToken: pending.responseToken, kind: pending.kind
+        )
+        PendingCallStore.setResponseStatus(status)
+        CallResponseReporter.report(
+            responseUrl: pending.responseUrl, callId: pending.callId,
+            responseToken: pending.responseToken, status: status
+        )
     }
 }

@@ -19,11 +19,21 @@ interface PrivoxPushPlugin {
   clearMessageNotifications: (target: { groupId?: string; userId?: string }) => Promise<void>;
 }
 
-function getNativePushPlugin(): PrivoxPushPlugin | null {
-  const capacitor = (window as unknown as {
-    Capacitor?: { Plugins?: { PrivoxPush?: PrivoxPushPlugin } };
+function getCapacitor(): { Plugins?: { PrivoxPush?: PrivoxPushPlugin }; getPlatform?: () => string } | undefined {
+  return (window as unknown as {
+    Capacitor?: { Plugins?: { PrivoxPush?: PrivoxPushPlugin }; getPlatform?: () => string };
   }).Capacitor;
-  return capacitor?.Plugins?.PrivoxPush ?? null;
+}
+
+function getNativePushPlugin(): PrivoxPushPlugin | null {
+  return getCapacitor()?.Plugins?.PrivoxPush ?? null;
+}
+
+// iOS шлёт звонок через VoIP-push (PushKit), у него нет пуш-токена в обычном
+// смысле — getToken() на этой платформе возвращает именно voipToken
+// (см. AppDelegate.swift/PrivoxPushPlugin.swift). Android — как раньше, FCM.
+function isIos(): boolean {
+  return getCapacitor()?.getPlatform?.() === 'ios';
 }
 
 export async function unregisterNativePushDevice(): Promise<void> {
@@ -31,9 +41,8 @@ export async function unregisterNativePushDevice(): Promise<void> {
   if (!plugin) return;
 
   const { token } = await plugin.getToken();
-  if (token) {
-    await devicesApi.unregister(token);
-  }
+  if (!token) return;
+  await devicesApi.unregister(isIos() ? { voipToken: token } : { pushToken: token });
 }
 
 export async function clearNativeMessageNotifications(
@@ -89,9 +98,10 @@ export function useNativePush(): void {
       try {
         const { token } = await plugin.getToken();
         if (!token || disposed) return;
+        const ios = isIos();
         await devicesApi.register({
-          pushToken: token,
-          platform: 'ANDROID',
+          ...(ios ? { voipToken: token } : { pushToken: token }),
+          platform: ios ? 'IOS' : 'ANDROID',
           deviceName: navigator.userAgent.slice(0, 120),
           appVersion: '1.0',
         });
