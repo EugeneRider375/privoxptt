@@ -5,6 +5,7 @@ import { PRIVOX_MEDIA_RECOVER_EVENT } from './useWebRTC';
 
 interface PendingCall {
   callId?: string;
+  fromUserId?: string;
   fromCallsign?: string;
   fromDisplayName?: string;
   groupId?: string;
@@ -68,6 +69,22 @@ export function useNativePush(): void {
       if (disposed || !call.callId || !call.groupId) return;
 
       const state = useStore.getState();
+
+      // Индивидуальный звонок (kind: 'user'), отвеченный через нативный
+      // CallKit-экран, пока приложение было выгружено/в фоне: событие
+      // call-connected от сервера в этот момент ушло в пустоту — сокет ещё
+      // не был подключён, когда сервер его разослал (см. calls.ts). Поэтому
+      // ActiveCallScreen тут восстанавливается из данных самого push, а не
+      // ждёт повторной доставки события, которой не будет.
+      if (call.kind === 'user' && call.responseStatus === 'answered') {
+        state.setActiveCall({
+          callId: call.callId,
+          otherUserId: call.fromUserId ?? '',
+          otherCallsign: call.fromCallsign ?? '',
+        });
+        return;
+      }
+
       state.setActiveGroup(call.groupId);
       window.setTimeout(() => {
         window.dispatchEvent(new Event(PRIVOX_MEDIA_RECOVER_EVENT));

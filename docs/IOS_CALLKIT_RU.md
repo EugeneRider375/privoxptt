@@ -74,37 +74,69 @@ InvalidProviderToken`.
 ⚠️ Файл `.p8` **не в git**. При переезде на MacBook скопировать вручную вместе с
 остальными секретами (см. раздел 3 в `WORKSTATION_SETUP.md`).
 
-## Что осталось — нативная часть, только на MacBook
+## Нативная часть — ✅ СДЕЛАНО и проверено на живом iPhone, 2026-08-24
 
-На iMac iOS не собрать: там macOS 12.7.6, а Xcode 26.2 требует macOS 26.
+Все шесть шагов ниже выполнены (`ios/phone/App/App/AppDelegate.swift`,
+`PendingCallStore.swift`, `CallResponseReporter.swift`, `PrivoxPushPlugin.swift`,
+`MainViewController.swift`, `App.entitlements`). Звонок реально будит
+свёрнутый/заблокированный iPhone, показывает нативный экран, ответ поднимает
+дуплекс-разговор (D15) со звуком.
 
-1. **Xcode → Settings → Accounts** — аккаунт обновится с «Personal Team» на
-   платную; выбрать её в Signing & Capabilities проекта
-   `ios/phone/App/App.xcodeproj`.
-2. **Capabilities:** Push Notifications (в портале уже включён для App ID),
-   Background Modes → Voice over IP (в `Info.plist` уже объявлено:
-   `UIBackgroundModes: audio, voip`), **Associated Domains** со строкой
-   `applinks:ptt.privox.tech` — это включает Universal Links, серверная половина
-   которых уже готова (см. ниже).
-3. **`PKPushRegistry`** — зарегистрироваться на VoIP-push, получить токен,
-   отправить его на `POST /api/devices/register` как `voipToken` с
-   `platform: "IOS"`.
-4. **`CXProvider`** — в обработчике
-   `pushRegistry(_:didReceiveIncomingPushWith:for:completion:)` **немедленно**
-   вызвать `reportNewIncomingCall`.
+1. ✅ **Xcode → Settings → Accounts** — платная команда выбрана в
+   Signing & Capabilities. Ловушка: **в выпадающем списке Team платная команда
+   иногда не появляется сама** даже после добавления аккаунта — помогает
+   полный перезапуск Xcode (Quit, не просто закрыть окно проекта).
+2. ✅ **Capabilities:** Push Notifications, Background Modes → Voice over IP,
+   Associated Domains (`applinks:ptt.privox.tech`) — все три в
+   `App.entitlements`, подключены к таргету через `CODE_SIGN_ENTITLEMENTS` в
+   `project.pbxproj`.
+3. ✅ **`PKPushRegistry`** — токен получается и уходит на
+   `POST /api/devices/register` (`voipToken` + `platform: "IOS"`).
+4. ✅ **`CXProvider`** — `reportNewIncomingCall` вызывается немедленно на
+   каждый push, без исключений.
+5. ✅ **По ответу** — WebView открывается, дуплекс-звонок восстанавливается.
+6. ✅ **Отчёт о решении** — `responseUrl`/`responseToken`, зеркало Android
+   `CallResponseReporter.java`.
 
-   ⚠️ **Это не рекомендация, а условие работы канала.** Начиная с iOS 13, если
-   приложение получило VoIP-push и не отчиталось о звонке через CallKit, система
-   сперва придерживает доставку, а затем перестаёт будить приложение вовсе.
-   Отчитываться надо ВСЕГДА, даже если вызов уже неактуален — тогда сразу же
-   завершить звонок.
-5. **По ответу** — открыть WebView, войти в группу из полезной нагрузки, начать
-   обычный PTT. Поля в push те же, что у Android: `callId`, `fromCallsign`,
-   `fromDisplayName`, `groupId`, `groupName`, `responseToken`, `responseUrl`,
-   `kind`.
-6. **Отчёт о решении** — `responseUrl` (`POST /api/calls/respond`) с
-   `responseToken`, как это делает Android в `CallResponseReporter.java`. Так
-   звонящий видит «ответил» или «отклонил», не дожидаясь запуска WebView.
+### Находки по дороге — держать в голове при следующих правках
+
+- **`SceneDelegate.swift` создаёт корневой контроллер в коде**
+  (`window?.rootViewController = MainViewController()`), **Main.storyboard в
+  этом не участвует вообще.** Была потрачена куча времени на правку
+  `customClass` в storyboard — она ни на что не влияла. Если понадобится
+  что-то ещё завязать на "приложение загрузилось" — редактировать
+  `SceneDelegate.swift`/`MainViewController.swift`, не storyboard.
+- **Гонка состояний "ответил, но не подключилось".** Статус "answered" уходит
+  с сервера по живому Socket.IO (`call-connected`) в момент, когда WebView на
+  телефоне ещё даже не начал грузиться (сокет не подключён) — событие
+  теряется без следа, не буферизуется. Правка в
+  `web/src/hooks/useNativePush.ts`: при `kind: 'user' && responseStatus:
+  'answered'` состояние `activeCall` восстанавливается **локально из данных
+  самого push** (добавлено поле `fromUserId` по всей цепочке
+  push.ts → AppDelegate → PendingCallStore → PrivoxPushPlugin → JS), не
+  дожидаясь повторной доставки события, которой не будет.
+- **`print()` не виден нигде, если процесс запущен не из-под Xcode.**
+  `xcrun devicectl device process launch` работает, но stdout процесса не
+  долетает ни до `idevicesyslog`, ни до Console.app (оба ловят только
+  системные демоны на современной iOS). Диагностика печатью работает
+  ТОЛЬКО через прямой Run из Xcode (⌘R) с подключённым дебаггером — консоль
+  внизу окна.
+- Заблокированный экран отключает Xcode/`devicectl`/Console.app от
+  устройства — отладка (логи, `devicectl process launch`) требует
+  разблокированного телефона. Сама доставка push/показ CallKit-экрана этому
+  не подчиняется — работает и на блокировке, просто не понаблюдать вживую.
+
+### Осталась нестабильность — не чинили 24.08.2026, до следующей сессии
+
+- После "Ответить" иногда (не в каждой попытке) приложение само не выходит на
+  передний план — остаётся системный экран звонка, требует ручного
+  переключения. Похоже на гонку в самой активации CallKit → foreground,
+  не воспроизводится стабильно.
+- Разъединение с одной стороны не всегда гасит `activeCall` у собеседника —
+  перепроверить `call-ended` на свежем звонке (не на "зависшем" от более
+  раннего теста), возможно уже лечится правкой гонки состояний выше.
+- Групповой "будильник" (`kind: 'group'`) через CallKit ещё не тестировали
+  живьём — весь прогон 24.08.2026 был про индивидуальные (D15) звонки.
 
 ## Что уходит на серверы Apple — решено 24.08.2026
 

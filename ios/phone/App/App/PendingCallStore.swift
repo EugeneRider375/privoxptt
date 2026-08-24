@@ -12,6 +12,7 @@ enum PendingCallStore {
 
     struct Call {
         let callId: String
+        let fromUserId: String
         let fromCallsign: String
         let fromDisplayName: String
         let groupId: String
@@ -22,10 +23,11 @@ enum PendingCallStore {
         var responseStatus: String
     }
 
-    static func save(callId: String, fromCallsign: String, fromDisplayName: String,
+    static func save(callId: String, fromUserId: String, fromCallsign: String, fromDisplayName: String,
                       groupId: String, groupName: String, responseUrl: String,
                       responseToken: String, kind: String) {
         defaults.set(callId, forKey: prefix + "call_id")
+        defaults.set(fromUserId, forKey: prefix + "from_user_id")
         defaults.set(fromCallsign, forKey: prefix + "from_callsign")
         defaults.set(fromDisplayName, forKey: prefix + "from_display_name")
         defaults.set(groupId, forKey: prefix + "group_id")
@@ -52,6 +54,7 @@ enum PendingCallStore {
 
         return Call(
             callId: callId,
+            fromUserId: defaults.string(forKey: prefix + "from_user_id") ?? "",
             fromCallsign: defaults.string(forKey: prefix + "from_callsign") ?? "",
             fromDisplayName: defaults.string(forKey: prefix + "from_display_name") ?? "",
             groupId: defaults.string(forKey: prefix + "group_id") ?? "",
@@ -64,7 +67,7 @@ enum PendingCallStore {
     }
 
     private static func clear() {
-        for suffix in ["call_id", "from_callsign", "from_display_name", "group_id",
+        for suffix in ["call_id", "from_user_id", "from_callsign", "from_display_name", "group_id",
                        "group_name", "response_url", "response_token", "kind",
                        "response_status", "created_at"] {
             defaults.removeObject(forKey: prefix + suffix)

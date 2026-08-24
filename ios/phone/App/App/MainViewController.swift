@@ -6,7 +6,13 @@ import Capacitor
 /// Storyboard указывает на этот класс вместо стандартного CAPBridgeViewController
 /// (см. Main.storyboard, customClass).
 class MainViewController: CAPBridgeViewController {
+    override func viewDidLoad() {
+        print("[Privox] MainViewController.viewDidLoad — class is instantiated")
+        super.viewDidLoad()
+    }
+
     override func capacitorDidLoad() {
+        print("[Privox] MainViewController.capacitorDidLoad — registering PrivoxPushPlugin")
         bridge?.registerPluginInstance(PrivoxPushPlugin())
     }
 }

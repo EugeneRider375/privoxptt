@@ -16,6 +16,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     private var answeredCallUUIDs = Set<UUID>()
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        print("[Privox] didFinishLaunchingWithOptions")
         setupVoipPush()
         setupCallKit()
         return true
@@ -25,6 +26,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         voipRegistry = PKPushRegistry(queue: .main)
         voipRegistry.delegate = self
         voipRegistry.desiredPushTypes = [.voIP]
+        print("[Privox] PKPushRegistry configured, desiredPushTypes=[.voIP]")
     }
 
     private func setupCallKit() {
@@ -35,6 +37,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         configuration.supportedHandleTypes = [.generic]
         callProvider = CXProvider(configuration: configuration)
         callProvider.setDelegate(self, queue: nil)
+        print("[Privox] CXProvider configured")
     }
 
     func applicationWillResignActive(_ application: UIApplication) {
@@ -76,11 +79,13 @@ extension AppDelegate: PKPushRegistryDelegate {
         guard type == .voIP else { return }
         let token = pushCredentials.token.map { String(format: "%02x", $0) }.joined()
         PendingCallStore.setVoipToken(token)
+        print("[Privox] VoIP token received: \(token.prefix(12))... (\(token.count) hex chars)")
     }
 
     func pushRegistry(_ registry: PKPushRegistry, didInvalidatePushTokenFor type: PKPushType) {
         guard type == .voIP else { return }
         PendingCallStore.setVoipToken(nil)
+        print("[Privox] VoIP token invalidated")
     }
 
     // ⚠️ Начиная с iOS 13, каждый VoIP-push ОБЯЗАН немедленно закончиться
@@ -94,9 +99,11 @@ extension AppDelegate: PKPushRegistryDelegate {
         completion: @escaping () -> Void
     ) {
         guard type == .voIP else { completion(); return }
+        print("[Privox] Incoming VoIP push received: \(payload.dictionaryPayload)")
 
         let data = payload.dictionaryPayload
         let callId = string(data, "callId") ?? UUID().uuidString
+        let fromUserId = string(data, "fromUserId") ?? ""
         let fromCallsign = string(data, "fromCallsign") ?? ""
         let fromDisplayName = string(data, "fromDisplayName") ?? ""
         let groupId = string(data, "groupId") ?? ""
@@ -106,7 +113,7 @@ extension AppDelegate: PKPushRegistryDelegate {
         let kind = string(data, "kind") ?? "user"
 
         PendingCallStore.save(
-            callId: callId, fromCallsign: fromCallsign, fromDisplayName: fromDisplayName,
+            callId: callId, fromUserId: fromUserId, fromCallsign: fromCallsign, fromDisplayName: fromDisplayName,
             groupId: groupId, groupName: groupName, responseUrl: responseUrl,
             responseToken: responseToken, kind: kind
         )
@@ -118,7 +125,9 @@ extension AppDelegate: PKPushRegistryDelegate {
         update.localizedCallerName = fromDisplayName.isEmpty ? fromCallsign : fromDisplayName
         update.hasVideo = false
 
-        callProvider.reportNewIncomingCall(with: uuid, update: update) { _ in
+        callProvider.reportNewIncomingCall(with: uuid, update: update) { error in
+            if let error { print("[Privox] reportNewIncomingCall FAILED: \(error)") }
+            else { print("[Privox] reportNewIncomingCall OK, uuid=\(uuid)") }
             completion()
         }
     }
@@ -160,7 +169,7 @@ extension AppDelegate: CXProviderDelegate {
         // чтобы PrivoxPushPlugin.consumePendingCall() на стороне WebView всё
         // ещё нашёл эти данные, когда приложение откроется.
         PendingCallStore.save(
-            callId: pending.callId, fromCallsign: pending.fromCallsign,
+            callId: pending.callId, fromUserId: pending.fromUserId, fromCallsign: pending.fromCallsign,
             fromDisplayName: pending.fromDisplayName, groupId: pending.groupId,
             groupName: pending.groupName, responseUrl: pending.responseUrl,
             responseToken: pending.responseToken, kind: pending.kind

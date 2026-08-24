@@ -8,7 +8,11 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         guard let windowScene = scene as? UIWindowScene else { return }
 
         window = UIWindow(windowScene: windowScene)
-        window?.rootViewController = CAPBridgeViewController()
+        // Не голый CAPBridgeViewController — MainViewController регистрирует
+        // PrivoxPushPlugin через capacitorDidLoad(), иначе useNativePush.ts
+        // на веб-стороне не находит плагин и звонок никогда не доходит до
+        // iPhone в фоне (см. MainViewController.swift).
+        window?.rootViewController = MainViewController()
         window?.makeKeyAndVisible()
 
         SceneDelegateProxy.shared.scene(scene, willConnectTo: session, options: connectionOptions)

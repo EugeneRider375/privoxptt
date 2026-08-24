@@ -18,15 +18,18 @@ public class PrivoxPushPlugin: CAPPlugin, CAPBridgedPlugin {
     private static let tokenWaitMaxSteps = 15 // ~3с — PKPushRegistry обычно успевает раньше
 
     @objc func getToken(_ call: CAPPluginCall) {
+        print("[Privox] PrivoxPushPlugin.getToken called from JS")
         pollForToken(attemptsLeft: Self.tokenWaitMaxSteps, call: call)
     }
 
     private func pollForToken(attemptsLeft: Int, call: CAPPluginCall) {
         if let token = PendingCallStore.voipToken() {
+            print("[Privox] getToken resolving with token (\(attemptsLeft) attempts left)")
             call.resolve(["token": token])
             return
         }
         guard attemptsLeft > 0 else {
+            print("[Privox] getToken giving up — no VoIP token available after wait window")
             call.reject("VoIP token not available yet")
             return
         }
@@ -42,6 +45,7 @@ public class PrivoxPushPlugin: CAPPlugin, CAPBridgedPlugin {
         }
         call.resolve([
             "callId": pending.callId,
+            "fromUserId": pending.fromUserId,
             "fromCallsign": pending.fromCallsign,
             "fromDisplayName": pending.fromDisplayName,
             "groupId": pending.groupId,
