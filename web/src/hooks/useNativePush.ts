@@ -110,6 +110,22 @@ export function useNativePush(): void {
           otherUserId: call.fromUserId ?? '',
           otherCallsign: call.fromCallsign ?? '',
         });
+        // Если параллельно с VoIP-пушем на телефон успело прийти и обычное
+        // socket-уведомление user-call-incoming, карточка ANSWER/DECLINE уже
+        // лежит в alerts — а ответили мы тут, в обход неё, нажать было
+        // некому. Без этого она виснет навсегда (D24).
+        state.markCallAlertRead(call.callId);
+        return;
+      }
+
+      // Индивидуальный звонок уже отклонён на самом экране CallKit (слайдер
+      // "Decline") — сервер и собеседник об этом уже узнали через
+      // CallResponseReporter в момент отклонения, до открытия WebView.
+      // Показывать тут ANSWER/DECLINE ещё раз (или тянуть в /radio) было бы
+      // спором с уже принятым решением — тот же класс бага, что и D24, только
+      // для отказа, а не для ответа.
+      if (call.kind === 'user' && call.responseStatus === 'declined') {
+        state.markCallAlertRead(call.callId);
         return;
       }
 
@@ -173,6 +189,7 @@ export function useNativePush(): void {
     if (plugin.addListener) {
       Promise.resolve(
         plugin.addListener('callEndedNatively', ({ callId }) => {
+          useStore.getState().markCallAlertRead(callId);
           const current = useStore.getState().activeCall;
           if (current?.callId !== callId) return;
           hangupCall(callId);

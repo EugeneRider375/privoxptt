@@ -46,6 +46,7 @@ interface AppStore {
   alerts: Alert[];
   addAlert: (alert: Omit<Alert, 'id' | 'timestamp' | 'read'>) => void;
   markAlertRead: (id: string) => void;
+  markCallAlertRead: (callId: string) => void;
   clearAlerts: () => void;
 
   // ─── Вызовы диспетчера ──────────────────────────────────
@@ -159,6 +160,14 @@ export const useStore = create<AppStore>()(
         })),
       markAlertRead: (id) =>
         set((s) => ({ alerts: s.alerts.map((a) => (a.id === id ? { ...a, read: true } : a)) })),
+      // Звонок мог подключиться/завершиться в обход самой карточки ANSWER/DECLINE
+      // (нативный CallKit на iOS отвечает напрямую, минуя AlertPanel) — тогда
+      // некому нажать кнопку, которая обычно и прячет алерт. Ищем по callId,
+      // а не по id самого алерта, которого вызывающий код не знает (D24).
+      markCallAlertRead: (callId) =>
+        set((s) => ({
+          alerts: s.alerts.map((a) => (a.callId === callId ? { ...a, read: true } : a)),
+        })),
       clearAlerts: () => set({ alerts: [] }),
 
       // Вызовы диспетчера

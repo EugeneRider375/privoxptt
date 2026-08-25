@@ -212,7 +212,6 @@ export function useSocket() {
       groupName: string;
       createdAt: number;
     }) => {
-      console.log('[Socket] user-call-incoming received, adding ANSWER/DECLINE alert', { callId, kind, fromCallsign });
       useStore.getState().addAlert({
         type: 'info',
         variant: 'user-call',
@@ -250,9 +249,14 @@ export function useSocket() {
       callId: string; otherUserId: string; otherCallsign: string;
     }) => {
       useStore.getState().setActiveCall({ callId, otherUserId, otherCallsign });
+      // Звонок подключился — карточка ANSWER/DECLINE (если она успела прийти
+      // по живому сокету параллельно с VoIP-пушем на iOS) больше не актуальна,
+      // а нажать её было некому, если ответили через нативный CallKit (D24).
+      useStore.getState().markCallAlertRead(callId);
     });
 
     socket.on('call-ended', ({ callId }: { callId: string }) => {
+      useStore.getState().markCallAlertRead(callId);
       const current = useStore.getState().activeCall;
       if (current?.callId === callId) {
         useStore.getState().setActiveCall(null);
