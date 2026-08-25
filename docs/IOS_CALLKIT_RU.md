@@ -186,8 +186,9 @@ func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) 
 func provider(_ provider: CXProvider, didDeactivate audioSession: AVAudioSession) {}
 ```
 Собирается чисто (`xcodebuild ... -sdk iphonesimulator` → `BUILD SUCCEEDED`).
-**Не проверено на реальном звонке** — нужен новый Xcode-билд на телефон и
-повтор теста "Android звонит на iPhone, оба слышат друг друга".
+
+**✅ Проверено вживую 25.08.2026 (Eugene): «заработало».** Android звонит на
+iPhone — обе стороны слышат друг друга. Гипотеза подтвердилась полностью.
 
 **Осталось непроверенным:**
 - После "Ответить" иногда (не в каждой попытке) приложение само не выходит на
