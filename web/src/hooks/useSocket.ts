@@ -7,6 +7,7 @@ import { playMessageTone } from '@/utils/messageTone';
 import { playSensorAlarm } from '@/utils/sensorAlarm';
 import { messagesApi } from '@/api/client';
 import { refetchSensors } from '@/utils/sensors';
+import { endNativeCall } from './useNativePush';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || '';
 const SOCKET_ACK_TIMEOUT_MS = 6_000;
@@ -254,6 +255,12 @@ export function useSocket() {
       const current = useStore.getState().activeCall;
       if (current?.callId === callId) {
         useStore.getState().setActiveCall(null);
+        // Собеседник повесил трубку первым — на iOS системный экран CallKit
+        // (и зелёная "трубка" в статус-баре) сам не узнает об этом: только
+        // кнопка HANG UP внутри приложения сообщала об этом CallKit. Без
+        // этого вызова разговор считался бы продолжающимся до тех пор, пока
+        // человек не зашёл бы на нативный экран и не завершил там вручную.
+        endNativeCall(callId).catch(() => {});
       }
     });
 
