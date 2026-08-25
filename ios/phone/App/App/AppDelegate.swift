@@ -17,8 +17,15 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     let callController = CXCallController()
     // Не отчитавшиеся звонки: CXEndCallAction прилетает и при отклонении
     // непринятого звонка, и при завершении уже отвеченного — по этому
-    // множеству различаем, что именно произошло.
+    // множеству различаем, что именно произошло. Также отвечает на вопрос
+    // "а был ли этот звонок вообще в CallKit" — если приложение было
+    // на переднем плане, звонок мог прийти обычным сокетом (call-connected),
+    // минуя VoIP-push и reportNewIncomingCall целиком.
     private var answeredCallUUIDs = Set<UUID>()
+
+    func isKnownToCallKit(_ uuid: UUID) -> Bool {
+        answeredCallUUIDs.contains(uuid)
+    }
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         print("[Privox] didFinishLaunchingWithOptions")

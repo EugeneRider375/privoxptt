@@ -54,6 +54,16 @@ public class PrivoxPushPlugin: CAPPlugin, CAPBridgedPlugin {
                 call.reject("AppDelegate unavailable")
                 return
             }
+            // Звонок мог прийти обычным сокетом, пока приложение было на
+            // переднем плане (call-connected, без VoIP-push вообще) — тогда
+            // CallKit о нём не знает, и запрос на завершение закономерно
+            // упал бы с "error 4" (звонок не найден). Не ошибка, просто
+            // нечего гасить — тихо выходим.
+            guard appDelegate.isKnownToCallKit(uuid) else {
+                print("[Privox] endCall: \(uuid) never went through CallKit, nothing to end there")
+                call.resolve()
+                return
+            }
             let transaction = CXTransaction(action: CXEndCallAction(call: uuid))
             appDelegate.callController.request(transaction) { error in
                 if let error {
