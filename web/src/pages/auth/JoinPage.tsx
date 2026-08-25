@@ -36,11 +36,25 @@ interface InviteInfo {
  */
 const ANDROID_APK_URL = '/downloads/privox-ptt-android.apk';
 
+// Публичная ссылка TestFlight появляется после первой заливки сборки в
+// App Store Connect (Xcode → Archive → Distribute → TestFlight, затем
+// TestFlight → App Store Connect → Public Link). См. D23 в BACKLOG_RU.md.
+// Пока пусто — блок ниже просто не показывается, ничего не ломает.
+const IOS_TESTFLIGHT_URL = '';
+
 function isAndroidBrowser(): boolean {
   const ua = navigator.userAgent;
   // Внутри нашей обёртки предлагать установку незачем — она уже установлена.
   const insideApp = /wv|PrivoxT320/i.test(ua) || isRadioDevice();
   return /Android/i.test(ua) && !insideApp;
+}
+
+function isIosBrowser(): boolean {
+  const ua = navigator.userAgent;
+  // У iOS-обёртки (Capacitor WKWebView) UA не содержит "wv" как у Android —
+  // отличаем по наличию самого моста Capacitor в window.
+  const insideApp = !!(window as unknown as { Capacitor?: unknown }).Capacitor;
+  return /iPhone|iPad|iPod/i.test(ua) && !insideApp;
 }
 
 export function JoinPage() {
@@ -185,6 +199,24 @@ export function JoinPage() {
                   <a href={ANDROID_APK_URL}
                     className="flex items-center justify-center gap-2 border border-ptt-border text-ptt-text font-mono text-xs py-2 rounded hover:text-white">
                     <Download className="w-3 h-3" /> DOWNLOAD ANDROID APP
+                  </a>
+                </div>
+              )}
+
+              {/* iPhone: то же самое, но через TestFlight — Apple не даёт
+                  ставить .ipa напрямую с сайта, как APK на Android. */}
+              {isIosBrowser() && IOS_TESTFLIGHT_URL && (
+                <div className="pt-3 border-t border-ptt-border space-y-2">
+                  <p className="flex items-center gap-2 font-mono text-ptt-text text-[11px]">
+                    <Smartphone className="w-3.5 h-3.5" /> Using an iPhone?
+                  </p>
+                  <p className="font-mono text-ptt-muted text-[11px]">
+                    The app rings on incoming calls even with the screen locked. Install it via TestFlight, then open
+                    this same link again — the invitation stays valid.
+                  </p>
+                  <a href={IOS_TESTFLIGHT_URL}
+                    className="flex items-center justify-center gap-2 border border-ptt-border text-ptt-text font-mono text-xs py-2 rounded hover:text-white">
+                    <Download className="w-3 h-3" /> INSTALL VIA TESTFLIGHT
                   </a>
                 </div>
               )}

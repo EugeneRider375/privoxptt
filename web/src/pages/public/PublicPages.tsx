@@ -556,6 +556,10 @@ export function DownloadPage() {
   const androidApkUrl = '/downloads/privox-ptt-android.apk?v=14';
   const t320ApkUrl = '/downloads/privox-ptt-t320.apk?v=13';
   const webAppUrl = '/app';
+  // Заполняется публичной ссылкой TestFlight после первой заливки сборки
+  // (Xcode → Archive → Distribute → TestFlight → Public Link). См. D23 в
+  // BACKLOG_RU.md. Пока пусто — карточка ниже ведёт на веб-версию, как сейчас.
+  const iosTestFlightUrl = '';
 
   return (
     <PublicLayout>
@@ -587,10 +591,23 @@ export function DownloadPage() {
           <div className="rounded-lg border border-sky-200 bg-white p-6 shadow-sm">
             <BadgeCheck className="h-8 w-8 text-sky-600" />
             <h2 className="mt-5 text-xl font-bold text-slate-950">iPhone</h2>
-            <p className="mt-2 text-sm font-medium uppercase tracking-[0.12em] text-sky-700">Use web version</p>
-            <a href={webAppUrl} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-md bg-sky-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-sky-700">
-              Open web app <ExternalLink className="h-4 w-4" />
-            </a>
+            <p className="mt-2 text-sm font-medium uppercase tracking-[0.12em] text-sky-700">
+              {iosTestFlightUrl ? 'TestFlight app' : 'Use web version'}
+            </p>
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              {iosTestFlightUrl
+                ? 'Rings on incoming calls even with the screen locked.'
+                : 'Works fully in Safari — add it to your Home Screen below for an app-like experience.'}
+            </p>
+            {iosTestFlightUrl ? (
+              <a href={iosTestFlightUrl} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-md bg-sky-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-sky-700">
+                Install via TestFlight <ExternalLink className="h-4 w-4" />
+              </a>
+            ) : (
+              <a href={webAppUrl} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-md bg-sky-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-sky-700">
+                Open web app <ExternalLink className="h-4 w-4" />
+              </a>
+            )}
             <Link to="/docs" className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md border border-sky-200 bg-white px-4 py-3 font-semibold text-sky-700 transition hover:bg-sky-50">
               Setup guide <BookOpen className="h-4 w-4" />
             </Link>
