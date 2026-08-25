@@ -147,6 +147,48 @@ delegate` не на главном потоке (Main Thread Checker ловил 
 Проверено вживую несколько раз подряд: и когда разъединяется iPhone, и когда
 разъединяется собеседник — трубка гаснет сама в обоих случаях.
 
+### Односторонняя тишина при ответе через CallKit — найдено и исправлено 25.08.2026 (не проверено вживую)
+
+Живой тест: Android звонит на iPhone (дуплекс, D15) — iPhone слышит Android
+нормально, но **сам не передаёт ни звука**, независимо от того, был экран
+разблокирован заранее или ответили со свёрнутого/заблокированного. Обратная
+комбинация (iPhone звонит, Android отвечает) и Android-Android — работают
+в обе стороны. Значит дело не в маршрутизации Android (`PrivoxAudioPlugin`
+тут ни при чём) и не в mediasoup-сигналинге (проверено — код полностью
+симметричен для caller/callee, см. `useWebRTC.ts`, `server/src/mediasoup/
+router.ts`) — тишина именно в том, что **iPhone-callee не производит свой
+аудио-трек**, хотя как caller — производит без проблем.
+
+**Причина:** `AppDelegate.swift` реализовывал `CXProviderDelegate`, но не
+реализовывал `provider(_:didActivate: AVAudioSession)`/`didDeactivate:`.
+Это не опция, а часть контракта CallKit: система держит `AVAudioSession`
+под своим контролем на время входящего звонка и должна явно передать право
+её настроить и включить приложению именно через `didActivate` — без этого
+колбэка сессия остаётся в session category CallKit по умолчанию, не
+настроенной на запись. Внешне это выглядит как рабочий звонок (сигнализация,
+ICE/DTLS, WKWebView получает трек с микрофона) — реальные сэмплы в трек
+просто не пишутся. У caller эта проблема в принципе не может возникнуть:
+исходящий звонок никогда не проходит через `CXProvider` вообще.
+
+**Почему не всплывало раньше:** эта конкретная комбинация ролей (Android
+звонит, iPhone отвечает через CallKit) не была подтверждена рабочей ни разу
+до 25.08 — всё предыдущее тестирование сфокусировано на "iPhone отвечает",
+но без надёжного контроля, кто именно был на другом конце и не терялась ли
+разница между caller/callee на слух.
+
+**Исправление** (`AppDelegate.swift`, `import AVFoundation` + два новых
+метода `CXProviderDelegate`):
+```swift
+func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) {
+    try? audioSession.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetooth, .defaultToSpeaker])
+    try? audioSession.setActive(true)
+}
+func provider(_ provider: CXProvider, didDeactivate audioSession: AVAudioSession) {}
+```
+Собирается чисто (`xcodebuild ... -sdk iphonesimulator` → `BUILD SUCCEEDED`).
+**Не проверено на реальном звонке** — нужен новый Xcode-билд на телефон и
+повтор теста "Android звонит на iPhone, оба слышат друг друга".
+
 **Осталось непроверенным:**
 - После "Ответить" иногда (не в каждой попытке) приложение само не выходит на
   передний план — остаётся системный экран звонка. Похоже на гонку в самой

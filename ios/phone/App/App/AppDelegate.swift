@@ -2,6 +2,7 @@ import UIKit
 import Capacitor
 import PushKit
 import CallKit
+import AVFoundation
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -154,6 +155,30 @@ extension AppDelegate: PKPushRegistryDelegate {
 extension AppDelegate: CXProviderDelegate {
     func providerDidReset(_ provider: CXProvider) {
         answeredCallUUIDs.removeAll()
+    }
+
+    // ⚠️ Без этой пары CallKit держит AVAudioSession в своём собственном,
+    // "нейтральном" режиме — звонок визуально соединяется (сигналинг,
+    // ICE/DTLS в WebView отрабатывают штатно), WKWebView даже получает трек
+    // с микрофона, но реальные сэмплы в него не пишутся: категория сессии не
+    // выставлена на запись. Обнаружено 25.08.2026 живым тестом: Android
+    // звонит на iPhone — iPhone слышит собеседника, но сам не передаёт ни
+    // звука (проверялась только эта комбинация ролей: caller никогда не идёт
+    // через CXProvider вообще, поэтому у него проблемы не было). didActivate
+    // — единственное место, где приложению разрешено сконфигурировать и
+    // включить сессию под свои нужды (запись+воспроизведение).
+    func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) {
+        print("[Privox] CXProvider didActivate audioSession")
+        do {
+            try audioSession.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetooth, .defaultToSpeaker])
+            try audioSession.setActive(true)
+        } catch {
+            print("[Privox] Failed to configure/activate audio session: \(error)")
+        }
+    }
+
+    func provider(_ provider: CXProvider, didDeactivate audioSession: AVAudioSession) {
+        print("[Privox] CXProvider didDeactivate audioSession")
     }
 
     func provider(_ provider: CXProvider, perform action: CXAnswerCallAction) {
