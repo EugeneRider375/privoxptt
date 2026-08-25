@@ -212,6 +212,7 @@ export function useSocket() {
       groupName: string;
       createdAt: number;
     }) => {
+      console.log('[Socket] user-call-incoming received, adding ANSWER/DECLINE alert', { callId, kind, fromCallsign });
       useStore.getState().addAlert({
         type: 'info',
         variant: 'user-call',
