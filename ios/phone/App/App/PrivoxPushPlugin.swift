@@ -32,6 +32,7 @@ public class PrivoxPushPlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc private func handleCallEndedNatively(_ notification: Notification) {
         guard let callId = notification.userInfo?["callId"] as? String else { return }
+        print("[Privox] PrivoxPushPlugin forwarding callEndedNatively to JS, callId=\(callId)")
         notifyListeners("callEndedNatively", data: ["callId": callId])
     }
 
@@ -39,21 +40,28 @@ public class PrivoxPushPlugin: CAPPlugin, CAPBridgedPlugin {
     // сказать об этом CallKit, иначе системный экран звонка (и зелёная
     // "трубка" в статус-баре) останутся висеть, будто разговор продолжается.
     @objc func endCall(_ call: CAPPluginCall) {
+        print("[Privox] PrivoxPushPlugin.endCall called from JS, callId=\(call.getString("callId") ?? "nil")")
         guard let callIdString = call.getString("callId"), let uuid = UUID(uuidString: callIdString) else {
             call.reject("callId is required")
             return
         }
-        guard let appDelegate = UIApplication.shared.delegate as? AppDelegate else {
-            call.reject("AppDelegate unavailable")
-            return
-        }
-        let transaction = CXTransaction(action: CXEndCallAction(call: uuid))
-        appDelegate.callController.request(transaction) { error in
-            if let error {
-                print("[Privox] endCall request failed: \(error)")
-                call.reject("Failed to end call: \(error.localizedDescription)")
-            } else {
-                call.resolve()
+        // Capacitor вызывает методы плагина на своей bridge-очереди, а не на
+        // главном потоке — UIApplication.shared.delegate (как и CXCallController.
+        // request) обязаны идти на главном, иначе Main Thread Checker ругается
+        // (см. живой лог 25.08.2026: "UI API called on a background thread").
+        DispatchQueue.main.async {
+            guard let appDelegate = UIApplication.shared.delegate as? AppDelegate else {
+                call.reject("AppDelegate unavailable")
+                return
+            }
+            let transaction = CXTransaction(action: CXEndCallAction(call: uuid))
+            appDelegate.callController.request(transaction) { error in
+                if let error {
+                    print("[Privox] endCall request failed: \(error)")
+                    call.reject("Failed to end call: \(error.localizedDescription)")
+                } else {
+                    call.resolve()
+                }
             }
         }
     }

@@ -150,6 +150,7 @@ extension AppDelegate: CXProviderDelegate {
     }
 
     func provider(_ provider: CXProvider, perform action: CXAnswerCallAction) {
+        print("[Privox] CXAnswerCallAction, uuid=\(action.callUUID)")
         answeredCallUUIDs.insert(action.callUUID)
         reportPendingStatus("answered")
         action.fulfill()
@@ -157,6 +158,7 @@ extension AppDelegate: CXProviderDelegate {
 
     func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
         let wasAnswered = answeredCallUUIDs.remove(action.callUUID) != nil
+        print("[Privox] CXEndCallAction, uuid=\(action.callUUID), wasAnswered=\(wasAnswered)")
         if !wasAnswered {
             // Отклонили непринятый звонок — сообщаем об этом сразу, не
             // дожидаясь запуска WebView (см. CallResponseReporter).
@@ -171,6 +173,7 @@ extension AppDelegate: CXProviderDelegate {
             // .uuidString отдаёт заглавные буквы, а callId везде в JS/на
             // сервере — строчный UUID от Node randomUUID(); без lowercased()
             // сравнение строк на стороне WebView никогда бы не совпало.
+            print("[Privox] Posting privoxCallEndedNatively for \(action.callUUID.uuidString.lowercased())")
             NotificationCenter.default.post(
                 name: .privoxCallEndedNatively, object: nil,
                 userInfo: ["callId": action.callUUID.uuidString.lowercased()]
