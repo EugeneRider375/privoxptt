@@ -351,6 +351,7 @@ function PublicLayout({ children }: { children: React.ReactNode }) {
             <Link to="/docs" className="hover:text-sky-700">Docs</Link>
             <Link to="/faq" className="hover:text-sky-700">FAQ</Link>
             <Link to="/support" className="hover:text-sky-700">Support</Link>
+            <Link to="/privacy" className="hover:text-sky-700">Privacy</Link>
           </div>
         </div>
       </footer>
@@ -915,6 +916,153 @@ export function SupportPage() {
           </button>
           {sent && <p className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">Note prepared. Delivery integration will be added later.</p>}
         </form>
+      </main>
+    </PublicLayout>
+  );
+}
+
+export function PrivacyPage() {
+  return (
+    <PublicLayout>
+      <main className="bg-white px-4 py-16 sm:px-6 lg:px-8">
+        <SectionHeader
+          eyebrow="Privacy"
+          title="Privacy policy"
+          text="PRIVOX PTT is a private communication platform used by organizations for their own teams. This page explains what data the app handles and why."
+        />
+        <div className="mx-auto mt-10 max-w-3xl space-y-10 text-slate-700">
+          <p className="text-sm text-slate-500">Last updated: August 2026.</p>
+
+          <section>
+            <h2 className="text-xl font-bold text-slate-950">Who this applies to</h2>
+            <p className="mt-3 leading-7">
+              PRIVOX PTT is not a public consumer app. Accounts exist only inside an organization set up by its
+              administrator — there is no public sign-up. This policy covers the mobile apps (Android, iPhone), the
+              hardware radios that run the same software (Inrico T320, PRIVOX Mini Radio), and the web version.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-bold text-slate-950">What we collect and why</h2>
+            <div className="mt-4 space-y-4">
+              <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
+                <p className="font-semibold text-slate-950">Account information</p>
+                <p className="mt-1 text-sm leading-6">
+                  Callsign, display name, login or email, organization and group membership, and role. Created by
+                  your administrator when you are added to the system, not by you signing up.
+                </p>
+              </div>
+              <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
+                <p className="font-semibold text-slate-950">Microphone / voice</p>
+                <p className="mt-1 text-sm leading-6">
+                  Audio is streamed live to the other members of your radio channel or call, and to no one else. It
+                  is relayed through our server to make the connection possible, but is not recorded or stored
+                  anywhere along the way.
+                </p>
+              </div>
+              <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
+                <p className="font-semibold text-slate-950">Location</p>
+                <p className="mt-1 text-sm leading-6">
+                  If your administrator has enabled it, your device sends GPS coordinates so a dispatcher can see
+                  your position on the map. This can be turned off per person by an administrator at any time.
+                </p>
+              </div>
+              <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
+                <p className="font-semibold text-slate-950">Messages</p>
+                <p className="mt-1 text-sm leading-6">
+                  Text messages and attachments sent inside the app are stored on our server so conversations and
+                  history remain available to the people in that conversation.
+                </p>
+              </div>
+              <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
+                <p className="font-semibold text-slate-950">Push notifications</p>
+                <p className="mt-1 text-sm leading-6">
+                  To ring your phone for an incoming call or message while the app is not open, we send a small
+                  notification through Apple (APNs) on iPhone or Google (FCM) on Android. That notification includes
+                  who is calling, their callsign, and the group name — enough to show a useful call screen. It does
+                  not include the audio, message text, or attachments themselves.
+                </p>
+              </div>
+              <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
+                <p className="font-semibold text-slate-950">Sensor data (organizations using PRIVOX sensors)</p>
+                <p className="mt-1 text-sm leading-6">
+                  Readings such as temperature, humidity, or alarm state from an organization's own connected
+                  sensors, visible to that organization's dispatchers and admins.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-bold text-slate-950">What we do not do</h2>
+            <ul className="mt-3 space-y-2 text-sm leading-6">
+              {[
+                'No advertising and no ad networks — the app has none.',
+                'No selling or sharing of your data with third parties for their own marketing.',
+                'No recording of voice calls or radio traffic.',
+                'No access to data outside your own organization — organizations are isolated from each other.',
+              ].map((item) => (
+                <li key={item} className="flex gap-2">
+                  <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-bold text-slate-950">Who can see your data</h2>
+            <p className="mt-3 leading-7">
+              Data is visible to the people it is meant for: other members of a group or call for voice and
+              messages, and your organization's dispatchers/admins for location and sensor alarms — depending on the
+              permissions your administrator has set. Apple and Google process the small push notification payload
+              described above purely to deliver it to your device; they are not given access to your account,
+              messages, or voice traffic.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-bold text-slate-950">How long we keep it</h2>
+            <p className="mt-3 leading-7">
+              Account, message, and location data is kept for as long as your account is active in the
+              organization. Voice audio is never stored — it exists only for the moment of transmission. If your
+              administrator removes your account, your access ends immediately; contact your administrator about
+              removing historical data tied to your account.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-bold text-slate-950">Permissions the app asks for</h2>
+            <ul className="mt-3 space-y-2 text-sm leading-6">
+              {[
+                'Microphone — required to transmit on the radio channel or in a call.',
+                'Location — only used if your organization enables live location for dispatchers.',
+                'Notifications — required to ring or alert you for incoming calls and messages.',
+              ].map((item) => (
+                <li key={item} className="flex gap-2">
+                  <Lock className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-bold text-slate-950">Children</h2>
+            <p className="mt-3 leading-7">
+              PRIVOX PTT is a professional communication tool for organizations and is not directed at children.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-bold text-slate-950">Questions or requests</h2>
+            <p className="mt-3 leading-7">
+              For questions about this policy, or to request access, correction, or deletion of your data, contact
+              your organization's administrator, or reach us through the{' '}
+              <Link to="/support" className="font-semibold text-sky-700 hover:underline">Support page</Link>.
+            </p>
+          </section>
+        </div>
       </main>
     </PublicLayout>
   );
