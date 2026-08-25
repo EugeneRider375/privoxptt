@@ -621,6 +621,25 @@ export function DownloadPage() {
             </Link>
           </div>
         </div>
+        <section className="mx-auto mt-8 max-w-5xl rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-xl font-bold text-slate-950">Two ways to sign in</h2>
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <div className="rounded-md bg-slate-50 p-4 text-sm leading-6 text-slate-600">
+              <p className="font-semibold text-slate-950">QR invitation (fastest)</p>
+              <p className="mt-2">
+                Your administrator sends a personal QR code or link. Scan it or open the link, confirm your name and group, and tap JOIN — no password to type. Works the same on Android and iPhone, in the app or in the browser.
+              </p>
+            </div>
+            <div className="rounded-md bg-slate-50 p-4 text-sm leading-6 text-slate-600">
+              <p className="font-semibold text-slate-950">Login and password</p>
+              <p className="mt-2">
+                If you were given a login (short name or email) and a password instead — for example on a dedicated radio — open{' '}
+                <Link to="/login" className="font-semibold text-sky-700 hover:underline">the sign-in page</Link>{' '}
+                and enter them there. This also works as a backup if your QR invitation link stops working.
+              </p>
+            </div>
+          </div>
+        </section>
         <section className="mx-auto mt-8 max-w-5xl rounded-lg border border-amber-300 bg-amber-50 p-6">
           <h2 className="text-lg font-bold text-slate-950">Upgrading from an earlier build? Uninstall it first</h2>
           <p className="mt-3 leading-7 text-slate-700">
@@ -675,6 +694,26 @@ export function DownloadPage() {
             Signed release build, distributed directly from this site. Upgrading from an earlier test build requires uninstalling it first — the signing key changed. Play Store distribution is planned later.
           </p>
         </section>
+        {iosTestFlightUrl && (
+          <section className="mx-auto mt-8 max-w-5xl rounded-lg border border-sky-200 bg-white p-6 shadow-sm">
+            <h2 className="text-xl font-bold text-slate-950">iPhone installation steps (TestFlight)</h2>
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              Apple does not allow installing apps directly from a website, so the PRIVOX PTT app for iPhone is distributed through Apple&apos;s own TestFlight program instead. This is a one-time setup — updates install automatically afterwards.
+            </p>
+            <ol className="mt-4 grid gap-3 text-sm leading-6 text-slate-600 md:grid-cols-2">
+              <li className="rounded-md bg-slate-50 p-4"><span className="font-semibold text-slate-950">1.</span> Install the free TestFlight app from the App Store (search &quot;TestFlight&quot;, by Apple).</li>
+              <li className="rounded-md bg-slate-50 p-4"><span className="font-semibold text-slate-950">2.</span> On your iPhone, open this page and tap Install via TestFlight below, or open the link your administrator sent you.</li>
+              <li className="rounded-md bg-slate-50 p-4"><span className="font-semibold text-slate-950">3.</span> In TestFlight, tap Accept, then Install for PRIVOX PTT.</li>
+              <li className="rounded-md bg-slate-50 p-4"><span className="font-semibold text-slate-950">4.</span> Open PRIVOX PTT from your Home Screen, sign in (QR invitation or login and password), and allow microphone access when asked.</li>
+            </ol>
+            <a href={iosTestFlightUrl} className="mt-5 inline-flex items-center gap-2 rounded-md bg-sky-600 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-sky-700">
+              Install via TestFlight <ExternalLink className="h-4 w-4" />
+            </a>
+            <p className="mt-4 text-xs text-slate-500">
+              TestFlight builds expire after 90 days and are replaced with a newer one before that happens — TestFlight installs the update automatically, no action needed.
+            </p>
+          </section>
+        )}
         <section className="mx-auto mt-8 grid max-w-5xl gap-5 md:grid-cols-2">
           <div className="rounded-lg border border-emerald-200 bg-white p-6 shadow-sm">
             <h2 className="text-xl font-bold text-slate-950">Tester checklist</h2>
