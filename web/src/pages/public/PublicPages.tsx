@@ -560,7 +560,7 @@ export function DownloadPage() {
   // Заполняется публичной ссылкой TestFlight после первой заливки сборки
   // (Xcode → Archive → Distribute → TestFlight → Public Link). См. D23 в
   // BACKLOG_RU.md. Пока пусто — карточка ниже ведёт на веб-версию, как сейчас.
-  const iosTestFlightUrl = '';
+  const iosTestFlightUrl = 'https://testflight.apple.com/join/zRVpz5WR';
 
   return (
     <PublicLayout>

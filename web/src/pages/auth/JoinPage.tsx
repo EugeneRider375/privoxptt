@@ -40,7 +40,7 @@ const ANDROID_APK_URL = '/downloads/privox-ptt-android.apk';
 // App Store Connect (Xcode → Archive → Distribute → TestFlight, затем
 // TestFlight → App Store Connect → Public Link). См. D23 в BACKLOG_RU.md.
 // Пока пусто — блок ниже просто не показывается, ничего не ломает.
-const IOS_TESTFLIGHT_URL = '';
+const IOS_TESTFLIGHT_URL = 'https://testflight.apple.com/join/zRVpz5WR';
 
 function isAndroidBrowser(): boolean {
   const ua = navigator.userAgent;
