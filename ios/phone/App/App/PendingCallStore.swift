@@ -1,5 +1,13 @@
 import Foundation
 
+extension Notification.Name {
+    /// CXEndCallAction прилетел для уже ОТВЕЧЕННОГО звонка — то есть человек
+    /// нажал "завершить" на нативном экране CallKit, а не на кнопке HANG UP
+    /// внутри приложения. WebView не узнал бы об этом сам: у него нет
+    /// подписки на системные события звонка. userInfo: ["callId": String].
+    static let privoxCallEndedNatively = Notification.Name("privoxCallEndedNatively")
+}
+
 /// Данные входящего звонка между получением VoIP-push и тем моментом, когда
 /// WebView поднимется и заберёт их через PrivoxPushPlugin.consumePendingCall().
 /// Зеркало Android SharedPreferences-хранилища в PrivoxPushPlugin.java —

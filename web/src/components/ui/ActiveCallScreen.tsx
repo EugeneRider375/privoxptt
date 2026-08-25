@@ -3,6 +3,7 @@ import { PhoneCall, PhoneOff, Volume2, Ear } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { useWebRTC } from '@/hooks/useWebRTC';
 import { hangupCall } from '@/hooks/useSocket';
+import { endNativeCall } from '@/hooks/useNativePush';
 import { canRouteAudio, setAudioRoute } from '@/utils/audioRoute';
 
 function formatDuration(seconds: number): string {
@@ -61,6 +62,10 @@ export function ActiveCallScreen() {
 
   const handleHangup = () => {
     hangupCall(activeCall.callId);
+    // Без этого системный экран CallKit (и зелёная "трубка" в статус-баре
+    // на iOS) остался бы висеть, будто разговор продолжается — WebView сам
+    // не может его закрыть, только через нативный мост.
+    endNativeCall(activeCall.callId).catch(() => {});
     // call-ended вернётся с сервера и сам почистит activeCall в сторе,
     // но локально завершаем сразу — не ждать round-trip перед закрытием UI.
     useStore.getState().setActiveCall(null);

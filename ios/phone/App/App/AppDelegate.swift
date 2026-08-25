@@ -10,6 +10,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     private var voipRegistry: PKPushRegistry!
     private var callProvider: CXProvider!
+    // Обратный канал: PrivoxPushPlugin.endCall() из JS запрашивает через него
+    // завершение звонка в CallKit — иначе кнопка HANG UP внутри приложения
+    // гасит только наш WebRTC-разговор, а системный экран звонка (зелёная
+    // "трубка" в статус-баре) остаётся висеть, будто разговор продолжается.
+    let callController = CXCallController()
     // Не отчитавшиеся звонки: CXEndCallAction прилетает и при отклонении
     // непринятого звонка, и при завершении уже отвеченного — по этому
     // множеству различаем, что именно произошло.
@@ -156,10 +161,21 @@ extension AppDelegate: CXProviderDelegate {
             // Отклонили непринятый звонок — сообщаем об этом сразу, не
             // дожидаясь запуска WebView (см. CallResponseReporter).
             reportPendingStatus("declined")
+        } else {
+            // Уже отвеченный разговор завершили с нативного экрана CallKit,
+            // а не кнопкой HANG UP внутри приложения — WebView сам об этом не
+            // узнает (нет подписки на системные события звонка), поэтому
+            // уведомляем через NotificationCenter → PrivoxPushPlugin
+            // передаёт это в JS, чтобы тот закрыл ActiveCallScreen и сообщил
+            // серверу call-hangup (иначе собеседник останется "на линии").
+            // .uuidString отдаёт заглавные буквы, а callId везде в JS/на
+            // сервере — строчный UUID от Node randomUUID(); без lowercased()
+            // сравнение строк на стороне WebView никогда бы не совпало.
+            NotificationCenter.default.post(
+                name: .privoxCallEndedNatively, object: nil,
+                userInfo: ["callId": action.callUUID.uuidString.lowercased()]
+            )
         }
-        // Завершение уже отвеченного разговора — та же логика, что и кнопка
-        // HANG UP внутри приложения (call-hangup через сокет), отдельного
-        // отчёта через APNs-канал тут не нужно.
         action.fulfill()
     }
 

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { devicesApi } from '@/api/client';
 import { useStore } from '@/store/useStore';
+import { hangupCall } from './useSocket';
 import { PRIVOX_MEDIA_RECOVER_EVENT } from './useWebRTC';
 
 interface PendingCall {
@@ -14,10 +15,24 @@ interface PendingCall {
   kind?: 'user' | 'group';
 }
 
+interface PluginListenerHandle {
+  remove: () => Promise<void> | void;
+}
+
 interface PrivoxPushPlugin {
   getToken: () => Promise<{ token: string }>;
   consumePendingCall: () => Promise<PendingCall>;
   clearMessageNotifications: (target: { groupId?: string; userId?: string }) => Promise<void>;
+  // Только iOS — сообщить CallKit, что разговор завершён кнопкой внутри
+  // приложения, иначе системный экран звонка остаётся висеть.
+  endCall?: (data: { callId: string }) => Promise<void>;
+  // Обратное направление: звонок завершили с нативного экрана CallKit, а не
+  // кнопкой в приложении — плагин присылает это как событие, не как ответ на
+  // вызов.
+  addListener?: (
+    eventName: string,
+    callback: (data: { callId: string }) => void,
+  ) => Promise<PluginListenerHandle> | PluginListenerHandle;
 }
 
 function getCapacitor(): { Plugins?: { PrivoxPush?: PrivoxPushPlugin }; getPlatform?: () => string } | undefined {
@@ -44,6 +59,19 @@ export async function unregisterNativePushDevice(): Promise<void> {
   const { token } = await plugin.getToken();
   if (!token) return;
   await devicesApi.unregister(isIos() ? { voipToken: token } : { pushToken: token });
+}
+
+// Кнопка HANG UP внутри приложения → сообщить CallKit, что разговор окончен.
+// На Android плагин этот метод не реализует (там нет системного экрана
+// звонка, нечего гасить) — тихо ничего не делаем.
+export async function endNativeCall(callId: string): Promise<void> {
+  const plugin = getNativePushPlugin();
+  if (!plugin?.endCall || !isIos()) return;
+  try {
+    await plugin.endCall({ callId });
+  } catch (err) {
+    console.warn('[Push] endCall (CallKit) failed:', err);
+  }
 }
 
 export async function clearNativeMessageNotifications(
@@ -136,6 +164,25 @@ export function useNativePush(): void {
       }
     };
 
+    // Разговор завершили с нативного экрана CallKit (не кнопкой в
+    // приложении) — сами мы об этом не узнаем без этой подписки: у WebView
+    // нет доступа к системным событиям звонка. Дальше — тот же путь, что и
+    // для HANG UP внутри приложения: сообщить серверу (иначе собеседник
+    // останется "на линии") и убрать ActiveCallScreen локально.
+    let removeCallEndedListener: (() => void) | undefined;
+    if (plugin.addListener) {
+      Promise.resolve(
+        plugin.addListener('callEndedNatively', ({ callId }) => {
+          const current = useStore.getState().activeCall;
+          if (current?.callId !== callId) return;
+          hangupCall(callId);
+          useStore.getState().setActiveCall(null);
+        }),
+      )
+        .then((handle) => { removeCallEndedListener = () => handle.remove(); })
+        .catch((err) => console.warn('[Push] Failed to subscribe to callEndedNatively:', err));
+    }
+
     register();
     document.addEventListener('visibilitychange', onVisibilityChange);
     window.addEventListener('focus', onVisibilityChange);
@@ -143,6 +190,7 @@ export function useNativePush(): void {
       disposed = true;
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('focus', onVisibilityChange);
+      removeCallEndedListener?.();
     };
   }, [accessToken]);
 }

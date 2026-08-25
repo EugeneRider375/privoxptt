@@ -1,4 +1,6 @@
 import Foundation
+import UIKit
+import CallKit
 import Capacitor
 
 /// Тот же контракт (имя плагина, методы, поля), что и Android PrivoxPushPlugin.java
@@ -12,10 +14,49 @@ public class PrivoxPushPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "getToken", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "consumePendingCall", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "clearMessageNotifications", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "endCall", returnType: CAPPluginReturnPromise),
     ]
 
     private static let tokenWaitStepMs = 200
     private static let tokenWaitMaxSteps = 15 // ~3с — PKPushRegistry обычно успевает раньше
+
+    // Слушаем "завершили с нативного экрана CallKit" (см. AppDelegate,
+    // CXEndCallAction) и пересылаем в JS — иначе ActiveCallScreen никогда не
+    // узнает, что разговор закончен, и повиснет с открытым WebRTC-каналом.
+    public override func load() {
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(handleCallEndedNatively(_:)),
+            name: .privoxCallEndedNatively, object: nil
+        )
+    }
+
+    @objc private func handleCallEndedNatively(_ notification: Notification) {
+        guard let callId = notification.userInfo?["callId"] as? String else { return }
+        notifyListeners("callEndedNatively", data: ["callId": callId])
+    }
+
+    // Обратное направление: кнопку HANG UP нажали ВНУТРИ приложения — нужно
+    // сказать об этом CallKit, иначе системный экран звонка (и зелёная
+    // "трубка" в статус-баре) останутся висеть, будто разговор продолжается.
+    @objc func endCall(_ call: CAPPluginCall) {
+        guard let callIdString = call.getString("callId"), let uuid = UUID(uuidString: callIdString) else {
+            call.reject("callId is required")
+            return
+        }
+        guard let appDelegate = UIApplication.shared.delegate as? AppDelegate else {
+            call.reject("AppDelegate unavailable")
+            return
+        }
+        let transaction = CXTransaction(action: CXEndCallAction(call: uuid))
+        appDelegate.callController.request(transaction) { error in
+            if let error {
+                print("[Privox] endCall request failed: \(error)")
+                call.reject("Failed to end call: \(error.localizedDescription)")
+            } else {
+                call.resolve()
+            }
+        }
+    }
 
     @objc func getToken(_ call: CAPPluginCall) {
         print("[Privox] PrivoxPushPlugin.getToken called from JS")
