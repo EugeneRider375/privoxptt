@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { Component, useEffect, type ReactNode } from 'react';
 import { useStore } from '@/store/useStore';
 import { LoginPage } from '@/pages/auth/LoginPage';
@@ -48,6 +48,46 @@ function RoleRouter() {
   return <Navigate to="/radio" replace />;
 }
 
+interface DeepLinkPluginHandle {
+  addListener: (
+    eventName: string,
+    callback: (data: { url: string }) => void,
+  ) => Promise<{ remove: () => Promise<void> | void }> | { remove: () => Promise<void> | void };
+}
+
+// Universal Link (/join/<токен> и т.п.) уже доставляется в приложение на
+// нативной стороне (PrivoxDeepLinkPlugin.swift, см. SceneDelegate.swift) —
+// без этого слушателя WebView просто остаётся на том экране, что был,
+// полностью игнорируя ссылку, по которой открыли приложение.
+function DeepLinkHandler() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const plugin = (window as unknown as {
+      Capacitor?: { Plugins?: { PrivoxDeepLink?: DeepLinkPluginHandle } };
+    }).Capacitor?.Plugins?.PrivoxDeepLink;
+    if (!plugin) return;
+
+    let removeListener: (() => void) | undefined;
+    Promise.resolve(
+      plugin.addListener('deepLinkOpened', ({ url }) => {
+        try {
+          const { pathname, search } = new URL(url);
+          navigate(pathname + search);
+        } catch (err) {
+          console.warn('[DeepLink] Failed to parse opened URL:', err);
+        }
+      }),
+    )
+      .then((handle) => { removeListener = () => handle.remove(); })
+      .catch((err) => console.warn('[DeepLink] Failed to subscribe:', err));
+
+    return () => removeListener?.();
+  }, [navigate]);
+
+  return null;
+}
+
 export default function App() {
   useNativePush();
 
@@ -70,6 +110,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <BrowserRouter>
+        <DeepLinkHandler />
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/download" element={<DownloadPage />} />

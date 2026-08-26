@@ -23,6 +23,18 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
 
     func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
+        // Universal Link (открытие /join/<токен> и т.п.) приходит именно
+        // сюда — webpageURL и есть та самая ссылка, по которой открыли
+        // приложение. См. PrivoxDeepLinkPlugin.swift за тем, что происходит
+        // дальше (без него WebView просто остаётся на дефолтном экране).
+        if userActivity.activityType == NSUserActivityTypeBrowsingWeb,
+           let url = userActivity.webpageURL {
+            print("[Privox] Universal Link opened: \(url.absoluteString)")
+            NotificationCenter.default.post(
+                name: .privoxDeepLinkOpened, object: nil,
+                userInfo: ["url": url.absoluteString]
+            )
+        }
         SceneDelegateProxy.shared.scene(scene, continue: userActivity)
     }
 }
