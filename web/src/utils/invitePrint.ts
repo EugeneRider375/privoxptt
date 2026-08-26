@@ -82,6 +82,7 @@ export async function openInviteSheet(
   <div class="cards">${cards.join('')}</div>
   <footer>
     Scan the QR code with the phone camera, or open the link below it. Temporary passwords must be changed after the first sign-in.
+    Need help or a different phone? ptt.privox.tech/download
   </footer>
   <script>window.addEventListener('load', () => window.print());<\/script>
 </body>
@@ -118,9 +119,10 @@ export function buildInviteMessage(
     '',
     // Человек, открывший ссылку в браузере, уже на связи; про приложение он
     // узнает только если ему сказать — кнопку на странице легко не заметить.
-    'It works right away in the browser. On Android you can also install the',
-    'app from the same page — it keeps working with the screen off and rings',
-    'on incoming calls. After installing, open this link once more.',
+    'It works right away in the browser. You can also install the app from',
+    'the same page (Android: direct download; iPhone: via TestFlight) — it',
+    'keeps working with the screen off and rings on incoming calls. After',
+    'installing, open this link once more.',
   ];
 
   if (member.login) {

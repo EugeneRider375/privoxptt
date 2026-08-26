@@ -100,6 +100,14 @@ export async function renderInviteCard(
   ctx.fillStyle = '#888888';
   ctx.font = '14px -apple-system, "Segoe UI", Roboto, sans-serif';
   ctx.fillText(`Valid until ${new Date(expiresAt).toLocaleDateString()}`, textX, y);
+  y += 20;
+
+  // Одна строка на случай, если QR не читается или человек открывает
+  // карточку позже с другого телефона — полная инструкция уже есть на
+  // /download (шаги под Android и iPhone, вход по логину/паролю).
+  ctx.fillStyle = '#999999';
+  ctx.font = '13px -apple-system, "Segoe UI", Roboto, sans-serif';
+  ctx.fillText('Need help or a different phone? ptt.privox.tech/download', textX, y);
 
   return await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('toBlob failed'))), 'image/png');
