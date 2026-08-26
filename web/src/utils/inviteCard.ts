@@ -85,7 +85,9 @@ export async function renderInviteCard(
 
   ctx.fillStyle = '#666666';
   ctx.font = '15px -apple-system, "Segoe UI", Roboto, sans-serif';
-  ctx.fillText('Scan the code, or open the link:', textX, y);
+  ctx.fillText('Point your phone camera at the code, then tap JOIN.', textX, y);
+  y += 20;
+  ctx.fillText('No app needed to start — link below if the camera can’t open it:', textX, y);
   y += 22;
 
   // Ссылка длинная — переносим, иначе она уедет за край карточки.

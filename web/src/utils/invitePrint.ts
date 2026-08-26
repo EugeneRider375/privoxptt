@@ -81,7 +81,7 @@ export async function openInviteSheet(
   </header>
   <div class="cards">${cards.join('')}</div>
   <footer>
-    Scan the QR code with the phone camera, or open the link below it. Temporary passwords must be changed after the first sign-in.
+    Point your phone camera at the code, then tap JOIN. No app needed to start — use the link below the code if the camera can't open it. Temporary passwords must be changed after the first sign-in.
     Need help or a different phone? ptt.privox.tech/download
   </footer>
   <script>window.addEventListener('load', () => window.print());<\/script>
