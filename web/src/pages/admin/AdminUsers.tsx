@@ -473,7 +473,7 @@ export function AdminUsers() {
                     yes{activityUser.registeredAt ? ` · ${formatDateTime(activityUser.registeredAt)}` : ''}
                   </span>
                 ) : (
-                  <span className="text-ptt-warn">not yet — invitation never activated</span>
+                  <span className="text-ptt-warn">not yet — never signed in</span>
                 )}
               </p>
               <p className="font-mono text-xs">

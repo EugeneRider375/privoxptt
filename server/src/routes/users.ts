@@ -92,17 +92,24 @@ usersRouter.get('/', requireAdmin, async (req: Request, res: Response, next: Nex
       orderBy: { callsign: 'asc' },
     });
 
-    // Регистрация = хотя бы одно приглашение когда-либо было активировано.
-    // Не по последнему приглашению: реиссью для уже активного человека
-    // (например T320-рация, которой перевыпустили QR) создаёт новую запись
-    // со статусом CREATED, и по ней одной было бы похоже, что человек
-    // никогда не заходил, хотя он уже год в эфире.
+    // Регистрация = когда-либо реально заходил в систему. Изначально считали
+    // только по Invite.activatedAt — оказалось неверно (найдено 2026-08-27,
+    // Eugene): суперадмин, старые участники и T320-рации заведены НАПРЯМУЮ
+    // логином/паролем, без инвайта вообще (D10 — QR на рации непрактичен по
+    // дизайну), у них просто нет такой записи, хотя они годами в эфире.
+    // lastSeen выставляется при первом же онлайн-переходе независимо от
+    // способа создания аккаунта — универсальный признак. Активированный
+    // инвайт добавлен как подстраховка на случай, если человек успел
+    // активироваться, но ещё ни разу не подключался по сокету.
     const activatedInvites = await prisma.invite.findMany({
       where: { userId: { in: users.map((u) => u.id) }, activatedAt: { not: null } },
       select: { userId: true },
       distinct: ['userId'],
     });
-    const registeredIds = new Set(activatedInvites.map((i) => i.userId));
+    const activatedIds = new Set(activatedInvites.map((i) => i.userId));
+    const registeredIds = new Set(
+      users.filter((u) => u.lastSeen !== null || activatedIds.has(u.id)).map((u) => u.id)
+    );
 
     // Добавляем онлайн статус из Redis
     const usersWithOnline = await Promise.all(
@@ -191,7 +198,10 @@ usersRouter.get('/:id', async (req: Request, res: Response, next: NextFunction) 
       ...user,
       isOnline,
       isReachable: isOnline || hasPush,
-      hasRegistered: !!activatedInvite,
+      // См. комментарий у GET /api/users — не только по инвайту, иначе
+      // суперадмин/старые участники/T320-рации (заведены напрямую, без
+      // QR-приглашения вообще) ложно показывались бы как незарегистрированные.
+      hasRegistered: !!activatedInvite || user.lastSeen !== null,
       registeredAt: activatedInvite?.activatedAt ?? null,
     });
   } catch (err) {
