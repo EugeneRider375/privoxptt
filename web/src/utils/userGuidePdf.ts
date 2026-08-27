@@ -4,17 +4,22 @@
  * в отличие от inviteCard.ts/invitePdf.ts).
  *
  * Встроенные шрифты jsPDF знают только Latin-1 — кириллица и французские
- * диакритики просто не отрисуются. Вместо ручной embed-шрифтов используем
- * штатный doc.html() (внутри — html2canvas, уже есть в зависимостях из-за
- * jsPDF): страница рисуется браузером как обычный HTML, значит любой язык
- * рендерится тем же способом, что и весь остальной сайт.
+ * диакритики просто не отрисуются. Вместо ручного embed-шрифтов рендерим
+ * страницу браузером (html2canvas — уже в зависимостях), а картинку кладём
+ * в PDF сами через doc.addImage(), нарезая по высоте страницы вручную.
+ *
+ * ⚠️ Штатный jsPDF-метод doc.html() (тоже под капотом использует html2canvas)
+ * здесь НЕ подошёл — на практике отдавал пустые страницы (проверено
+ * 27.08.2026 на реальной загрузке). Прямой вызов html2canvas() с ручной
+ * вставкой картинки — тот же приём, что уже надёжно работает в проекте для
+ * QR-кодов (inviteCard.ts, invitePdf.ts), поэтому выбран вместо доводки
+ * капризного doc.html().
  */
 
-const CONTENT_WIDTH_PT = 515; // A4 (595pt) минус поля по 40pt с каждой стороны
 const RENDER_WIDTH_PX = 760; // ширина off-screen контейнера для html2canvas
+const PAGE_MARGIN_PT = 24;
 
-function section(lang: 'ru' | 'en' | 'fr', firstPage: boolean): string {
-  const pageBreak = firstPage ? '' : 'page-break-before: always;';
+function guideSectionHtml(lang: 'ru' | 'en' | 'fr'): string {
   const content: Record<'ru' | 'en' | 'fr', string> = {
     ru: `
       <h1>PRIVOX PTT — инструкция для абонента</h1>
@@ -107,54 +112,102 @@ function section(lang: 'ru' | 'en' | 'fr', firstPage: boolean): string {
       </ul>
     `,
   };
-  return `<div style="${pageBreak} font-family: -apple-system, 'Segoe UI', Roboto, Arial, sans-serif; color:#111; padding-top:${firstPage ? '0' : '4px'}">${content[lang]}</div>`;
-}
-
-function buildGuideHtml(): string {
   return `
-    <style>
-      h1 { font-size: 22px; margin: 0 0 6px; }
-      h2 { font-size: 15px; margin: 18px 0 6px; color: #0A6E3A; }
-      p, li { font-size: 12px; line-height: 1.5; margin: 4px 0; }
-      p.lead { color: #555; font-style: italic; }
-      ul { margin: 4px 0; padding-left: 18px; }
-      b { color: #000; }
-    </style>
-    ${section('ru', true)}
-    ${section('en', false)}
-    ${section('fr', false)}
+    <div style="font-family: -apple-system, 'Segoe UI', Roboto, Arial, sans-serif; color:#111; background:#fff; padding: 4px;">
+      <style>
+        h1 { font-size: 22px; margin: 0 0 6px; }
+        h2 { font-size: 15px; margin: 18px 0 6px; color: #0A6E3A; }
+        p, li { font-size: 12px; line-height: 1.5; margin: 4px 0; }
+        p.lead { color: #555; font-style: italic; }
+        ul { margin: 4px 0; padding-left: 18px; }
+        b { color: #000; }
+      </style>
+      ${content[lang]}
+    </div>
   `;
 }
 
-export async function downloadUserGuidePdf(): Promise<void> {
-  const { jsPDF } = await import('jspdf');
-  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-
+/** Рисует один язык в off-screen контейнере и возвращает готовый canvas. */
+async function renderSectionCanvas(
+  html2canvas: typeof import('html2canvas').default,
+  lang: 'ru' | 'en' | 'fr',
+): Promise<HTMLCanvasElement> {
   const container = document.createElement('div');
-  container.innerHTML = buildGuideHtml();
+  container.innerHTML = guideSectionHtml(lang);
   container.style.position = 'fixed';
-  container.style.left = '-99999px';
   container.style.top = '0';
+  container.style.left = '0';
   container.style.width = `${RENDER_WIDTH_PX}px`;
+  container.style.zIndex = '-1';
   document.body.appendChild(container);
 
   try {
-    await new Promise<void>((resolve, reject) => {
-      doc.html(container, {
-        x: 40,
-        y: 30,
-        width: CONTENT_WIDTH_PT,
-        windowWidth: RENDER_WIDTH_PX,
-        autoPaging: 'text',
-        callback: () => resolve(),
-        // На случай, если сам рендер выбросит исключение синхронно.
-        html2canvas: { logging: false },
-      });
-    }).catch((err) => {
-      throw err instanceof Error ? err : new Error(String(err));
+    return await html2canvas(container, {
+      width: RENDER_WIDTH_PX,
+      windowWidth: RENDER_WIDTH_PX,
+      scale: 2,
+      backgroundColor: '#ffffff',
+      logging: false,
     });
-    doc.save('privox-ptt-guide-ru-en-fr.pdf');
   } finally {
     document.body.removeChild(container);
   }
+}
+
+/** Кладёт высокую картинку в PDF, разрезая её на страницы по высоте A4. */
+function addCanvasAsPages(doc: import('jspdf').jsPDF, canvas: HTMLCanvasElement, isFirstPageOverall: boolean): void {
+  const pageWidthPt = doc.internal.pageSize.getWidth();
+  const pageHeightPt = doc.internal.pageSize.getHeight();
+  const usableWidthPt = pageWidthPt - PAGE_MARGIN_PT * 2;
+  const usableHeightPt = pageHeightPt - PAGE_MARGIN_PT * 2;
+
+  const pxToPt = usableWidthPt / canvas.width;
+  const pageHeightPx = usableHeightPt / pxToPt;
+
+  let renderedPx = 0;
+  let firstSlice = true;
+  while (renderedPx < canvas.height) {
+    const sliceHeightPx = Math.min(pageHeightPx, canvas.height - renderedPx);
+
+    const pageCanvas = document.createElement('canvas');
+    pageCanvas.width = canvas.width;
+    pageCanvas.height = Math.ceil(sliceHeightPx);
+    const ctx = pageCanvas.getContext('2d');
+    if (!ctx) throw new Error('canvas 2d context is not available');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+    ctx.drawImage(canvas, 0, renderedPx, canvas.width, sliceHeightPx, 0, 0, canvas.width, sliceHeightPx);
+
+    if (!(isFirstPageOverall && firstSlice)) doc.addPage();
+    firstSlice = false;
+
+    doc.addImage(
+      pageCanvas.toDataURL('image/png'),
+      'PNG',
+      PAGE_MARGIN_PT,
+      PAGE_MARGIN_PT,
+      usableWidthPt,
+      sliceHeightPx * pxToPt,
+    );
+
+    renderedPx += sliceHeightPx;
+  }
+}
+
+export async function downloadUserGuidePdf(): Promise<void> {
+  const [{ jsPDF }, html2canvasModule] = await Promise.all([
+    import('jspdf'),
+    import('html2canvas'),
+  ]);
+  const html2canvas = html2canvasModule.default;
+
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  const languages: Array<'ru' | 'en' | 'fr'> = ['ru', 'en', 'fr'];
+
+  for (let i = 0; i < languages.length; i++) {
+    const canvas = await renderSectionCanvas(html2canvas, languages[i]);
+    addCanvasAsPages(doc, canvas, i === 0);
+  }
+
+  doc.save('privox-ptt-guide-ru-en-fr.pdf');
 }
