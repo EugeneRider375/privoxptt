@@ -81,9 +81,17 @@ export function DispatcherMap() {
           style={{ background: '#101610' }}
         >
           <MapAutoCenter locations={locationList} />
+          {/* CARTO (basemaps.cartocdn.com) ужесточил условия бесплатного
+              анонимного доступа — тайлы стали отдавать плашку "get an API
+              key" вместо карты (замечено 2026-08-27, ключа в проекте не
+              было никогда, это изменение на стороне CARTO). OpenStreetMap —
+              единственный крупный провайдер тайлов, не требующий ключа
+              вообще, ценой менее стилизованного вида и собственной политики
+              разумного использования (без проблем для внутреннего
+              инструмента с горсткой диспетчеров). */}
           <TileLayer
-            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-            attribution='&copy; <a href="https://carto.com/">CARTO</a>'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           />
 
           {locationList.map((loc) => {
