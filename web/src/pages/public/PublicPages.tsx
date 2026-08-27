@@ -31,6 +31,7 @@ import { unregisterNativePushDevice } from '@/hooks/useNativePush';
 import { PrivoxLogo } from '@/components/brand/PrivoxLogo';
 import { disconnectPrivoxSocket } from '@/hooks/useSocket';
 import { useStore } from '@/store/useStore';
+import { downloadUserGuidePdf } from '@/utils/userGuidePdf';
 
 const navLinks = [
   { to: '/download', label: 'Download' },
@@ -550,6 +551,36 @@ function HelpSection() {
   );
 }
 
+function GuideDownloadButton() {
+  const [state, setState] = useState<'idle' | 'working' | 'error'>('idle');
+
+  async function handleClick() {
+    setState('working');
+    try {
+      await downloadUserGuidePdf();
+      setState('idle');
+    } catch (err) {
+      console.error('[Guide PDF] Failed to generate:', err);
+      setState('error');
+    }
+  }
+
+  return (
+    <div className="mt-5">
+      <button
+        onClick={handleClick}
+        disabled={state === 'working'}
+        className="inline-flex items-center gap-2 rounded-md bg-emerald-600 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-60"
+      >
+        {state === 'working' ? 'Preparing PDF…' : 'Download the guide (PDF)'} <Download className="h-4 w-4" />
+      </button>
+      {state === 'error' && (
+        <p className="mt-3 text-sm text-red-600">Could not generate the PDF. Try again, or use a different browser.</p>
+      )}
+    </div>
+  );
+}
+
 export function DownloadPage() {
   // Сборки подписаны рабочим ключом PRIVOX — обновляются поверх предыдущих.
   // ?v= обязателен и должен расти с каждой сборкой: без него Cloudflare и
@@ -640,6 +671,15 @@ export function DownloadPage() {
               </p>
             </div>
           </div>
+        </section>
+        <section className="mx-auto mt-8 max-w-5xl rounded-lg border border-emerald-200 bg-white p-6 shadow-sm">
+          <h2 className="text-xl font-bold text-slate-950">Printable step-by-step guide</h2>
+          <p className="mt-3 leading-7 text-slate-600">
+            A plain-language walkthrough — scanning the code, installing the app, signing in, and using push-to-talk
+            — in Russian, English, and French. Good for printing or sending over WhatsApp to someone new to
+            smartphones.
+          </p>
+          <GuideDownloadButton />
         </section>
         <section className="mx-auto mt-8 max-w-5xl rounded-lg border border-amber-300 bg-amber-50 p-6">
           <h2 className="text-lg font-bold text-slate-950">Upgrading from an earlier build? Uninstall it first</h2>
