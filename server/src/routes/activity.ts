@@ -14,11 +14,13 @@ activityRouter.get('/', requireDispatcher, async (req: Request, res: Response, n
     const type = typeof req.query.type === 'string' && req.query.type in ActivityLogType
       ? (req.query.type as ActivityLogType)
       : undefined;
+    const userId = typeof req.query.userId === 'string' ? req.query.userId : undefined;
 
     const logs = await prisma.activityLog.findMany({
       where: {
         ...(req.user!.role === UserRole.SUPERADMIN ? {} : { organizationId: req.user!.organizationId }),
         ...(type ? { type } : {}),
+        ...(userId ? { userId } : {}),
       },
       orderBy: { createdAt: 'desc' },
       take: limit,

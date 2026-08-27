@@ -92,6 +92,18 @@ usersRouter.get('/', requireAdmin, async (req: Request, res: Response, next: Nex
       orderBy: { callsign: 'asc' },
     });
 
+    // Регистрация = хотя бы одно приглашение когда-либо было активировано.
+    // Не по последнему приглашению: реиссью для уже активного человека
+    // (например T320-рация, которой перевыпустили QR) создаёт новую запись
+    // со статусом CREATED, и по ней одной было бы похоже, что человек
+    // никогда не заходил, хотя он уже год в эфире.
+    const activatedInvites = await prisma.invite.findMany({
+      where: { userId: { in: users.map((u) => u.id) }, activatedAt: { not: null } },
+      select: { userId: true },
+      distinct: ['userId'],
+    });
+    const registeredIds = new Set(activatedInvites.map((i) => i.userId));
+
     // Добавляем онлайн статус из Redis
     const usersWithOnline = await Promise.all(
       users.map(async (u) => {
@@ -99,7 +111,7 @@ usersRouter.get('/', requireAdmin, async (req: Request, res: Response, next: Nex
           isUserOnline(u.id),
           hasReachablePushDevice(u.id),
         ]);
-        return { ...u, isOnline, isReachable: isOnline || hasPush };
+        return { ...u, isOnline, isReachable: isOnline || hasPush, hasRegistered: registeredIds.has(u.id) };
       })
     );
 
@@ -166,11 +178,22 @@ usersRouter.get('/:id', async (req: Request, res: Response, next: NextFunction) 
       throw new AppError(403, 'Access denied');
     }
 
-    const [isOnline, hasPush] = await Promise.all([
+    const [isOnline, hasPush, activatedInvite] = await Promise.all([
       isUserOnline(user.id),
       hasReachablePushDevice(user.id),
+      prisma.invite.findFirst({
+        where: { userId: user.id, activatedAt: { not: null } },
+        orderBy: { activatedAt: 'asc' },
+        select: { activatedAt: true },
+      }),
     ]);
-    res.json({ ...user, isOnline, isReachable: isOnline || hasPush });
+    res.json({
+      ...user,
+      isOnline,
+      isReachable: isOnline || hasPush,
+      hasRegistered: !!activatedInvite,
+      registeredAt: activatedInvite?.activatedAt ?? null,
+    });
   } catch (err) {
     next(err);
   }

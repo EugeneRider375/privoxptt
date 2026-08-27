@@ -15,6 +15,9 @@ export interface User {
   isOnline?: boolean;
   isReachable?: boolean;
   lastSeen?: string;
+  /** Хотя бы одно приглашение когда-либо было активировано этим человеком. */
+  hasRegistered?: boolean;
+  registeredAt?: string | null;
   organizationId: string;
   organization?: Organization;
   groupMembers?: GroupMembership[];

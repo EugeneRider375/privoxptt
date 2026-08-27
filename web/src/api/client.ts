@@ -217,7 +217,7 @@ export const invitesApi = {
 
 // ─── Activity log ─────────────────────────────────────────
 export const activityApi = {
-  list: (params?: { limit?: number; type?: string }) =>
+  list: (params?: { limit?: number; type?: string; userId?: string }) =>
     api.get('/activity', { params }).then((r) => r.data),
 };
 

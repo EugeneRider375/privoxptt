@@ -1,9 +1,16 @@
 import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, RotateCcw, Search, X, Check, MicOff, Ban, Power } from 'lucide-react';
-import { usersApi, groupsApi, orgsApi } from '@/api/client';
+import { Plus, Pencil, Trash2, RotateCcw, Search, X, Check, MicOff, Ban, Power, History, LogIn, LogOut, Clock } from 'lucide-react';
+import { usersApi, groupsApi, orgsApi, activityApi } from '@/api/client';
 import { useStore } from '@/store/useStore';
-import type { User, Group, UserRole, Organization } from '@/types';
+import type { User, Group, UserRole, Organization, ActivityLogEntry } from '@/types';
 import clsx from 'clsx';
+
+function formatDateTime(value: string): string {
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: '2-digit', month: '2-digit', year: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  }).format(new Date(value));
+}
 
 const ROLES: UserRole[] = ['USER', 'DISPATCHER', 'ADMIN', 'SUPERADMIN'];
 const ROLE_COLOR: Record<UserRole, string> = {
@@ -43,6 +50,9 @@ export function AdminUsers() {
   const [resetDone, setResetDone] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [activityUser, setActivityUser] = useState<User | null>(null);
+  const [activityLogs, setActivityLogs] = useState<ActivityLogEntry[]>([]);
+  const [activityLoading, setActivityLoading] = useState(false);
 
   const load = () => {
     usersApi.list(isSuperAdmin ? selectedOrgId || undefined : undefined).then(setUsers).catch(console.error);
@@ -162,6 +172,20 @@ export function AdminUsers() {
     }
   }
 
+  async function openActivity(u: User) {
+    setActivityUser(u);
+    setActivityLoading(true);
+    try {
+      const logs = await activityApi.list({ userId: u.id, limit: 100 });
+      setActivityLogs(logs);
+    } catch (e) {
+      console.error(e);
+      setActivityLogs([]);
+    } finally {
+      setActivityLoading(false);
+    }
+  }
+
   async function handleDelete(u: User) {
     if (!confirm(`Delete ${u.callsign}?`)) return;
     await usersApi.delete(u.id).catch(console.error);
@@ -233,6 +257,7 @@ export function AdminUsers() {
                 <th className="text-left font-mono text-ptt-muted text-xs px-3 py-2 tracking-widest">LOGIN</th>
                 {isSuperAdmin && <th className="text-left font-mono text-ptt-muted text-xs px-3 py-2 tracking-widest">ORG</th>}
                 <th className="text-left font-mono text-ptt-muted text-xs px-3 py-2 tracking-widest">ROLE</th>
+                <th className="text-left font-mono text-ptt-muted text-xs px-3 py-2 tracking-widest">REGISTERED</th>
                 <th className="text-left font-mono text-ptt-muted text-xs px-3 py-2 tracking-widest">STATUS</th>
                 <th className="px-3 py-2" />
               </tr>
@@ -259,6 +284,18 @@ export function AdminUsers() {
                   )}
                   <td className={clsx('px-3 py-2.5 font-mono text-xs', ROLE_COLOR[u.role])}>{u.role}</td>
                   <td className="px-3 py-2.5">
+                    {/* Не по последнему приглашению: реиссью для уже
+                        активного человека создаёт новую запись со статусом
+                        CREATED, поэтому сервер уже свёл это в один флаг. */}
+                    {u.hasRegistered ? (
+                      <span className="inline-flex items-center gap-1 font-mono text-xs text-ptt-green">
+                        <Check className="w-3.5 h-3.5" /> yes
+                      </span>
+                    ) : (
+                      <span className="font-mono text-xs text-ptt-muted">not yet</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5">
                     {u.isActive === false ? (
                       // Отключённый аккаунт: в эфир не выйдет и войти не сможет,
                       // поэтому online/offline тут ничего не значат.
@@ -283,6 +320,9 @@ export function AdminUsers() {
                   </td>
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-2 justify-end">
+                      <button onClick={() => openActivity(u)} title="Registration & online history" className="text-ptt-muted hover:text-ptt-blue transition-colors">
+                        <History className="w-3.5 h-3.5" />
+                      </button>
                       <button onClick={() => openEdit(u)} className="text-ptt-muted hover:text-white transition-colors">
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
@@ -419,6 +459,53 @@ export function AdminUsers() {
           >
             RESET PASSWORD
           </button>
+        </Modal>
+      )}
+
+      {activityUser && (
+        <Modal title={`ACTIVITY — ${activityUser.callsign}`} onClose={() => setActivityUser(null)}>
+          <div className="space-y-3 max-h-[70vh] overflow-y-auto">
+            <div className="rounded border border-ptt-border bg-ptt-dark p-3 space-y-1">
+              <p className="font-mono text-xs">
+                <span className="text-ptt-muted">Registered: </span>
+                {activityUser.hasRegistered ? (
+                  <span className="text-ptt-green">
+                    yes{activityUser.registeredAt ? ` · ${formatDateTime(activityUser.registeredAt)}` : ''}
+                  </span>
+                ) : (
+                  <span className="text-ptt-warn">not yet — invitation never activated</span>
+                )}
+              </p>
+              <p className="font-mono text-xs">
+                <span className="text-ptt-muted">Last seen: </span>
+                <span className="text-ptt-text">{activityUser.lastSeen ? formatDateTime(activityUser.lastSeen) : '—'}</span>
+              </p>
+            </div>
+
+            <p className="font-mono text-ptt-muted text-[11px] tracking-widest">ONLINE / OFFLINE HISTORY</p>
+            {activityLoading ? (
+              <p className="text-center font-mono text-ptt-muted text-xs py-6">LOADING...</p>
+            ) : activityLogs.length === 0 ? (
+              <p className="text-center font-mono text-ptt-muted text-xs py-6">NO ACTIVITY YET</p>
+            ) : (
+              <ul className="space-y-1.5">
+                {activityLogs.map((log) => {
+                  const online = log.type === 'USER_ONLINE';
+                  const Icon = online ? LogIn : LogOut;
+                  return (
+                    <li key={log.id} className="flex items-center gap-2 font-mono text-xs">
+                      <Icon className={clsx('w-3.5 h-3.5 shrink-0', online ? 'text-ptt-green' : 'text-ptt-muted')} />
+                      <Clock className="w-3 h-3 text-ptt-muted shrink-0" />
+                      <span className="text-ptt-text">{formatDateTime(log.createdAt)}</span>
+                      <span className={online ? 'text-ptt-green' : 'text-ptt-muted'}>
+                        {online ? 'online' : 'offline'}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
         </Modal>
       )}
     </div>
