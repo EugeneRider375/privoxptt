@@ -115,8 +115,8 @@ const docs = [
   },
   {
     title: 'iPhone and desktop web',
-    text: 'iPhone users can use the web version in Safari while native iOS distribution is planned later.',
-    items: ['Open /app in Safari on iPhone', 'Use Share -> Add to Home Screen for a home icon', 'Keep the web app open for incoming calls', 'Locked-screen iPhone wake-up requires a future native iOS/APNs app', 'On desktop, use a modern browser and allow microphone access'],
+    text: 'iPhone users can use the web version in Safari, or install the native app via TestFlight for calls that ring even with the screen locked (see the iPhone card on /download).',
+    items: ['Open /app in Safari on iPhone for the web version — no installation needed', 'Use Share -> Add to Home Screen for a home icon', 'For locked-screen wake-up on incoming calls, install the native app via TestFlight instead of the web version', 'On desktop, use a modern browser and allow microphone access'],
   },
   {
     title: 'Android app — user guide',
@@ -150,7 +150,7 @@ const docs = [
       'Press and hold the large microphone button. Speak after TRANSMITTING appears. Release to listen.',
       'To call one person: tap the phone icon next to their name in the participant list.',
       'Incoming call while the app is open: tap ANSWER to join the group, or DECLINE to dismiss.',
-      'Keep PRIVOX PTT open and the screen unlocked during duty. The current web version cannot wake a locked iPhone — a future native iOS app will add this.',
+      'Web version (Safari): keep PRIVOX PTT open and the screen unlocked during duty — it cannot wake a locked iPhone. For calls that ring even with the screen locked, install the native app via TestFlight (see the iPhone card on /download).',
     ],
     items: [
       'No microphone: in Safari, open website settings for ptt.privox.tech and allow microphone access.',
@@ -186,7 +186,7 @@ const docs = [
   {
     title: 'Current limitations',
     text: 'These items are not part of the current release.',
-    items: ['No native iOS/APNs wake-up yet', 'No Bluetooth headset certification yet', 'No Google Play or App Store distribution yet', 'PRIVOX Mini Radio cannot switch groups automatically after a call yet'],
+    items: ['iOS native app available via TestFlight only — no App Store listing yet', 'No Bluetooth headset certification yet', 'No Google Play distribution for Android yet (direct APK download)', 'PRIVOX Mini Radio cannot switch groups automatically after a call yet'],
   },
   {
     title: 'Inrico T320 digital radio',
@@ -210,6 +210,19 @@ const docs = [
       'Open PRIVOX PTT, allow microphone and location permissions, and sign in',
       'Press the hardware PTT button on the side — the app immediately enters TRANSMITTING state',
       'The T320 appears in the dispatcher console and on the map the same way as any other user',
+    ],
+  },
+  {
+    title: 'Inrico T320 — installing via USB cable (if the on-device browser does not work)',
+    text: 'Use this only if the T320 cannot download the APK on its own (old or restricted factory browser, no working Wi-Fi yet, Play Store not signed in). No command-line tools, no developer mode — just copying a file over USB, the same way you would move a photo off a phone.',
+    steps: [
+      'On a Windows or Mac computer (not the radio), open a browser, go to ptt.privox.tech/download, and download the "T320 APK" file onto the computer.',
+      'Connect the T320 to the computer with a USB cable.',
+      'On the T320 screen, a notification appears about the USB connection — tap it and choose "File Transfer" or "Transfer files" (sometimes called MTP). If you only see "Charging", tap the notification to change the mode.',
+      'On the computer, the T320 appears as a removable drive (like a USB flash drive). Open it and copy the downloaded APK file into its "Download" folder.',
+      'Unplug the cable. On the T320 itself, open its file manager app (or "My Files"), go to the Download folder, and tap the APK file.',
+      'Android will ask to allow installing from this source — tap Settings, enable it for this app, go back, and tap Install.',
+      'Open PRIVOX PTT once installed and continue with the normal setup guide above (Wi-Fi, permissions, sign in).',
     ],
   },
   {
@@ -264,10 +277,10 @@ const docs = [
 const faqs = [
   ['What is PRIVOX PTT?', 'PRIVOX PTT is a secure push-to-talk communication system for teams, dispatchers, and future PoC devices. Users press, speak, and release, similar to radio communication over the internet.'],
   ['Do I need the Android app?', 'No. The web version works today in a modern browser. The Android APK is useful for mobile field testing and faster access from the phone launcher.'],
-  ['Can iPhone users test PRIVOX PTT?', 'Yes. iPhone users should open the web app in Safari and can add it to the Home Screen from the Safari Share menu. A native iOS app can be considered later.'],
+  ['Can iPhone users test PRIVOX PTT?', 'Yes. Either open the web app in Safari (no install needed) and add it to the Home Screen from the Share menu, or install the native app via TestFlight from the iPhone card on /download for calls that ring with the screen locked.'],
   ['What does the Android app support now?', 'It supports PTT, individual calls, CALL GROUP, Firebase wake-up, native ANSWER and DECLINE controls, and background availability through a foreground service.'],
   ['Does Android work with the screen locked?', 'Yes. A high-priority Firebase call can wake a registered sleeping Android phone and show the native incoming-call screen. Network access, notifications, and unrestricted battery settings must remain enabled.'],
-  ['Does iPhone receive calls with the screen locked?', 'Not reliably in the current web version. Keep PRIVOX PTT open for active use. Guaranteed locked-screen wake-up will require a native iOS application with Apple Push Notification Service.'],
+  ['Does iPhone receive calls with the screen locked?', 'Not in the web version — keep PRIVOX PTT open for active use there. The native iOS app (install via TestFlight) rings and wakes a locked iPhone for incoming calls, the same way Android already does.'],
   ['Why does Android ask to install an APK from the browser?', 'PRIVOX PTT is distributed directly from this site rather than through Google Play, so Android asks you to confirm the installation. The build is signed with the production PRIVOX key.'],
   ['Why did an older Android phone show render errors?', 'Older devices may have an outdated Android System WebView. Update Android System WebView from Google Play, restart PRIVOX PTT, and test again.'],
   ['Who creates organizations?', 'A superadmin creates organizations and can assign users to them. Organization admins then manage users and groups inside their own organization.'],
