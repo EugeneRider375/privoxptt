@@ -199,6 +199,10 @@ export function GroupInvites({ group, onClose }: { group: Group; onClose: () => 
                   Shown once. The previous link stopped working. Valid until{' '}
                   {new Date(fresh.expiresAt).toLocaleDateString()}.
                 </p>
+                <p className="font-mono text-ptt-muted text-[11px] mt-1">
+                  Tell them: point your phone camera at the code, then tap JOIN.
+                  Need help or a different phone? ptt.privox.tech/download
+                </p>
               </div>
               <button onClick={() => setFresh(null)} className="text-ptt-muted hover:text-white shrink-0">
                 <X className="w-3.5 h-3.5" />

@@ -143,6 +143,23 @@ export async function buildInvitePdf(
     }
   });
 
+  // Одна строка внизу последней страницы — тот же текст, что и в HTML-листе
+  // печати (invitePrint.ts), для запасного случая (QR не читается, другой
+  // телефон, вопросы).
+  const footerY = PAGE.height - MARGIN + 4;
+  if (footerY > y + 4) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(120);
+    doc.text(
+      'Point your phone camera at the code, then tap JOIN. Need help or a different phone? ptt.privox.tech/download',
+      MARGIN,
+      footerY,
+      { maxWidth: PAGE.width - MARGIN * 2 },
+    );
+    doc.setTextColor(0);
+  }
+
   return doc;
 }
 
