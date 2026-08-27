@@ -588,9 +588,9 @@ export function DownloadPage() {
   const androidApkUrl = '/downloads/privox-ptt-android.apk?v=14';
   const t320ApkUrl = '/downloads/privox-ptt-t320.apk?v=13';
   const webAppUrl = '/app';
-  // Заполняется публичной ссылкой TestFlight после первой заливки сборки
-  // (Xcode → Archive → Distribute → TestFlight → Public Link). См. D23 в
-  // BACKLOG_RU.md. Пока пусто — карточка ниже ведёт на веб-версию, как сейчас.
+  // Публичная ссылка TestFlight — см. D23 в BACKLOG_RU.md. Если когда-нибудь
+  // понадобится сменить (например, при переходе на полную публикацию в App
+  // Store) — обновить и здесь, и в JoinPage.tsx (IOS_TESTFLIGHT_URL).
   const iosTestFlightUrl = 'https://testflight.apple.com/join/zRVpz5WR';
 
   return (
