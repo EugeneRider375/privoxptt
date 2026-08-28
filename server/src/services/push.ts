@@ -17,6 +17,16 @@ export interface IncomingUserCallPush {
   kind: 'user' | 'group';
 }
 
+export interface MissedCallPush {
+  callId: string;
+  fromUserId: string;
+  fromCallsign: string;
+  fromDisplayName: string;
+  groupId: string;
+  groupName: string;
+  kind: 'user' | 'group';
+}
+
 export interface IncomingMessagePush {
   messageId: string;
   senderId: string;
@@ -237,6 +247,80 @@ async function sendAndroidCallPush(
 
   logger.info({
     msg: 'Incoming user call push sent',
+    userId,
+    callId: payload.callId,
+    sent: response.successCount,
+    failed: response.failureCount,
+  });
+
+  return { sent: response.successCount, failed: response.failureCount };
+}
+
+/**
+ * «Пропущенный звонок» — шлётся, когда звонок провисел 45с без ответа
+ * (см. `onTimeout` в `createTrackedCall`). Пока только Android (D27,
+ * 2026-08-28); iOS-версия ляжет отдельным пунктом того же бэклога.
+ */
+export async function sendMissedCallPush(
+  userId: string,
+  payload: MissedCallPush,
+): Promise<{ sent: number; failed: number }> {
+  if (!initFirebase()) return { sent: 0, failed: 0 };
+
+  const devices = await prisma.device.findMany({
+    where: { userId, platform: 'ANDROID', enabled: true, pushToken: { not: null } },
+    select: { id: true, pushToken: true },
+  });
+  const targets = withPushToken(devices);
+  if (targets.length === 0) return { sent: 0, failed: 0 };
+
+  const message: MulticastMessage = {
+    tokens: targets.map((device) => device.pushToken),
+    data: {
+      type: 'missed_call',
+      callId: payload.callId,
+      fromUserId: payload.fromUserId,
+      fromCallsign: payload.fromCallsign,
+      fromDisplayName: payload.fromDisplayName,
+      groupId: payload.groupId,
+      groupName: payload.groupName,
+      kind: payload.kind,
+    },
+    android: {
+      priority: 'high',
+      ttl: 24 * 60 * 60 * 1000,
+    },
+  };
+
+  let response;
+  try {
+    response = await getMessaging().sendEachForMulticast(message);
+  } catch (err) {
+    logger.error({ msg: 'Missed call push failed', userId, callId: payload.callId, err });
+    return { sent: 0, failed: targets.length };
+  }
+
+  const invalidDeviceIds: string[] = [];
+  response.responses.forEach((result, index) => {
+    if (result.success) return;
+    const code = result.error?.code ?? '';
+    if (
+      code === 'messaging/registration-token-not-registered' ||
+      code === 'messaging/invalid-registration-token'
+    ) {
+      invalidDeviceIds.push(targets[index].id);
+    }
+  });
+
+  if (invalidDeviceIds.length > 0) {
+    await prisma.device.updateMany({
+      where: { id: { in: invalidDeviceIds } },
+      data: { enabled: false },
+    });
+  }
+
+  logger.info({
+    msg: 'Missed call push sent',
     userId,
     callId: payload.callId,
     sent: response.successCount,

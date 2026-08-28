@@ -21,8 +21,10 @@ import java.util.Map;
 public class PrivoxFirebaseMessagingService extends FirebaseMessagingService {
     private static final String CALL_CHANNEL_ID = "privox_incoming_calls_v4";
     private static final String MESSAGE_CHANNEL_ID = "privox_messages_v1";
+    private static final String MISSED_CALL_CHANNEL_ID = "privox_missed_calls_v1";
     private static final int CALL_NOTIFICATION_ID = 2001;
     static final int MESSAGE_NOTIFICATION_ID = 3001;
+    private static final int MISSED_CALL_NOTIFICATION_ID = 2002;
 
     @Override
     public void onMessageReceived(RemoteMessage message) {
@@ -33,6 +35,17 @@ public class PrivoxFirebaseMessagingService extends FirebaseMessagingService {
             savePendingCall(data);
             showIncomingCall(data);
             PrivoxIncomingCallRinger.start(this);
+            return;
+        }
+
+        if ("missed_call".equals(type)) {
+            // Локальный таймер IncomingCallActivity уже сам гасит экран/звонок
+            // за те же 45с — этот push просто закрывает то, что могло остаться
+            // (гонка сеть/локальный таймер), и оставляет уведомление на экране.
+            PrivoxIncomingCallRinger.stop();
+            NotificationManager cancelManager = getSystemService(NotificationManager.class);
+            if (cancelManager != null) cancelManager.cancel(CALL_NOTIFICATION_ID);
+            showMissedCall(data);
             return;
         }
 
@@ -102,6 +115,51 @@ public class PrivoxFirebaseMessagingService extends FirebaseMessagingService {
         channel.enableVibration(true);
         channel.setVibrationPattern(new long[]{0, 500, 300, 500});
         channel.setSound(null, null);
+        channel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
+        NotificationManager manager = getSystemService(NotificationManager.class);
+        if (manager != null) manager.createNotificationChannel(channel);
+    }
+
+    private void showMissedCall(Map<String, String> data) {
+        createMissedCallChannel();
+
+        String callId = value(data, "callId");
+        Intent openApp = new Intent(this, MainActivity.class)
+            .setAction("tech.privox.ptt.OPEN_CALL." + callId)
+            .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        PendingIntent openAppIntent = PendingIntent.getActivity(
+            this, callId.hashCode(), openApp, PendingIntent.FLAG_UPDATE_CURRENT | immutableFlag()
+        );
+
+        String callsign = value(data, "fromCallsign");
+        String groupName = value(data, "groupName");
+        boolean isGroupCall = "group".equals(value(data, "kind"));
+        String title = isGroupCall ? "Missed group call" : "Missed call";
+        String text = callsign.isEmpty()
+            ? "PRIVOX PTT"
+            : (groupName.isEmpty() ? callsign : callsign + " · " + groupName);
+
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, MISSED_CALL_CHANNEL_ID)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setCategory("missed_call")
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setAutoCancel(true)
+            .setContentIntent(openAppIntent);
+
+        NotificationManager manager = getSystemService(NotificationManager.class);
+        if (manager != null) manager.notify(MISSED_CALL_NOTIFICATION_ID, builder.build());
+    }
+
+    private void createMissedCallChannel() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
+        NotificationChannel channel = new NotificationChannel(
+            MISSED_CALL_CHANNEL_ID, "PRIVOX missed calls", NotificationManager.IMPORTANCE_HIGH
+        );
+        channel.setDescription("Missed PRIVOX PTT user and group calls");
+        channel.enableVibration(true);
         channel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
         NotificationManager manager = getSystemService(NotificationManager.class);
         if (manager != null) manager.createNotificationChannel(channel);

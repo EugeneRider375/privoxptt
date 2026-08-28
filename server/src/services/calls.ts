@@ -32,6 +32,8 @@ export interface CreateTrackedCallInput {
   targetCallsign: string;
   groupId: string;
   groupName: string;
+  /** Вызов провисел все 45с без ответа — повод отправить «пропущенный звонок» (D27). */
+  onTimeout?: (call: TrackedCall) => void;
 }
 
 const CALL_TIMEOUT_MS = 45_000;
@@ -79,6 +81,7 @@ export function createTrackedCall(io: Server, input: CreateTrackedCallInput): Tr
       if (!current || current.status !== 'ringing') return;
       current.status = 'timeout';
       emitStatus(io, current);
+      input.onTimeout?.(current);
       scheduleCleanup(callId);
     }, CALL_TIMEOUT_MS),
   };

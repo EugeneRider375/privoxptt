@@ -15,7 +15,7 @@ import {
 } from '../database/redis';
 import { logger } from '../utils/logger';
 import { notifyDeviceCall } from '../udp-bridge';
-import { hasReachablePushDevice, sendIncomingUserCallPush } from '../services/push';
+import { hasReachablePushDevice, sendIncomingUserCallPush, sendMissedCallPush } from '../services/push';
 import { createTrackedCall, respondToCallAsUser, endCall, isCallParticipant, type UserCallKind } from '../services/calls';
 import { closeGroupPeers } from '../mediasoup/router';
 import { checkGroupWindow, openGroupFilter, GROUP_WINDOW_SELECT } from '../services/groupAccess';
@@ -161,6 +161,17 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
       targetCallsign,
       groupId,
       groupName,
+      onTimeout: (timedOutCall) => {
+        sendMissedCallPush(targetUserId, {
+          callId: timedOutCall.callId,
+          fromUserId: userId,
+          fromCallsign: callsign,
+          fromDisplayName: displayName,
+          groupId,
+          groupName,
+          kind,
+        }).catch((err) => logger.error({ msg: 'Missed call push failed', err, targetUserId, callId: timedOutCall.callId }));
+      },
     });
 
     io.to(`user:${targetUserId}`).emit('user-call-incoming', {
