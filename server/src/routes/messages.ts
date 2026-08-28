@@ -16,7 +16,12 @@ export const messagesRouter = Router();
 messagesRouter.use(authenticate);
 
 const uploadsDir = process.env.MESSAGE_UPLOAD_DIR ?? '/app/uploads/messages';
-const maxAttachmentSize = 10 * 1024 * 1024;
+// Было 10 МБ — маловато для фото с современных телефонов (HEIC/48MP часто
+// 15-25 МБ). Поднято 2026-08-28. При изменении менять синхронно ещё в двух
+// местах: web/src/pages/messages/MessengerPage.tsx (клиентская проверка) и
+// web/nginx.conf (client_max_body_size — иначе nginx обрежет запрос раньше,
+// чем до этого лимита вообще дойдёт дело).
+const maxAttachmentSize = 25 * 1024 * 1024;
 const allowedAttachmentTypes = new Set([
   'image/jpeg',
   'image/png',

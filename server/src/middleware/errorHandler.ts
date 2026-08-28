@@ -46,6 +46,17 @@ export function errorHandler(
     }
   }
 
+  // Тело запроса больше лимита (express.raw()/json() бросают это сами,
+  // не через AppError) — без этой ветки уходило как generic 500, и по
+  // ответу нельзя было понять, что дело именно в размере файла (найдено
+  // при разборе жалобы на вложения в сообщениях, D31, 2026-08-28).
+  const status = (err as { status?: number; statusCode?: number }).status
+    ?? (err as { status?: number; statusCode?: number }).statusCode;
+  if (status === 413) {
+    res.status(413).json({ error: 'File is too large', code: 'PAYLOAD_TOO_LARGE' });
+    return;
+  }
+
   // Наши ошибки приложения
   if (err instanceof AppError) {
     res.status(err.statusCode).json({

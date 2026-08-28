@@ -14,6 +14,7 @@ import { mediasoupManager } from './mediasoup/server';
 
 import { startUdpBridge } from './udp-bridge';
 import { startSensorPoller } from './services/sensorPoller';
+import { startMessageCleanup } from './services/messageCleanup';
 import { authRouter } from './routes/auth';
 import { organizationsRouter } from './routes/organizations';
 import { usersRouter } from './routes/users';
@@ -139,6 +140,13 @@ async function bootstrap() {
     startSensorPoller(io);
   } catch (err) {
     logger.warn({ msg: '⚠️  Sensor poller не запустился — связь продолжает работать', err });
+  }
+
+  // Автоудаление старых сообщений/вложений — graceful, по той же схеме
+  try {
+    startMessageCleanup();
+  } catch (err) {
+    logger.warn({ msg: '⚠️  Автоудаление сообщений не запустилось — сообщения продолжают работать', err });
   }
 
   // ─── Запуск ───────────────────────────────────────────────

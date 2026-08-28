@@ -315,8 +315,8 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
 
   async function sendAttachment(file: File) {
     if (!selected || uploading) return;
-    if (file.size > 10 * 1024 * 1024) {
-      setError('File is larger than 10 MB');
+    if (file.size > 25 * 1024 * 1024) {
+      setError('File is larger than 25 MB');
       return;
     }
     setUploading(true);
