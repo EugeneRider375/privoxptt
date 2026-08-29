@@ -18,15 +18,16 @@
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		6F00E2CB73D0B423B81FE504 /* PrivoxPushPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 504798448C9A076C7BF2A5BB /* PrivoxPushPlugin.swift */; };
 		9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9582B6822FE993A50072D4E8 /* SceneDelegate.swift */; };
-		9EC2DA7961AF6DEB832E11E2 /* PrivoxDeepLinkPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB081C461CDD0F98301BDA15 /* PrivoxDeepLinkPlugin.swift */; };
 		CBED4DCDF68A2EF598410CFE /* CallResponseReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BA74ED329E0F2E7D6002811 /* CallResponseReporter.swift */; };
 		FC31B14D5315299B31B9F6B2 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B62356D1BB2E6E9F4F4F8B31 /* MainViewController.swift */; };
+		9EC2DA7961AF6DEB832E11E2 /* PrivoxDeepLinkPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB081C461CDD0F98301BDA15 /* PrivoxDeepLinkPlugin.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
 		50379B222058CBB4000EE86E /* capacitor.config.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = capacitor.config.json; sourceTree = "<group>"; };
 		504798448C9A076C7BF2A5BB /* PrivoxPushPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivoxPushPlugin.swift; sourceTree = "<group>"; };
+		EB081C461CDD0F98301BDA15 /* PrivoxDeepLinkPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivoxDeepLinkPlugin.swift; sourceTree = "<group>"; };
 		504EC3041FED79650016851F /* App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = App.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		504EC3071FED79650016851F /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		504EC30C1FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
@@ -40,7 +41,6 @@
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
 		B62356D1BB2E6E9F4F4F8B31 /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
 		E5B01B3E2FE993A70072D4E8 /* App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
-		EB081C461CDD0F98301BDA15 /* PrivoxDeepLinkPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivoxDeepLinkPlugin.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -323,7 +323,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 2ND5G88WGD;
 				INFOPLIST_FILE = App/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
@@ -347,7 +347,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 2ND5G88WGD;
 				INFOPLIST_FILE = App/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;

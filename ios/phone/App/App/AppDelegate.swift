@@ -3,7 +3,6 @@ import Capacitor
 import PushKit
 import CallKit
 import AVFoundation
-import UserNotifications
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -33,22 +32,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         print("[Privox] didFinishLaunchingWithOptions")
         setupVoipPush()
         setupCallKit()
-        setupLocalNotifications()
         return true
-    }
-
-    // Пропущенный звонок на iOS (D27 2/4) сделан БЕЗ отдельного APNs-канала:
-    // как только приходит VoIP-push, планируем локальное уведомление на 45с
-    // вперёд (тот же CALL_TIMEOUT_MS, что и на сервере calls.ts) и отменяем
-    // его, если за это время ответили или отклонили. Не требует ни нового
-    // токена, ни серверной отправки — надёжнее (не зависит от повторной
-    // доставки push) и намного проще полноценного alert-канала, который
-    // всё равно понадобится отдельно для сообщений.
-    private func setupLocalNotifications() {
-        UNUserNotificationCenter.current().delegate = self
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
-            print("[Privox] Notification permission granted=\(granted), error=\(String(describing: error))")
-        }
     }
 
     private func setupVoipPush() {
@@ -159,61 +143,10 @@ extension AppDelegate: PKPushRegistryDelegate {
             else { print("[Privox] reportNewIncomingCall OK, uuid=\(uuid)") }
             completion()
         }
-
-        scheduleMissedCallNotification(
-            callId: callId, fromCallsign: fromCallsign, fromDisplayName: fromDisplayName,
-            groupName: groupName, kind: kind
-        )
     }
 
     private func string(_ data: [AnyHashable: Any], _ key: String) -> String? {
         data[key] as? String
-    }
-}
-
-// MARK: - Пропущенный звонок (локальное уведомление, без APNs)
-
-extension AppDelegate {
-    private static let missedCallTimeoutSeconds: TimeInterval = 45 // = CALL_TIMEOUT_MS на сервере (calls.ts)
-
-    private func missedCallNotificationId(_ callId: String) -> String {
-        "privox-missed-call-\(callId)"
-    }
-
-    private func scheduleMissedCallNotification(
-        callId: String, fromCallsign: String, fromDisplayName: String, groupName: String, kind: String
-    ) {
-        let content = UNMutableNotificationContent()
-        content.title = kind == "group" ? "Missed group call" : "Missed call"
-        let caller = fromCallsign.isEmpty ? "PRIVOX PTT" : fromCallsign
-        content.body = groupName.isEmpty ? caller : "\(caller) · \(groupName)"
-        content.sound = .default
-
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: Self.missedCallTimeoutSeconds, repeats: false)
-        let request = UNNotificationRequest(
-            identifier: missedCallNotificationId(callId), content: content, trigger: trigger
-        )
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error { print("[Privox] Failed to schedule missed-call notification: \(error)") }
-        }
-    }
-
-    // Ответили или отклонили ДО истечения 45с — уведомление больше не нужно.
-    func cancelMissedCallNotification(callId: String) {
-        UNUserNotificationCenter.current().removePendingNotificationRequests(
-            withIdentifiers: [missedCallNotificationId(callId)]
-        )
-    }
-}
-
-// MARK: - Показ уведомлений, когда приложение на переднем плане
-
-extension AppDelegate: UNUserNotificationCenterDelegate {
-    func userNotificationCenter(
-        _ center: UNUserNotificationCenter, willPresent notification: UNNotification,
-        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
-    ) {
-        completionHandler([.banner, .sound, .list])
     }
 }
 
@@ -251,7 +184,6 @@ extension AppDelegate: CXProviderDelegate {
     func provider(_ provider: CXProvider, perform action: CXAnswerCallAction) {
         print("[Privox] CXAnswerCallAction, uuid=\(action.callUUID)")
         answeredCallUUIDs.insert(action.callUUID)
-        cancelMissedCallNotification(callId: action.callUUID.uuidString.lowercased())
         reportPendingStatus("answered")
         action.fulfill()
     }
@@ -259,7 +191,6 @@ extension AppDelegate: CXProviderDelegate {
     func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
         let wasAnswered = answeredCallUUIDs.remove(action.callUUID) != nil
         print("[Privox] CXEndCallAction, uuid=\(action.callUUID), wasAnswered=\(wasAnswered)")
-        cancelMissedCallNotification(callId: action.callUUID.uuidString.lowercased())
         if !wasAnswered {
             // Отклонили непринятый звонок — сообщаем об этом сразу, не
             // дожидаясь запуска WebView (см. CallResponseReporter).
