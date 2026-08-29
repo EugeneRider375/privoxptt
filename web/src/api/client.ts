@@ -221,6 +221,14 @@ export const activityApi = {
     api.get('/activity', { params }).then((r) => r.data),
 };
 
+// ─── Последние известные позиции (D35) ────────────────────
+export const locationsApi = {
+  list: (): Promise<Array<{
+    userId: string; callsign: string; lat: number; lng: number;
+    heading?: number; speed?: number; timestamp: number;
+  }>> => api.get('/locations').then((r) => r.data),
+};
+
 // ─── Native push devices ─────────────────────────────────
 export const devicesApi = {
   register: (data: {

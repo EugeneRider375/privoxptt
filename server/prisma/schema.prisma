@@ -66,6 +66,18 @@ model User {
   deviceToken String?
   deviceType  DeviceType?
 
+  // Последняя известная GPS-позиция (D35, 2026-08-29). Раньше карта
+  // диспетчера была чисто "живой" — знала только о тех, кто отправил
+  // координаты, пока сама вкладка карты была открыта, и не помнила
+  // ничего между открытиями. Пишется в том же месте и под тем же правом
+  // (GroupMember.canShareLocation), где раньше координаты только
+  // рассылались по сокету, не сохраняясь.
+  lastLat        Float?
+  lastLng        Float?
+  lastHeading    Float?
+  lastSpeed      Float?
+  lastLocationAt DateTime?
+
   @@index([organizationId])
 }
 

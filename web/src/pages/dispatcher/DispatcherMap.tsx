@@ -4,6 +4,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import { divIcon, latLngBounds } from 'leaflet';
 import { useStore } from '@/store/useStore';
 import { formatDistanceToNow } from 'date-fns';
+import { locationsApi } from '@/api/client';
 
 const EUROPE_CENTER: [number, number] = [46.6, 2.4];
 const EUROPE_ZOOM = 6;
@@ -63,6 +64,21 @@ function MapAutoCenter({ locations }: { locations: Array<{ lat: number; lng: num
 export function DispatcherMap() {
   const locations = useStore((s) => s.locations);
   const onlineUsers = useStore((s) => s.onlineUsers);
+  const updateLocation = useStore((s) => s.updateLocation);
+
+  // Живая трансляция по сокету (user-location) знает только о тех, кто
+  // отправил координаты, пока эта вкладка уже открыта — без подгрузки карта
+  // была пустой для всех, кто не в сети именно сейчас (D35). Один раз при
+  // открытии подтягиваем последние сохранённые позиции, дальше живые
+  // обновления освежают их поверх.
+  useEffect(() => {
+    locationsApi.list().then((list) => {
+      list.forEach((loc) => updateLocation(loc));
+    }).catch(() => {
+      // Диспетчер и без этого увидит карту, просто без "холодного старта" —
+      // не повод показывать ошибку поверх карты.
+    });
+  }, [updateLocation]);
 
   const locationList = Object.values(locations);
 

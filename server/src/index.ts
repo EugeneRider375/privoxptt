@@ -19,6 +19,7 @@ import { authRouter } from './routes/auth';
 import { organizationsRouter } from './routes/organizations';
 import { usersRouter } from './routes/users';
 import { groupsRouter } from './routes/groups';
+import { locationsRouter } from './routes/locations';
 import { onboardingRouter } from './routes/onboarding';
 import { invitesRouter } from './routes/invites';
 import { activityRouter } from './routes/activity';
@@ -93,6 +94,7 @@ async function bootstrap() {
   app.use('/api/auth', authLimiter, authRouter);
   app.use('/api/orgs', organizationsRouter);
   app.use('/api/users', usersRouter);
+  app.use('/api/locations', locationsRouter);
   app.use('/api/groups', groupsRouter);
   app.use('/api/onboarding', onboardingRouter); // вопросник суперадмина: группа + участники + приглашения
   app.use('/api/invites', invitesRouter);       // активация по персональному QR (без JWT — токен и есть удостоверение)

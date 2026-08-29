@@ -608,6 +608,22 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
       speed: data.speed,
       timestamp: data.timestamp,
     });
+
+    // Последняя известная позиция (D35) — раньше координаты только
+    // рассылались вживую и нигде не оседали, поэтому карта диспетчера была
+    // пустой, пока никто не отправлял GPS именно в момент, когда вкладка с
+    // картой была открыта. Ошибку записи не считаем поводом ронять сокет —
+    // живая трансляция выше уже отработала.
+    prisma.user.update({
+      where: { id: userId },
+      data: {
+        lastLat: data.lat,
+        lastLng: data.lng,
+        lastHeading: data.heading,
+        lastSpeed: data.speed,
+        lastLocationAt: new Date(data.timestamp),
+      },
+    }).catch((err) => logger.error({ msg: 'Не удалось сохранить последнюю позицию', err, userId }));
   });
 
   // ─── SOS алерт ────────────────────────────────────────────
