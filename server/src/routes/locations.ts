@@ -11,6 +11,10 @@ locationsRouter.use(authenticate);
 
 const privilegedRoles: UserRole[] = [UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.DISPATCHER];
 
+/** Совсем старая позиция уже не «последняя известная», а вводящий в
+ * заблуждение хлам — сутки нашли достаточным сроком (Eugene, 2026-08-29). */
+const LOCATION_STALE_MS = 24 * 60 * 60 * 1000;
+
 /**
  * Последние известные позиции (D35) — подгружаются один раз при открытии
  * карты диспетчера. Без этого карта была пустой, пока сама вкладка не
@@ -20,7 +24,8 @@ const privilegedRoles: UserRole[] = [UserRole.SUPERADMIN, UserRole.ADMIN, UserRo
  * Право на чтение то же самое, что и на саму запись координат
  * (GroupMember.canShareLocation в открытой группе) — раскрывать позицию
  * тому, кому она перестала быть доступна, нельзя просто потому, что она
- * когда-то была сохранена.
+ * когда-то была сохранена. Деактивированных (`isActive: false`) тоже не
+ * показываем — иначе ушедший из команды человек висел бы на карте вечно.
  */
 locationsRouter.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -31,8 +36,10 @@ locationsRouter.get('/', async (req: Request, res: Response, next: NextFunction)
     const users = await prisma.user.findMany({
       where: {
         organizationId: req.user!.organizationId,
+        isActive: true,
         lastLat: { not: null },
         lastLng: { not: null },
+        lastLocationAt: { gte: new Date(Date.now() - LOCATION_STALE_MS) },
         groupMembers: { some: { canShareLocation: true, group: openGroupFilter() } },
       },
       select: {
