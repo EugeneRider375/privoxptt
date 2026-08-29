@@ -112,7 +112,7 @@ async function sendIosCallPush(
 
   const devices = await prisma.device.findMany({
     where: { userId, platform: 'IOS', enabled: true, voipToken: { not: null } },
-    select: { id: true, voipToken: true },
+    select: { id: true, voipToken: true, updatedAt: true },
   });
   if (devices.length === 0) return { sent: 0, failed: 0 };
 
@@ -135,8 +135,21 @@ async function sendIosCallPush(
     return { device, result };
   }));
 
+  // Совсем свежий VoIP-токен иногда ловит BadDeviceToken как временный сбой
+  // (инфраструктура Apple не сразу стабилизирует только что выданный токен
+  // по всем узлам) — не смерть токена. Найдено 29.08.2026 живым тестом:
+  // токен стирался в первые же минуты после регистрации, из-за чего
+  // человек оставался «вне сети», пока заново не открывал приложение —
+  // порочный круг. Даём токену время устояться, прежде чем считать его
+  // мёртвым насовсем.
+  const TOKEN_GRACE_MS = 10 * 60 * 1000;
+  const now = Date.now();
   const dead = results
-    .filter(({ result }) => !result.ok && isDeadTokenReason(result.reason))
+    .filter(({ result, device }) =>
+      !result.ok &&
+      isDeadTokenReason(result.reason) &&
+      now - device.updatedAt.getTime() > TOKEN_GRACE_MS,
+    )
     .map(({ device }) => device.id);
 
   if (dead.length > 0) {
