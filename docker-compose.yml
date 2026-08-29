@@ -34,13 +34,19 @@ services:
       # APNs — звонок на iPhone (VoIP-push). Ключ передаётся СОДЕРЖИМЫМ, а не
       # путём: в контейнере файлов нет, секреты приходят переменными из Coolify —
       # так же, как FIREBASE_SERVICE_ACCOUNT_JSON выше.
-      # APNS_ENV: sandbox для сборок из Xcode, production для TestFlight и
-      # App Store. Адреса разные, и push, отправленный не туда, молча не дойдёт.
+      # APNS_ENV захардкожен в production: этот docker-compose — только для
+      # задеплоенного сервера, а он всегда обслуживает TestFlight/App Store
+      # клиентов, никогда — сборки из Xcode по кабелю (у тех свой локальный
+      # server/.env с APNS_ENV=sandbox). 29.08.2026: переменная окружения
+      # Coolify ${APNS_ENV:-sandbox} на практике не подставлялась при
+      # интерполяции compose — сервер молча работал в sandbox, из-за чего
+      # VoIP-push на реальные TestFlight-токены не доходил вообще. Хардкод
+      # исключает эту ловушку целиком.
       APNS_KEY: ${APNS_KEY:-}
       APNS_KEY_ID: ${APNS_KEY_ID:-}
       APNS_TEAM_ID: ${APNS_TEAM_ID:-}
       APNS_BUNDLE_ID: ${APNS_BUNDLE_ID:-tech.privox.ptt}
-      APNS_ENV: ${APNS_ENV:-sandbox}
+      APNS_ENV: production
       # Telegram-оповещения (Privox Monitor). Токен — секрет из Coolify env.
       # TELEGRAM_CHAT_ID — опциональный глобальный fallback-чат (per-account чаты в БД).
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
