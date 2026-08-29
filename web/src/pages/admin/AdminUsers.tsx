@@ -326,7 +326,7 @@ export function AdminUsers() {
                       <button onClick={() => openEdit(u)} className="text-ptt-muted hover:text-white transition-colors">
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
-                      <button onClick={() => openReset(u)} className="text-ptt-muted hover:text-ptt-warn transition-colors">
+                      <button onClick={() => openReset(u)} title="Reset password" className="text-ptt-muted hover:text-ptt-warn transition-colors">
                         <RotateCcw className="w-3.5 h-3.5" />
                       </button>
                       {u.id !== currentUser?.id && (

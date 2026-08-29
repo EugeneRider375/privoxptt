@@ -28,7 +28,10 @@ const STATUS_STYLE: Record<InviteStatus, { label: string; cls: string; hint: str
 
 interface FreshLink {
   inviteId: string;
+  userId: string;
   callsign: string;
+  displayName: string;
+  login: string | null;
   url: string;
   expiresAt: string;
 }
@@ -45,6 +48,12 @@ export function GroupInvites({ group, onClose }: { group: Group; onClose: () => 
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [fresh, setFresh] = useState<FreshLink | null>(null);
+  // Пароль существующего пользователя нам не известен (в базе только хеш) —
+  // если админ сам его помнит (например, сам вводил при создании), он может
+  // напечатать карточку с ним, не сбрасывая пароль и не разлогинивая
+  // человека. Поле специально не сохраняется никуда на сервер — только для
+  // печати/PDF в этом же браузере.
+  const [freshPassword, setFreshPassword] = useState('');
   const [secret, setSecret] = useState<Secret | null>(null);
   const [copied, setCopied] = useState('');
   const [showHistory, setShowHistory] = useState(false);
@@ -66,9 +75,13 @@ export function GroupInvites({ group, onClose }: { group: Group; onClose: () => 
     setError('');
     try {
       const r = await onboardingApi.reissueInvite(invite.id, { expiresInDays: 14, singleUse: false });
+      setFreshPassword('');
       setFresh({
         inviteId: r.id,
+        userId: invite.user.id,
         callsign: invite.user.callsign,
+        displayName: invite.user.displayName,
+        login: invite.user.login,
         url: r.inviteUrl,
         expiresAt: r.expiresAt,
       });
@@ -100,7 +113,16 @@ export function GroupInvites({ group, onClose }: { group: Group; onClose: () => 
     setError('');
     try {
       const r = await onboardingApi.inviteMember(group.id, user.id, { expiresInDays: 14, singleUse: false });
-      setFresh({ inviteId: r.id, callsign: user.callsign, url: r.inviteUrl, expiresAt: r.expiresAt });
+      setFreshPassword('');
+      setFresh({
+        inviteId: r.id,
+        userId: user.id,
+        callsign: user.callsign,
+        displayName: user.displayName,
+        login: user.login,
+        url: r.inviteUrl,
+        expiresAt: r.expiresAt,
+      });
       load();
     } catch (e: any) {
       setError(e?.response?.data?.error ?? 'Could not issue an invitation');
@@ -225,6 +247,59 @@ export function GroupInvites({ group, onClose }: { group: Group; onClose: () => 
                   <button onClick={() => downloadQr(fresh.url, `${fresh.callsign}-invite`)}
                     className="flex items-center gap-1 border border-ptt-border text-ptt-text font-mono text-[11px] px-2 py-1 rounded hover:text-white">
                     save png
+                  </button>
+                </div>
+
+                {fresh.login && (
+                  <>
+                    <label className="block font-mono text-[10px] text-ptt-muted mt-2">
+                      Password (optional — only if you already know it; we can't read it back from the
+                      database). Leave empty to print without a password.
+                    </label>
+                    <input
+                      type="text"
+                      value={freshPassword}
+                      onChange={(e) => setFreshPassword(e.target.value)}
+                      placeholder="Type the existing password to include it on the card"
+                      className="w-full bg-ptt-dark border border-ptt-border rounded px-2 py-1 font-mono text-xs text-white"
+                    />
+                  </>
+                )}
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() =>
+                      openInviteSheet(group.name, group.organization?.name ?? '', [{
+                        userId: fresh.userId,
+                        callsign: fresh.callsign,
+                        displayName: fresh.displayName,
+                        login: fresh.login,
+                        isNew: false,
+                        tempPassword: freshPassword || null,
+                        inviteId: fresh.inviteId,
+                        inviteUrl: fresh.url,
+                      }], fresh.expiresAt)
+                    }
+                    className="flex items-center gap-2 bg-ptt-green text-ptt-dark font-orbitron text-[11px] px-2 py-1 rounded tracking-widest"
+                  >
+                    PRINT CARD
+                  </button>
+                  <button
+                    onClick={() =>
+                      saveInvitePdf(group.name, group.organization?.name ?? '', [{
+                        userId: fresh.userId,
+                        callsign: fresh.callsign,
+                        displayName: fresh.displayName,
+                        login: fresh.login,
+                        isNew: false,
+                        tempPassword: freshPassword || null,
+                        inviteId: fresh.inviteId,
+                        inviteUrl: fresh.url,
+                      }], fresh.expiresAt)
+                    }
+                    className="flex items-center gap-2 border border-ptt-border text-ptt-text font-mono text-[11px] px-2 py-1 rounded tracking-widest hover:text-white"
+                  >
+                    SAVE PDF
                   </button>
                 </div>
               </div>
