@@ -21,6 +21,10 @@ interface PluginListenerHandle {
 
 interface PrivoxPushPlugin {
   getToken: () => Promise<{ token: string }>;
+  // iOS-only — обычный (не VoIP) APNs-токен для уведомлений о сообщениях
+  // (D27, iOS-сообщения). У Android плагина этого метода нет вовсе: там
+  // getToken() уже возвращает нужный FCM-токен.
+  getAlertToken?: () => Promise<{ token: string }>;
   consumePendingCall: () => Promise<PendingCall>;
   clearMessageNotifications: (target: { groupId?: string; userId?: string }) => Promise<void>;
   // Только iOS — сообщить CallKit, что разговор завершён кнопкой внутри
@@ -160,8 +164,15 @@ export function useNativePush(): void {
         const { token } = await plugin.getToken();
         if (!token || disposed) return;
         const ios = isIos();
+        // На iOS обычный alert-токен (сообщения) регистрируется тем же
+        // запросом, что и voipToken (звонки) — сервер сам разберёт по
+        // присланным полям, не два похода вместо одного. Отсутствие токена
+        // не ошибка (человек мог не разрешить уведомления) — просто не
+        // добавляем поле.
+        const alertToken = ios ? (await plugin.getAlertToken?.())?.token : undefined;
         await devicesApi.register({
           ...(ios ? { voipToken: token } : { pushToken: token }),
+          ...(alertToken ? { pushToken: alertToken } : {}),
           platform: ios ? 'IOS' : 'ANDROID',
           deviceName: navigator.userAgent.slice(0, 120),
           appVersion: '1.0',

@@ -343,7 +343,26 @@ export async function sendMissedCallPush(
   return { sent: response.successCount, failed: response.failureCount };
 }
 
+/**
+ * Сообщение — оба канала параллельно, как и звонок в
+ * sendIncomingUserCallPush: отказ одного не отменяет второй.
+ */
 export async function sendIncomingMessagePush(
+  userId: string,
+  payload: IncomingMessagePush,
+): Promise<{ sent: number; failed: number }> {
+  const [android, ios] = await Promise.all([
+    sendAndroidMessagePush(userId, payload),
+    sendIosMessagePush(userId, payload).catch((err) => {
+      logger.error({ msg: 'iOS message push failed', userId, messageId: payload.messageId, err });
+      return { sent: 0, failed: 0 };
+    }),
+  ]);
+
+  return { sent: android.sent + ios.sent, failed: android.failed + ios.failed };
+}
+
+async function sendAndroidMessagePush(
   userId: string,
   payload: IncomingMessagePush,
 ): Promise<{ sent: number; failed: number }> {
@@ -411,6 +430,86 @@ export async function sendIncomingMessagePush(
   });
 
   return { sent: response.successCount, failed: response.failureCount };
+}
+
+/**
+ * iOS-сообщения (D27, последняя часть) — обычный (не VoIP) APNs alert-push.
+ * В отличие от звонка, тут нельзя обойтись локальным таймером на клиенте:
+ * сервер не знает заранее, когда придёт сообщение, чтобы что-то
+ * запланировать вперёд — нужна настоящая доставка.
+ *
+ * Тот же TOKEN_GRACE_MS, что и в sendIosCallPush — не стирать pushToken по
+ * первой ошибке, если запись устройства обновлялась совсем недавно (см.
+ * находку 2026-08-29 про нестабильность свежих APNs-токенов).
+ */
+async function sendIosMessagePush(
+  userId: string,
+  payload: IncomingMessagePush,
+): Promise<{ sent: number; failed: number }> {
+  if (!isApnsConfigured()) return { sent: 0, failed: 0 };
+
+  const devices = await prisma.device.findMany({
+    where: { userId, platform: 'IOS', enabled: true, pushToken: { not: null } },
+    select: { id: true, pushToken: true, updatedAt: true },
+  });
+  if (devices.length === 0) return { sent: 0, failed: 0 };
+
+  const title = payload.groupName
+    ? `${payload.groupName} · ${payload.senderCallsign}`
+    : payload.senderCallsign;
+  const body = payload.body.slice(0, 500);
+
+  const apnsBody = {
+    aps: {
+      alert: { title, body },
+      sound: 'default',
+      badge: Math.max(1, payload.unreadCount),
+    },
+    type: 'new_message',
+    messageId: payload.messageId,
+    senderId: payload.senderId,
+    senderCallsign: payload.senderCallsign,
+    senderDisplayName: payload.senderDisplayName,
+    groupId: payload.groupId ?? '',
+    groupName: payload.groupName ?? '',
+  };
+
+  const results = await Promise.all(devices.map(async (device) => {
+    const result = await sendApns(device.pushToken!, apnsBody, {
+      pushType: 'alert',
+      priority: 10,
+      collapseId: payload.groupId ?? payload.senderId,
+    });
+    return { device, result };
+  }));
+
+  const TOKEN_GRACE_MS = 10 * 60 * 1000;
+  const now = Date.now();
+  const dead = results
+    .filter(({ result, device }) =>
+      !result.ok &&
+      isDeadTokenReason(result.reason) &&
+      now - device.updatedAt.getTime() > TOKEN_GRACE_MS,
+    )
+    .map(({ device }) => device.id);
+
+  if (dead.length > 0) {
+    await prisma.device.updateMany({ where: { id: { in: dead } }, data: { pushToken: null } });
+  }
+
+  const sent = results.filter(({ result }) => result.ok).length;
+  const failed = results.length - sent;
+
+  logger.info({
+    msg: 'iOS message push sent',
+    userId,
+    messageId: payload.messageId,
+    sent,
+    failed,
+    reasons: results.filter(({ result }) => !result.ok).map(({ result }) => result.reason),
+  });
+
+  return { sent, failed };
 }
 
 export interface SensorAlertPush {

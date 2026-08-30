@@ -16,6 +16,7 @@ enum PendingCallStore {
     private static let defaults = UserDefaults.standard
     private static let prefix = "privox_pending_call_"
     private static let voipTokenKey = "privox_voip_token"
+    private static let alertTokenKey = "privox_alert_token"
     private static let maxAgeSeconds: TimeInterval = 60
 
     struct Call {
@@ -89,5 +90,17 @@ enum PendingCallStore {
 
     static func voipToken() -> String? {
         defaults.string(forKey: voipTokenKey)
+    }
+
+    /// Обычный (не VoIP) APNs-токен — для уведомлений о сообщениях (D27,
+    /// "iOS-сообщения"). Отдельный от voipToken: это два разных канала у
+    /// Apple, разные адреса регистрации и разное назначение.
+    static func setAlertToken(_ token: String?) {
+        if let token { defaults.set(token, forKey: alertTokenKey) }
+        else { defaults.removeObject(forKey: alertTokenKey) }
+    }
+
+    static func alertToken() -> String? {
+        defaults.string(forKey: alertTokenKey)
     }
 }

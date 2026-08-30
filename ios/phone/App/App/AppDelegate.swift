@@ -42,12 +42,21 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     // вперёд (тот же CALL_TIMEOUT_MS, что и на сервере calls.ts) и отменяем
     // его, если за это время ответили или отклонили. Не требует ни нового
     // токена, ни серверной отправки — надёжнее (не зависит от повторной
-    // доставки push) и намного проще полноценного alert-канала, который
-    // всё равно понадобится отдельно для сообщений.
+    // доставки push).
+    //
+    // Для сообщений (D27, последняя часть) такой трюк не работает — сервер
+    // не знает заранее, когда придёт сообщение, чтобы запланировать локальное
+    // уведомление вперёд. Нужен настоящий APNs alert-канал: обычная (не
+    // VoIP) регистрация ниже + серверная отправка через sendApns(pushType:
+    // 'alert') в push.ts.
     private func setupLocalNotifications() {
         UNUserNotificationCenter.current().delegate = self
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
             print("[Privox] Notification permission granted=\(granted), error=\(String(describing: error))")
+            guard granted else { return }
+            DispatchQueue.main.async {
+                UIApplication.shared.registerForRemoteNotifications()
+            }
         }
     }
 
@@ -98,6 +107,19 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                                           sessionRole: connectingSceneSession.role)
         config.delegateClass = SceneDelegate.self
         return config
+    }
+
+    // Обычный (не VoIP) APNs-токен — для уведомлений о сообщениях (D27,
+    // iOS-сообщения). Регистрация запрошена в setupLocalNotifications()
+    // после разрешения на уведомления.
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        let token = deviceToken.map { String(format: "%02x", $0) }.joined()
+        PendingCallStore.setAlertToken(token)
+        print("[Privox] APNs alert token received: \(token.prefix(12))... (\(token.count) hex chars)")
+    }
+
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        print("[Privox] Failed to register for remote notifications: \(error)")
     }
 }
 

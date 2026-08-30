@@ -12,6 +12,7 @@ public class PrivoxPushPlugin: CAPPlugin, CAPBridgedPlugin {
     public let jsName = "PrivoxPush"
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "getToken", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "getAlertToken", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "consumePendingCall", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "clearMessageNotifications", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "endCall", returnType: CAPPluginReturnPromise),
@@ -94,6 +95,30 @@ public class PrivoxPushPlugin: CAPPlugin, CAPBridgedPlugin {
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(Self.tokenWaitStepMs)) {
             self.pollForToken(attemptsLeft: attemptsLeft - 1, call: call)
+        }
+    }
+
+    // Обычный (не VoIP) APNs-токен для уведомлений о сообщениях (D27,
+    // iOS-сообщения). В отличие от getToken() — отсутствие токена не
+    // ошибка, а обычное состояние (человек ещё не разрешил уведомления,
+    // или Apple ещё не успела ответить) — резолвим пустой строкой, а не
+    // отклоняем промис.
+    @objc func getAlertToken(_ call: CAPPluginCall) {
+        print("[Privox] PrivoxPushPlugin.getAlertToken called from JS")
+        pollForAlertToken(attemptsLeft: Self.tokenWaitMaxSteps, call: call)
+    }
+
+    private func pollForAlertToken(attemptsLeft: Int, call: CAPPluginCall) {
+        if let token = PendingCallStore.alertToken() {
+            call.resolve(["token": token])
+            return
+        }
+        guard attemptsLeft > 0 else {
+            call.resolve(["token": ""])
+            return
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(Self.tokenWaitStepMs)) {
+            self.pollForAlertToken(attemptsLeft: attemptsLeft - 1, call: call)
         }
     }
 
