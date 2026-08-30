@@ -95,38 +95,41 @@ export function IndividualInviteCard({
               save png
             </button>
           </div>
-
-          {fresh.login && (
-            <>
-              <label className="block font-mono text-[10px] text-ptt-muted mt-2">
-                Password (optional — only if you already know it; we can't read it back from the
-                database). Leave empty to print without a password.
-              </label>
-              <input
-                type="text"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Type the existing password to include it on the card"
-                className="w-full bg-ptt-dark border border-ptt-border rounded px-2 py-1 font-mono text-xs text-white"
-              />
-            </>
-          )}
-
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => openInviteSheet(groupName, organizationName, [member], fresh.expiresAt)}
-              className="flex items-center gap-2 bg-ptt-green text-ptt-dark font-orbitron text-[11px] px-2 py-1 rounded tracking-widest"
-            >
-              PRINT CARD
-            </button>
-            <button
-              onClick={() => saveInvitePdf(groupName, organizationName, [member], fresh.expiresAt)}
-              className="flex items-center gap-2 border border-ptt-border text-ptt-text font-mono text-[11px] px-2 py-1 rounded tracking-widest hover:text-white"
-            >
-              SAVE PDF
-            </button>
-          </div>
         </div>
+      </div>
+
+      {/* Отдельным блоком на всю ширину карточки — раньше стояло рядом с
+          QR в одной строке (flex-row на широких экранах), и полю пароля
+          оставалось совсем чуть-чуть места (замечено Eugene, 2026-08-30). */}
+      {fresh.login && (
+        <div className="w-full">
+          <label className="block font-mono text-[10px] text-ptt-muted mb-1">
+            Password (optional, only if you already know it — we can't read it back from the
+            database). Leave empty to print without a password.
+          </label>
+          <input
+            type="text"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Existing password (optional)"
+            className="w-full bg-ptt-dark border border-ptt-border rounded px-2 py-1.5 font-mono text-xs text-white"
+          />
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-2">
+        <button
+          onClick={() => openInviteSheet(groupName, organizationName, [member], fresh.expiresAt)}
+          className="flex items-center gap-2 bg-ptt-green text-ptt-dark font-orbitron text-[11px] px-2 py-1 rounded tracking-widest"
+        >
+          PRINT CARD
+        </button>
+        <button
+          onClick={() => saveInvitePdf(groupName, organizationName, [member], fresh.expiresAt)}
+          className="flex items-center gap-2 border border-ptt-border text-ptt-text font-mono text-[11px] px-2 py-1 rounded tracking-widest hover:text-white"
+        >
+          SAVE PDF
+        </button>
       </div>
     </div>
   );
