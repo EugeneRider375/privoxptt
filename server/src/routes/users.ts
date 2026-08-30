@@ -155,7 +155,7 @@ usersRouter.get('/:id', async (req: Request, res: Response, next: NextFunction) 
     const user = await prisma.user.findUnique({
       where: { id: param(req.params.id, 'user id') },
       select: {
-        id: true, email: true, callsign: true, displayName: true,
+        id: true, email: true, login: true, callsign: true, displayName: true,
         role: true, isActive: true, lastSeen: true, createdAt: true,
         organizationId: true,
         organization: { select: { name: true, slug: true } },

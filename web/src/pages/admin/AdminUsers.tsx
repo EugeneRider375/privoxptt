@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, RotateCcw, Search, X, Check, MicOff, Ban, Power, History, LogIn, LogOut, Clock } from 'lucide-react';
-import { usersApi, groupsApi, orgsApi, activityApi } from '@/api/client';
+import { Plus, Pencil, Trash2, RotateCcw, Search, X, Check, MicOff, Ban, Power, History, LogIn, LogOut, Clock, IdCard, Loader2 } from 'lucide-react';
+import { usersApi, groupsApi, orgsApi, activityApi, onboardingApi } from '@/api/client';
 import { useStore } from '@/store/useStore';
 import type { User, Group, UserRole, Organization, ActivityLogEntry } from '@/types';
+import { IndividualInviteCard, type FreshLink } from '@/components/admin/IndividualInviteCard';
 import clsx from 'clsx';
 
 function formatDateTime(value: string): string {
@@ -53,6 +54,19 @@ export function AdminUsers() {
   const [activityUser, setActivityUser] = useState<User | null>(null);
   const [activityLogs, setActivityLogs] = useState<ActivityLogEntry[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
+
+  // Карточка одного абонента (D36) — QR+ссылка+пароль+печать/PDF без
+  // предварительного захода в конкретную группу. Пароль существующего
+  // пользователя мы не знаем (в базе только хеш) — его вводит сам админ на
+  // готовой карточке (`IndividualInviteCard`), если помнит.
+  const [cardUser, setCardUser] = useState<User | null>(null);
+  const [cardGroups, setCardGroups] = useState<Array<{ id: string; name: string }>>([]);
+  const [cardOrgName, setCardOrgName] = useState('');
+  const [cardGroupId, setCardGroupId] = useState('');
+  const [cardBusy, setCardBusy] = useState(false);
+  const [cardLoadingGroups, setCardLoadingGroups] = useState(false);
+  const [cardError, setCardError] = useState('');
+  const [cardFresh, setCardFresh] = useState<FreshLink | null>(null);
 
   const load = () => {
     usersApi.list(isSuperAdmin ? selectedOrgId || undefined : undefined).then(setUsers).catch(console.error);
@@ -192,6 +206,51 @@ export function AdminUsers() {
     load();
   }
 
+  /** Список групп нам нужен только для «карточку в какую группу»/уже готов
+   * в общем `groups`, но без своих участников (`_count` не список) — детали
+   * пользователя (`GET /users/:id`) отдают его группы явно. */
+  async function openCard(u: User) {
+    setCardUser(u);
+    setCardFresh(null);
+    setCardError('');
+    setCardGroupId('');
+    setCardLoadingGroups(true);
+    try {
+      const detail = await usersApi.get(u.id);
+      const groupsOf: Array<{ id: string; name: string }> =
+        (detail.groupMembers ?? []).map((gm: { group: { id: string; name: string } }) => gm.group);
+      setCardGroups(groupsOf);
+      setCardOrgName(detail.organization?.name ?? '');
+      if (groupsOf.length === 1) setCardGroupId(groupsOf[0].id);
+    } catch (e: any) {
+      setCardError(e?.response?.data?.error ?? 'Could not load this user’s groups');
+    } finally {
+      setCardLoadingGroups(false);
+    }
+  }
+
+  async function generateCard() {
+    if (!cardUser || !cardGroupId) return;
+    setCardBusy(true);
+    setCardError('');
+    try {
+      const r = await onboardingApi.inviteMember(cardGroupId, cardUser.id, { expiresInDays: 14, singleUse: false });
+      setCardFresh({
+        inviteId: r.id,
+        userId: cardUser.id,
+        callsign: cardUser.callsign,
+        displayName: cardUser.displayName,
+        login: cardUser.login ?? null,
+        url: r.inviteUrl,
+        expiresAt: r.expiresAt,
+      });
+    } catch (e: any) {
+      setCardError(e?.response?.data?.error ?? 'Could not generate the card');
+    } finally {
+      setCardBusy(false);
+    }
+  }
+
   // Отключение = мгновенный отзыв доступа: сервер стирает сохранённые сессии и
   // рвёт живые сокеты, так что потерянное устройство вылетает из эфира сразу и
   // войти обратно не сможет. Аккаунт при этом цел — нашлась рация, включил назад.
@@ -323,11 +382,14 @@ export function AdminUsers() {
                       <button onClick={() => openActivity(u)} title="Registration & online history" className="text-ptt-muted hover:text-ptt-blue transition-colors">
                         <History className="w-3.5 h-3.5" />
                       </button>
-                      <button onClick={() => openEdit(u)} className="text-ptt-muted hover:text-white transition-colors">
+                      <button onClick={() => openEdit(u)} title="Edit user" className="text-ptt-muted hover:text-white transition-colors">
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
                       <button onClick={() => openReset(u)} title="Reset password" className="text-ptt-muted hover:text-ptt-warn transition-colors">
                         <RotateCcw className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => openCard(u)} title="Generate card (QR + link + optional password)" className="text-ptt-muted hover:text-ptt-green transition-colors">
+                        <IdCard className="w-3.5 h-3.5" />
                       </button>
                       {u.id !== currentUser?.id && (
                         <button
@@ -346,7 +408,7 @@ export function AdminUsers() {
                         </button>
                       )}
                       {u.id !== currentUser?.id && (
-                        <button onClick={() => handleDelete(u)} className="text-ptt-muted hover:text-ptt-danger transition-colors">
+                        <button onClick={() => handleDelete(u)} title="Delete user" className="text-ptt-muted hover:text-ptt-danger transition-colors">
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       )}
@@ -506,6 +568,60 @@ export function AdminUsers() {
               </ul>
             )}
           </div>
+        </Modal>
+      )}
+
+      {cardUser && (
+        <Modal title={`GENERATE CARD — ${cardUser.callsign}`} onClose={() => setCardUser(null)}>
+          {cardLoadingGroups ? (
+            <p className="text-center font-mono text-ptt-muted text-xs py-6">LOADING...</p>
+          ) : cardGroups.length === 0 ? (
+            <p className="font-mono text-ptt-warn text-xs">
+              This user is not a member of any group — there is nothing to link the card to. Add them
+              to a group first.
+            </p>
+          ) : (
+            <>
+              {cardGroups.length > 1 && !cardFresh && (
+                <Field label="GROUP">
+                  <select
+                    value={cardGroupId}
+                    onChange={(e) => setCardGroupId(e.target.value)}
+                    className={inputCls}
+                  >
+                    <option value="" disabled>Select a group…</option>
+                    {cardGroups.map((g) => (
+                      <option key={g.id} value={g.id}>{g.name}</option>
+                    ))}
+                  </select>
+                </Field>
+              )}
+
+              {cardError && <p className="font-mono text-ptt-danger text-xs mt-2">{cardError}</p>}
+
+              {!cardFresh && (
+                <button
+                  onClick={generateCard}
+                  disabled={cardBusy || !cardGroupId}
+                  className="w-full mt-3 flex items-center justify-center gap-2 bg-ptt-green text-ptt-dark font-orbitron text-xs py-2 rounded tracking-widest disabled:opacity-50"
+                >
+                  {cardBusy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  GENERATE
+                </button>
+              )}
+
+              {cardFresh && (
+                <div className="mt-3">
+                  <IndividualInviteCard
+                    groupName={cardGroups.find((g) => g.id === cardGroupId)?.name ?? ''}
+                    organizationName={cardOrgName}
+                    fresh={cardFresh}
+                    onClose={() => setCardUser(null)}
+                  />
+                </div>
+              )}
+            </>
+          )}
         </Modal>
       )}
     </div>

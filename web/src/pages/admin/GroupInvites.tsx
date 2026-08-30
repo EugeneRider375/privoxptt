@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import {
-  AlertTriangle, Ban, History, KeyRound, Link2, Loader2, QrCode as QrIcon, RefreshCw, Send, X,
+  AlertTriangle, Ban, History, KeyRound, Loader2, QrCode as QrIcon, RefreshCw, Send, X,
 } from 'lucide-react';
 import clsx from 'clsx';
 
 import { onboardingApi } from '@/api/client';
-import { QrCode, downloadQr } from '@/components/ui/QrCode';
+import { QrCode } from '@/components/ui/QrCode';
 import { openInviteSheet } from '@/utils/invitePrint';
 import { saveInvitePdf } from '@/utils/invitePdf';
+import { IndividualInviteCard, type FreshLink } from '@/components/admin/IndividualInviteCard';
 import type { CreatedMember, Group, GroupInvite, GroupInvitesResponse, InviteStatus } from '@/types';
 
 /**
@@ -26,16 +27,6 @@ const STATUS_STYLE: Record<InviteStatus, { label: string; cls: string; hint: str
   REVOKED:   { label: 'revoked',   cls: 'text-ptt-danger', hint: 'Cancelled by an administrator' },
 };
 
-interface FreshLink {
-  inviteId: string;
-  userId: string;
-  callsign: string;
-  displayName: string;
-  login: string | null;
-  url: string;
-  expiresAt: string;
-}
-
 interface Secret {
   callsign: string;
   login: string | null;
@@ -48,12 +39,6 @@ export function GroupInvites({ group, onClose }: { group: Group; onClose: () => 
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [fresh, setFresh] = useState<FreshLink | null>(null);
-  // Пароль существующего пользователя нам не известен (в базе только хеш) —
-  // если админ сам его помнит (например, сам вводил при создании), он может
-  // напечатать карточку с ним, не сбрасывая пароль и не разлогинивая
-  // человека. Поле специально не сохраняется никуда на сервер — только для
-  // печати/PDF в этом же браузере.
-  const [freshPassword, setFreshPassword] = useState('');
   const [secret, setSecret] = useState<Secret | null>(null);
   const [copied, setCopied] = useState('');
   const [showHistory, setShowHistory] = useState(false);
@@ -75,7 +60,6 @@ export function GroupInvites({ group, onClose }: { group: Group; onClose: () => 
     setError('');
     try {
       const r = await onboardingApi.reissueInvite(invite.id, { expiresInDays: 14, singleUse: false });
-      setFreshPassword('');
       setFresh({
         inviteId: r.id,
         userId: invite.user.id,
@@ -113,7 +97,6 @@ export function GroupInvites({ group, onClose }: { group: Group; onClose: () => 
     setError('');
     try {
       const r = await onboardingApi.inviteMember(group.id, user.id, { expiresInDays: 14, singleUse: false });
-      setFreshPassword('');
       setFresh({
         inviteId: r.id,
         userId: user.id,
@@ -211,100 +194,12 @@ export function GroupInvites({ group, onClose }: { group: Group; onClose: () => 
 
         {/* Свежая ссылка — видна ровно сейчас и больше никогда. */}
         {fresh && (
-          <div className="rounded border border-ptt-green/40 bg-ptt-green/5 p-3 mb-4 space-y-3">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="font-orbitron text-ptt-green text-xs tracking-widest">
-                  NEW LINK FOR {fresh.callsign}
-                </p>
-                <p className="font-mono text-ptt-muted text-[11px] mt-1">
-                  Shown once. The previous link stopped working. Valid until{' '}
-                  {new Date(fresh.expiresAt).toLocaleDateString()}.
-                </p>
-                <p className="font-mono text-ptt-muted text-[11px] mt-1">
-                  Tell them: point your phone camera at the code, then tap JOIN.
-                  Need help or a different phone? ptt.privox.tech/download
-                </p>
-              </div>
-              <button onClick={() => setFresh(null)} className="text-ptt-muted hover:text-white shrink-0">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            <div className="flex flex-col sm:flex-row items-center gap-4">
-              {/* 200 точек: с экрана монитора камера телефона берёт уверенно,
-                  96 точек читались с трудом или не читались вовсе. */}
-              <div className="bg-white p-2 rounded shrink-0">
-                <QrCode value={fresh.url} size={200} alt={`QR for ${fresh.callsign}`} />
-              </div>
-              <div className="min-w-0 space-y-2 w-full">
-                <p className="font-mono text-ptt-muted text-[10px] break-all">{fresh.url}</p>
-                <div className="flex flex-wrap gap-2">
-                  <button onClick={() => copy(fresh.url, 'fresh')}
-                    className="flex items-center gap-1 border border-ptt-border text-ptt-text font-mono text-[11px] px-2 py-1 rounded hover:text-white">
-                    <Link2 className="w-3 h-3" /> {copied === 'fresh' ? 'copied' : 'copy link'}
-                  </button>
-                  <button onClick={() => downloadQr(fresh.url, `${fresh.callsign}-invite`)}
-                    className="flex items-center gap-1 border border-ptt-border text-ptt-text font-mono text-[11px] px-2 py-1 rounded hover:text-white">
-                    save png
-                  </button>
-                </div>
-
-                {fresh.login && (
-                  <>
-                    <label className="block font-mono text-[10px] text-ptt-muted mt-2">
-                      Password (optional — only if you already know it; we can't read it back from the
-                      database). Leave empty to print without a password.
-                    </label>
-                    <input
-                      type="text"
-                      value={freshPassword}
-                      onChange={(e) => setFreshPassword(e.target.value)}
-                      placeholder="Type the existing password to include it on the card"
-                      className="w-full bg-ptt-dark border border-ptt-border rounded px-2 py-1 font-mono text-xs text-white"
-                    />
-                  </>
-                )}
-
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() =>
-                      openInviteSheet(group.name, group.organization?.name ?? '', [{
-                        userId: fresh.userId,
-                        callsign: fresh.callsign,
-                        displayName: fresh.displayName,
-                        login: fresh.login,
-                        isNew: false,
-                        tempPassword: freshPassword || null,
-                        inviteId: fresh.inviteId,
-                        inviteUrl: fresh.url,
-                      }], fresh.expiresAt)
-                    }
-                    className="flex items-center gap-2 bg-ptt-green text-ptt-dark font-orbitron text-[11px] px-2 py-1 rounded tracking-widest"
-                  >
-                    PRINT CARD
-                  </button>
-                  <button
-                    onClick={() =>
-                      saveInvitePdf(group.name, group.organization?.name ?? '', [{
-                        userId: fresh.userId,
-                        callsign: fresh.callsign,
-                        displayName: fresh.displayName,
-                        login: fresh.login,
-                        isNew: false,
-                        tempPassword: freshPassword || null,
-                        inviteId: fresh.inviteId,
-                        inviteUrl: fresh.url,
-                      }], fresh.expiresAt)
-                    }
-                    className="flex items-center gap-2 border border-ptt-border text-ptt-text font-mono text-[11px] px-2 py-1 rounded tracking-widest hover:text-white"
-                  >
-                    SAVE PDF
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+          <IndividualInviteCard
+            groupName={group.name}
+            organizationName={group.organization?.name ?? ''}
+            fresh={fresh}
+            onClose={() => setFresh(null)}
+          />
         )}
 
         {/* Пачка ссылок после «выдать всем» — видна один раз, как и всё остальное. */}
