@@ -11,6 +11,7 @@ import {
   Download,
   ExternalLink,
   FileQuestion,
+  FileText,
   Headphones,
   Lock,
   MapPinned,
@@ -38,8 +39,10 @@ const navLinks = [
   // Презентация системы — отдельная статическая страница (web/public/presentation),
   // а не маршрут приложения. Поэтому external: обычная ссылка, не Link роутера —
   // иначе роутер попытается отрисовать её сам и покажет пустоту.
-  // Из английского меню ведём на английскую версию; русскую дают ссылкой напрямую.
-  { to: '/presentation/en/', label: 'Overview', external: true },
+  // Корень (без /ru/) — русская версия, она же язык сайта по умолчанию;
+  // EN/FR — в футере (см. PublicLayout), там же, где она видна и на мобильных
+  // (верхнее меню скрыто на маленьких экранах, footer — нет).
+  { to: '/presentation/', label: 'Overview', external: true },
   { to: '/docs', label: 'Docs' },
   { to: '/faq', label: 'FAQ' },
   { to: '/support', label: 'Support' },
@@ -366,6 +369,13 @@ function PublicLayout({ children }: { children: React.ReactNode }) {
             <Link to="/faq" className="hover:text-sky-700">FAQ</Link>
             <Link to="/support" className="hover:text-sky-700">Support</Link>
             <Link to="/privacy" className="hover:text-sky-700">Privacy</Link>
+            {/* Верхнее меню (nav выше) скрыто на мобильных — footer нет,
+                поэтому презентация продублирована сюда на всех трёх языках
+                (замечено Eugene: без этого её легко потерять). */}
+            <span className="text-slate-400">·</span>
+            <a href="/presentation/" className="hover:text-sky-700">Overview (RU)</a>
+            <a href="/presentation/en/" className="hover:text-sky-700">EN</a>
+            <a href="/presentation/fr/" className="hover:text-sky-700">FR</a>
           </div>
         </div>
       </footer>
@@ -451,6 +461,7 @@ export function HomePage() {
                 <Link to="/docs" className="inline-flex items-center justify-center gap-2 rounded-md border border-transparent px-5 py-3 font-semibold text-slate-700 transition hover:text-sky-700">
                   Documentation <BookOpen className="h-4 w-4" />
                 </Link>
+                <HeroGuideDownloadButton />
               </div>
             </div>
             <AppMockup />
@@ -564,7 +575,9 @@ function HelpSection() {
   );
 }
 
-function GuideDownloadButton() {
+/** Общее для всех мест, откуда можно скачать PDF-гайд — сама генерация не
+ * меняется, меняется только то, как это выглядит на странице. */
+function useGuideDownload() {
   const [state, setState] = useState<'idle' | 'working' | 'error'>('idle');
 
   async function handleClick() {
@@ -577,6 +590,12 @@ function GuideDownloadButton() {
       setState('error');
     }
   }
+
+  return { state, handleClick };
+}
+
+function GuideDownloadButton() {
+  const { state, handleClick } = useGuideDownload();
 
   return (
     <div className="mt-5">
@@ -591,6 +610,22 @@ function GuideDownloadButton() {
         <p className="mt-3 text-sm text-red-600">Could not generate the PDF. Try again, or use a different browser.</p>
       )}
     </div>
+  );
+}
+
+/** Компактная версия для ряда кнопок в шапке главной страницы — тот же
+ * хук/генерация, что и GuideDownloadButton, просто вписана в общий ряд. */
+function HeroGuideDownloadButton() {
+  const { state, handleClick } = useGuideDownload();
+
+  return (
+    <button
+      onClick={handleClick}
+      disabled={state === 'working'}
+      className="inline-flex items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-5 py-3 font-semibold text-slate-800 shadow-sm transition hover:border-sky-300 hover:text-sky-700 disabled:opacity-60"
+    >
+      {state === 'working' ? 'Preparing…' : 'Download the guide'} <FileText className="h-4 w-4" />
+    </button>
   );
 }
 
