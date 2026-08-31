@@ -416,7 +416,25 @@ export function useSocket() {
       window.dispatchEvent(new CustomEvent(PRIVOX_MESSAGE_READ_EVENT, { detail: event }));
     });
 
+    // D40 — кружочки непрочитанных (общий счётчик и по абонентам) живут
+    // только в сторе и обновляются по сокет-событиям. На iOS WKWebView
+    // агрессивно замораживает JS/сокет в фоне (тот же класс проблем, что и
+    // в D39 с бейджем на иконке) — после возврата из фона `connect` может
+    // не перевызваться быстро, и счётчики зависают устаревшими. Прямой
+    // REST-запрос по возврату видимости страницы чинит это независимо от
+    // состояния сокета.
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return;
+      messagesApi.conversations()
+        .then((conversations: Array<{ type: 'group' | 'direct'; id: string; unreadCount: number }>) => {
+          useStore.getState().setUnreadFromConversations(conversations);
+        })
+        .catch(() => {});
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
     return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
       // Сокет глобальный — не отключаем
     };
   }, [token]);
