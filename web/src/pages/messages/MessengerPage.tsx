@@ -112,22 +112,27 @@ function MessageAttachment({ message, currentUserId }: { message: ChatMessage; c
 
   if (isVoiceNote) {
     return (
-      <div className="flex items-center gap-2 min-w-[180px]">
-        <Mic className="w-4 h-4 shrink-0 text-ptt-blue" />
-        {url ? (
-          <audio
-            controls
-            src={url}
-            className="h-8 max-w-[220px]"
-            onEnded={() => {
-              if (listenedRef.current || !isRecipient) return;
-              listenedRef.current = true;
-              messagesApi.markListened(message.id).catch(() => {});
-            }}
-          />
-        ) : (
-          <span className="text-xs text-ptt-muted">Loading…</span>
-        )}
+      <div className="space-y-1 min-w-[180px]">
+        <div className="flex items-center gap-2">
+          <Mic className="w-4 h-4 shrink-0 text-ptt-blue" />
+          {url ? (
+            <audio
+              controls
+              src={url}
+              className="h-8 max-w-[220px]"
+              onEnded={() => {
+                if (listenedRef.current || !isRecipient) return;
+                listenedRef.current = true;
+                messagesApi.markListened(message.id).catch(() => {});
+              }}
+            />
+          ) : (
+            <span className="text-xs text-ptt-muted">Loading…</span>
+          )}
+        </div>
+        {/* D34 debug 2026-08-31: временная подпись формата, убрать после
+            диагностики "нет звука Android→iPhone" */}
+        <p className="text-[9px] text-ptt-muted">{attachment.type} · {attachment.name}</p>
       </div>
     );
   }
