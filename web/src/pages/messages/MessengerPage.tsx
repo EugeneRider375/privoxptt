@@ -51,6 +51,24 @@ function requestErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
+// Явно просим mp4/aac, а не дефолтный webm/opus в Chrome: WebKit (iOS) годами
+// не может проиграть webm/opus именно из blob-URL (см.
+// bugs.webkit.org/show_bug.cgi?id=245428) — на живом тесте 2026-08-31 это
+// проявилось так: голосовое с Android на iPhone доходило, "слушалось" и
+// самоудалялось, но звука не было вообще. iPhone по умолчанию и так
+// записывает в mp4/aac, поэтому в обратную сторону всё работало.
+const VOICE_NOTE_MIME_CANDIDATES = [
+  'audio/mp4;codecs=mp4a.40.2',
+  'audio/mp4',
+  'audio/webm;codecs=opus',
+  'audio/webm',
+];
+
+function pickVoiceNoteMimeType(): string | undefined {
+  if (typeof MediaRecorder === 'undefined' || !MediaRecorder.isTypeSupported) return undefined;
+  return VOICE_NOTE_MIME_CANDIDATES.find((type) => MediaRecorder.isTypeSupported(type));
+}
+
 function MessageAttachment({ message, currentUserId }: { message: ChatMessage; currentUserId?: string }) {
   const [url, setUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -383,7 +401,8 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
     if (recording || !selected || selected.type !== 'direct') return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
+      const mimeType = pickVoiceNoteMimeType();
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       recordedChunksRef.current = [];
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) recordedChunksRef.current.push(event.data);
