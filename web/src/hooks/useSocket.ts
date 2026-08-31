@@ -420,21 +420,35 @@ export function useSocket() {
     // только в сторе и обновляются по сокет-событиям. На iOS WKWebView
     // агрессивно замораживает JS/сокет в фоне (тот же класс проблем, что и
     // в D39 с бейджем на иконке) — после возврата из фона `connect` может
-    // не перевызваться быстро, и счётчики зависают устаревшими. Прямой
-    // REST-запрос по возврату видимости страницы чинит это независимо от
-    // состояния сокета.
-    const onVisibilityChange = () => {
-      if (document.visibilityState !== 'visible') return;
+    // не перевызваться быстро, и счётчики зависают устаревшими.
+    //
+    // Первая попытка (только `visibilitychange`) не помогла на живом
+    // тесте 2026-08-31 — судя по всему это событие ненадёжно долетает
+    // внутри WKWebView без нативного плагина @capacitor/app, которого в
+    // проекте пока нет. Подстраховываемся ещё двумя сигналами (`pageshow`,
+    // `focus` — разные вебкит-версии по-разному репортят возврат в
+    // foreground) и периодическим опросом раз в 30с как гарантированной
+    // подстраховкой независимо от того, сработало ли хоть одно событие.
+    const refreshUnread = () => {
       messagesApi.conversations()
         .then((conversations: Array<{ type: 'group' | 'direct'; id: string; unreadCount: number }>) => {
           useStore.getState().setUnreadFromConversations(conversations);
         })
         .catch(() => {});
     };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') refreshUnread();
+    };
     document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('pageshow', refreshUnread);
+    window.addEventListener('focus', refreshUnread);
+    const unreadPollTimer = setInterval(refreshUnread, 30_000);
 
     return () => {
       document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('pageshow', refreshUnread);
+      window.removeEventListener('focus', refreshUnread);
+      clearInterval(unreadPollTimer);
       // Сокет глобальный — не отключаем
     };
   }, [token]);
