@@ -92,27 +92,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Called as part of the transition from the background to the active state; here you can undo many of the changes made on entering the background.
     }
 
-    // Красный бейдж выставляет сервер через aps.badge на каждый push о
-    // сообщении (D27 3/4) — сам по себе он никогда не гаснет, iOS просто
-    // держит последнее полученное число, пока приложение явно не скажет
-    // сбросить. Найдено 2026-08-31 живой жалобой тестировщика: "после
-    // прочтения сообщений не исчезает". Сбрасываем при каждом выходе на
-    // передний план — человек открыл приложение, дальше непрочитанное он
-    // увидит уже внутри самого чата.
-    //
-    // ⚠️ Первая попытка (просто UIApplication.shared.applicationIconBadgeNumber
-    // = 0) не сработала на живом устройстве (iOS 18.7) — Apple объявила это
-    // свойство устаревшим ещё в iOS 17 в пользу UNUserNotificationCenter.
-    // setBadgeCount(), и на практике старый сеттер оказался ненадёжным, а не
-    // просто "работает, но не одобряется", как написано в документации.
+    // Сброс бейджа (D39) переехал в SceneDelegate.sceneDidBecomeActive —
+    // приложение сценовое, и этот метод AppDelegate у таких приложений не
+    // вызывается вообще (проверено дважды вживую 2026-08-31: код здесь был
+    // синтаксически верным оба раза, просто никогда не срабатывал).
     func applicationDidBecomeActive(_ application: UIApplication) {
-        if #available(iOS 17.0, *) {
-            UNUserNotificationCenter.current().setBadgeCount(0) { error in
-                if let error { print("[Privox] setBadgeCount failed: \(error)") }
-            }
-        } else {
-            UIApplication.shared.applicationIconBadgeNumber = 0
-        }
     }
 
     func applicationWillTerminate(_ application: UIApplication) {

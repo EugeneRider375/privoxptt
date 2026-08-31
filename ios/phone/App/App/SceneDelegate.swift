@@ -1,8 +1,26 @@
 import UIKit
 import Capacitor
+import UserNotifications
 
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     var window: UIWindow?
+
+    // ⚠️ Приложение сценовое (UIWindowSceneDelegate) — AppDelegate.
+    // applicationDidBecomeActive у таких приложений НЕ вызывается вообще,
+    // Apple перенесла этот момент сюда. Найдено 2026-08-31 живым тестом:
+    // сброс бейджа в AppDelegate.applicationDidBecomeActive был написан
+    // дважды (сначала старым API, потом новым setBadgeCount) и оба раза не
+    // срабатывал на реальном iPhone — не из-за самого API, а потому что
+    // метод в AppDelegate попросту никогда не вызывался.
+    func sceneDidBecomeActive(_ scene: UIScene) {
+        if #available(iOS 17.0, *) {
+            UNUserNotificationCenter.current().setBadgeCount(0) { error in
+                if let error { print("[Privox] setBadgeCount failed: \(error)") }
+            }
+        } else {
+            UIApplication.shared.applicationIconBadgeNumber = 0
+        }
+    }
 
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
         guard let windowScene = scene as? UIWindowScene else { return }
