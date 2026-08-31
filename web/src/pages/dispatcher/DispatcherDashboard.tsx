@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Radio, Mic, MicOff, PhoneCall, Check, Clock, BellRing } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
 import { PRIVOX_DATA_CHANGED_EVENT, useSocket } from '@/hooks/useSocket';
 import { usePTT } from '@/hooks/usePTT';
@@ -20,6 +21,9 @@ export function DispatcherDashboard() {
   const pttCallsign = useStore((s) => s.pttCallsign);
   const onlineUsers = useStore((s) => s.onlineUsers);
   const userGroups = useStore((s) => s.userGroups);
+  // D40 — кружочек с числом непрочитанных личных сообщений напротив абонента.
+  const directUnreadByUser = useStore((s) => s.directUnreadByUser);
+  const navigate = useNavigate();
   const dispatcherCalls = useStore((s) => s.dispatcherCalls);
   const outgoingUserCalls = useStore((s) => s.outgoingUserCalls);
 
@@ -390,6 +394,15 @@ export function DispatcherDashboard() {
                 </div>
                 {talking && <Radio className="w-3 h-3 text-ptt-green shrink-0 animate-pulse" />}
                 {!m.canSpeak && !talking && <MicOff className="w-3 h-3 text-ptt-muted shrink-0" />}
+                {!!directUnreadByUser[m.userId] && (
+                  <button
+                    onClick={() => navigate('/dispatcher/messages')}
+                    title={`${directUnreadByUser[m.userId]} unread message(s) from ${m.user.callsign}`}
+                    className="shrink-0 min-w-5 h-5 px-1 rounded-full bg-ptt-green text-ptt-dark font-mono text-[10px] flex items-center justify-center"
+                  >
+                    {directUnreadByUser[m.userId] > 99 ? '99+' : directUnreadByUser[m.userId]}
+                  </button>
+                )}
                 {m.userId !== user?.id && (
                   <button
                     onClick={() => handleCallUser(m.userId, m.user.callsign)}

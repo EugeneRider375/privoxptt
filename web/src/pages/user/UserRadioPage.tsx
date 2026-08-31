@@ -31,6 +31,9 @@ export function UserRadioPage() {
   const clearAuth = useStore((s) => s.clearAuth);
   const onlineUsers = useStore((s) => s.onlineUsers);
   const userGroups = useStore((s) => s.userGroups);
+  // D40 — кружочек с числом непрочитанных личных сообщений напротив
+  // позывного в списке абонентов.
+  const directUnreadByUser = useStore((s) => s.directUnreadByUser);
 
   const battery = useBattery();
   const { joinGroup, leaveGroup, sendSos, callUser, wakeGroup, callDispatcher } = useSocket();
@@ -443,6 +446,15 @@ export function UserRadioPage() {
               <div className="ml-auto flex items-center gap-2">
                 {isTalking && <Radio className="w-3 h-3 text-ptt-green animate-pulse" />}
                 {!m.canSpeak && <span className="font-mono text-xs text-ptt-muted">LISTENER</span>}
+                {!!directUnreadByUser[m.userId] && (
+                  <button
+                    onClick={() => navigate('/messages')}
+                    title={`${directUnreadByUser[m.userId]} unread message(s) from ${m.user.callsign}`}
+                    className="min-w-5 h-5 px-1 rounded-full bg-ptt-green text-ptt-dark font-mono text-[10px] flex items-center justify-center"
+                  >
+                    {directUnreadByUser[m.userId] > 99 ? '99+' : directUnreadByUser[m.userId]}
+                  </button>
+                )}
                 {!isTalking && !isSelf && (
                   <button
                     onClick={() => handleCallUser(m.userId)}

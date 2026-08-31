@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { isAxiosError } from 'axios';
-import { ArrowLeft, Camera, Download, FileText, Hash, Image, Mic, MessageSquare, Paperclip, Send, Square, Trash2, UserRound } from 'lucide-react';
+import { ArrowLeft, Camera, Check, CheckCheck, Download, FileText, Hash, Image, Mic, MessageSquare, Paperclip, Send, Square, Trash2, UserRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { messagesApi } from '@/api/client';
 import { clearNativeMessageNotifications } from '@/hooks/useNativePush';
@@ -8,6 +8,7 @@ import {
   PRIVOX_MESSAGE_CLEARED_EVENT,
   PRIVOX_MESSAGE_DELETED_EVENT,
   PRIVOX_MESSAGE_NEW_EVENT,
+  PRIVOX_MESSAGE_READ_EVENT,
   useSocket,
 } from '@/hooks/useSocket';
 import { useStore } from '@/store/useStore';
@@ -146,7 +147,7 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
   useSocket();
   const navigate = useNavigate();
   const user = useStore((state) => state.user);
-  const setUnreadMessageCount = useStore((state) => state.setUnreadMessageCount);
+  const setUnreadFromConversations = useStore((state) => state.setUnreadFromConversations);
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState<'group' | 'direct' | null>(null);
@@ -178,12 +179,12 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
   const loadConversations = useCallback(async () => {
     const data = await messagesApi.conversations() as ChatConversation[];
     setConversations(data);
-    setUnreadMessageCount(data.reduce((total, item) => total + item.unreadCount, 0));
+    setUnreadFromConversations(data);
     if (embedded) {
       setSelectedId((current) => current ?? data[0]?.id ?? null);
       setSelectedType((current) => current ?? data[0]?.type ?? null);
     }
-  }, [embedded, setUnreadMessageCount]);
+  }, [embedded, setUnreadFromConversations]);
 
   useEffect(() => {
     setLoading(true);
@@ -208,10 +209,10 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
           ? { ...item, unreadCount: 0 }
           : item
       );
-      setUnreadMessageCount(next.reduce((total, item) => total + item.unreadCount, 0));
+      setUnreadFromConversations(next);
       return next;
     });
-  }, [setUnreadMessageCount]);
+  }, [setUnreadFromConversations]);
 
   useEffect(() => {
     if (!selected) {
@@ -250,7 +251,7 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
             unreadCount: isOpen || message.senderId === user.id ? 0 : item.unreadCount + 1,
           };
         });
-        setUnreadMessageCount(next.reduce((total, item) => total + item.unreadCount, 0));
+        setUnreadFromConversations(next);
         return next;
       });
       if (selected && belongsToConversation(message, selected, user.id)) {
@@ -262,7 +263,7 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
     };
     window.addEventListener(PRIVOX_MESSAGE_NEW_EVENT, onMessage);
     return () => window.removeEventListener(PRIVOX_MESSAGE_NEW_EVENT, onMessage);
-  }, [markConversationRead, selected, selectedId, selectedType, setUnreadMessageCount, user]);
+  }, [markConversationRead, selected, selectedId, selectedType, setUnreadFromConversations, user]);
 
   useEffect(() => {
     const onCleared = (event: Event) => {
@@ -277,7 +278,7 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
         const next = items.map((item) =>
           matches(item) ? { ...item, lastMessage: null, unreadCount: 0 } : item
         );
-        setUnreadMessageCount(next.reduce((total, item) => total + item.unreadCount, 0));
+        setUnreadFromConversations(next);
         return next;
       });
       if (selected && matches(selected)) {
@@ -287,7 +288,7 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
     };
     window.addEventListener(PRIVOX_MESSAGE_CLEARED_EVENT, onCleared);
     return () => window.removeEventListener(PRIVOX_MESSAGE_CLEARED_EVENT, onCleared);
-  }, [selected, setUnreadMessageCount]);
+  }, [selected, setUnreadFromConversations]);
 
   useEffect(() => {
     const onDeleted = (event: Event) => {
@@ -298,6 +299,20 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
     window.addEventListener(PRIVOX_MESSAGE_DELETED_EVENT, onDeleted);
     return () => window.removeEventListener(PRIVOX_MESSAGE_DELETED_EVENT, onDeleted);
   }, []);
+
+  useEffect(() => {
+    const onRead = (event: Event) => {
+      const { userId: readerId } = (event as CustomEvent<{ userId: string }>).detail ?? {};
+      if (!readerId || !user) return;
+      setMessages((items) => items.map((item) =>
+        item.senderId === user.id && item.recipientId === readerId
+          ? { ...item, readCount: Math.max(item.readCount, 2) }
+          : item
+      ));
+    };
+    window.addEventListener(PRIVOX_MESSAGE_READ_EVENT, onRead);
+    return () => window.removeEventListener(PRIVOX_MESSAGE_READ_EVENT, onRead);
+  }, [user]);
 
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -342,7 +357,7 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
             ? { ...item, lastMessage: null, unreadCount: 0 }
             : item
         );
-        setUnreadMessageCount(next.reduce((total, item) => total + item.unreadCount, 0));
+        setUnreadFromConversations(next);
         return next;
       });
     } catch (err) {
@@ -436,6 +451,7 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
           )}
           {conversations.map((conversation) => {
             const active = conversation.id === selectedId && conversation.type === selectedType;
+            const unread = conversation.unreadCount > 0;
             return (
               <button
                 key={`${conversation.type}:${conversation.id}`}
@@ -444,7 +460,7 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
                   setSelectedType(conversation.type);
                 }}
                 className={`w-full flex items-center gap-3 px-4 py-3 text-left border-b border-ptt-border/40 ${
-                  active ? 'bg-ptt-green/10' : 'hover:bg-ptt-muted/20'
+                  active ? 'bg-ptt-green/10' : unread ? 'bg-ptt-green/5 hover:bg-ptt-muted/20' : 'hover:bg-ptt-muted/20'
                 }`}
               >
                 <div
@@ -456,15 +472,17 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
                     : <UserRound className="w-4 h-4 text-ptt-blue" />}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-rajdhani font-semibold truncate">{conversation.title}</p>
-                  <p className="font-mono text-[10px] text-ptt-muted truncate">
+                  <p className={`font-rajdhani truncate ${unread ? 'font-bold text-white' : 'font-semibold'}`}>
+                    {conversation.title}
+                  </p>
+                  <p className={`font-mono text-[10px] truncate ${unread ? 'text-ptt-text' : 'text-ptt-muted'}`}>
                     {conversation.lastMessage?.attachment?.name
                       ?? conversation.lastMessage?.body
                       ?? conversation.subtitle
                       ?? 'No messages yet'}
                   </p>
                 </div>
-                {conversation.unreadCount > 0 && (
+                {unread && (
                   <span className="min-w-5 h-5 px-1 rounded-full bg-ptt-green text-ptt-dark font-mono text-[10px] flex items-center justify-center">
                     {conversation.unreadCount > 99 ? '99+' : conversation.unreadCount}
                   </span>
@@ -531,8 +549,15 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
                         <p className="font-rajdhani text-sm whitespace-pre-wrap break-words">{message.body}</p>
                       )}
                       <MessageAttachment message={message} currentUserId={user?.id} />
-                      <p className="mt-1 text-right font-mono text-[9px] text-ptt-muted">
+                      <p className="mt-1 flex items-center justify-end gap-1 font-mono text-[9px] text-ptt-muted">
                         {timeLabel(message.createdAt)}
+                        {/* D40 — статус прочтения только для личных сообщений
+                            от нас самих (в группах не отслеживаем, кто прочёл). */}
+                        {own && selected?.type === 'direct' && (
+                          message.readCount >= 2
+                            ? <CheckCheck className="w-3 h-3 text-ptt-blue" />
+                            : <Check className="w-3 h-3 text-ptt-muted" />
+                        )}
                       </p>
                     </div>
                   </div>

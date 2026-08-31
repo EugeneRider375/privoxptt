@@ -652,6 +652,12 @@ messagesRouter.post('/read', async (req: Request, res: Response, next: NextFunct
         data: unread.map((message) => ({ messageId: message.id, userId })),
         skipDuplicates: true,
       });
+      // D40 — уведомляем отправителя живьём, что его сообщения прочитаны
+      // (галочки). Только для личных диалогов, в группах статус не показываем.
+      if (target.userId) {
+        const io = req.app.get('io') as Server | undefined;
+        io?.to(`user:${target.userId}`).emit('message:read', { userId });
+      }
     }
     res.json({ ok: true, readCount: unread.length });
   } catch (err) {

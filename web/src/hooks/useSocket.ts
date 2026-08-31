@@ -19,6 +19,9 @@ export const PRIVOX_MESSAGE_CLEARED_EVENT = 'privox-message-cleared';
 // это ОБЕИМ сторонам диалога, чтобы у отправителя оно тоже пропало живьём,
 // не только у прослушавшего получателя.
 export const PRIVOX_MESSAGE_DELETED_EVENT = 'privox-message-deleted';
+// D40 — собеседник открыл личный диалог и прочитал наши сообщения.
+// Только для 1:1 (в группах статусы прочтения не показываем).
+export const PRIVOX_MESSAGE_READ_EVENT = 'privox-message-read';
 
 let globalSocket: Socket | null = null;
 // Heartbeat-вотчдог: следим за временем последнего heartbeat-ack от сервера.
@@ -122,9 +125,8 @@ export function useSocket() {
       console.log('[Socket] Connected:', socket.id);
       lastPongAt = Date.now(); // свежее подключение — сбрасываем счётчик молчания
       messagesApi.conversations()
-        .then((conversations: Array<{ unreadCount: number }>) => {
-          const unread = conversations.reduce((total, item) => total + item.unreadCount, 0);
-          useStore.getState().setUnreadMessageCount(unread);
+        .then((conversations: Array<{ type: 'group' | 'direct'; id: string; unreadCount: number }>) => {
+          useStore.getState().setUnreadFromConversations(conversations);
         })
         .catch(() => {});
       // Реконсиляция датчиков: при reconnect могли пропустить sensor-update,
@@ -377,7 +379,14 @@ export function useSocket() {
       window.dispatchEvent(new CustomEvent(PRIVOX_MESSAGE_NEW_EVENT, { detail: message }));
       if (message.senderId !== useStore.getState().user?.id) {
         const state = useStore.getState();
-        state.incrementUnreadMessageCount();
+        // D40 — личные сообщения считаем и по конкретному отправителю
+        // (кружочек напротив позывного в списке абонентов), групповые —
+        // только в общий счётчик.
+        if (!message.groupId) {
+          state.incrementDirectUnread(message.senderId);
+        } else {
+          state.incrementUnreadMessageCount();
+        }
         state.addAlert({
           type: 'info',
           variant: 'message',
@@ -393,15 +402,18 @@ export function useSocket() {
     socket.on('message:cleared', (event: { groupId?: string; userId?: string }) => {
       window.dispatchEvent(new CustomEvent(PRIVOX_MESSAGE_CLEARED_EVENT, { detail: event }));
       messagesApi.conversations()
-        .then((conversations: Array<{ unreadCount: number }>) => {
-          const unread = conversations.reduce((total, item) => total + item.unreadCount, 0);
-          useStore.getState().setUnreadMessageCount(unread);
+        .then((conversations: Array<{ type: 'group' | 'direct'; id: string; unreadCount: number }>) => {
+          useStore.getState().setUnreadFromConversations(conversations);
         })
         .catch(() => {});
     });
 
     socket.on('message:deleted', (event: { messageId: string }) => {
       window.dispatchEvent(new CustomEvent(PRIVOX_MESSAGE_DELETED_EVENT, { detail: event }));
+    });
+
+    socket.on('message:read', (event: { userId: string }) => {
+      window.dispatchEvent(new CustomEvent(PRIVOX_MESSAGE_READ_EVENT, { detail: event }));
     });
 
     return () => {

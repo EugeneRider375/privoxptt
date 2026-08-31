@@ -66,6 +66,14 @@ interface AppStore {
   unreadMessageCount: number;
   setUnreadMessageCount: (count: number) => void;
   incrementUnreadMessageCount: () => void;
+  // D40 — сколько непрочитанных личных сообщений от каждого конкретного
+  // абонента (только 1:1, групповые сюда не попадают), для кружочка с
+  // цифрой напротив позывного в списке абонентов.
+  directUnreadByUser: Record<string, number>;
+  setUnreadFromConversations: (
+    conversations: Array<{ type: 'group' | 'direct'; id: string; unreadCount: number }>,
+  ) => void;
+  incrementDirectUnread: (userId: string) => void;
 
   // ─── UI ────────────────────────────────────────────────
   sidebarOpen: boolean;
@@ -88,7 +96,7 @@ export const useStore = create<AppStore>()(
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('privoxptt');
-        set({ user: null, accessToken: null, refreshToken: null, unreadMessageCount: 0 });
+        set({ user: null, accessToken: null, refreshToken: null, unreadMessageCount: 0, directUnreadByUser: {} });
       },
 
       // Группы
@@ -218,6 +226,21 @@ export const useStore = create<AppStore>()(
       setUnreadMessageCount: (count) => set({ unreadMessageCount: Math.max(0, count) }),
       incrementUnreadMessageCount: () =>
         set((s) => ({ unreadMessageCount: s.unreadMessageCount + 1 })),
+      directUnreadByUser: {},
+      setUnreadFromConversations: (conversations) => {
+        const directUnreadByUser: Record<string, number> = {};
+        let total = 0;
+        for (const c of conversations) {
+          total += c.unreadCount;
+          if (c.type === 'direct' && c.unreadCount > 0) directUnreadByUser[c.id] = c.unreadCount;
+        }
+        set({ unreadMessageCount: Math.max(0, total), directUnreadByUser });
+      },
+      incrementDirectUnread: (userId) =>
+        set((s) => ({
+          unreadMessageCount: s.unreadMessageCount + 1,
+          directUnreadByUser: { ...s.directUnreadByUser, [userId]: (s.directUnreadByUser[userId] ?? 0) + 1 },
+        })),
 
       // UI
       sidebarOpen: true,
