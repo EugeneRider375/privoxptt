@@ -99,8 +99,20 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     // прочтения сообщений не исчезает". Сбрасываем при каждом выходе на
     // передний план — человек открыл приложение, дальше непрочитанное он
     // увидит уже внутри самого чата.
+    //
+    // ⚠️ Первая попытка (просто UIApplication.shared.applicationIconBadgeNumber
+    // = 0) не сработала на живом устройстве (iOS 18.7) — Apple объявила это
+    // свойство устаревшим ещё в iOS 17 в пользу UNUserNotificationCenter.
+    // setBadgeCount(), и на практике старый сеттер оказался ненадёжным, а не
+    // просто "работает, но не одобряется", как написано в документации.
     func applicationDidBecomeActive(_ application: UIApplication) {
-        UIApplication.shared.applicationIconBadgeNumber = 0
+        if #available(iOS 17.0, *) {
+            UNUserNotificationCenter.current().setBadgeCount(0) { error in
+                if let error { print("[Privox] setBadgeCount failed: \(error)") }
+            }
+        } else {
+            UIApplication.shared.applicationIconBadgeNumber = 0
+        }
     }
 
     func applicationWillTerminate(_ application: UIApplication) {

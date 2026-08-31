@@ -1710,7 +1710,19 @@ push о сообщении (`sendIosMessagePush`, D27 3/4, вчера) — но 
 пустой заглушкой) теперь вызывает `UIApplication.shared.
 applicationIconBadgeNumber = 0` — бейдж сбрасывается при каждом выходе
 приложения на передний план. Собрано (`xcodebuild ... BUILD SUCCEEDED`) и
-загружено в TestFlight как **build 8**. Не проверено вживую — ждёт теста.
+загружено в TestFlight как **build 8**.
+
+**🔴 Не сработало на живом устройстве (iOS 18.7), проверено вживую
+2026-08-31:** бейдж так и остался висеть после реального открытия
+приложения. Причина: `applicationIconBadgeNumber` объявлен устаревшим
+Apple ещё в iOS 17 в пользу `UNUserNotificationCenter.setBadgeCount()`, и
+на практике оказался не просто "не одобряемым", а реально ненадёжным на
+современных версиях iOS, не только формально устаревшим.
+
+**✅ Исправлено окончательно:** `applicationDidBecomeActive` теперь
+использует `UNUserNotificationCenter.current().setBadgeCount(0)` на iOS 17+
+(с проверкой `#available`), со откатом на старый API только для iOS 15-16.
+Собрано, загружено как **build 9**. Не проверено вживую — ждёт теста.
 
 ---
 
