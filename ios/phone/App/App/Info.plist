@@ -30,6 +30,16 @@
 	<string>PRIVOX PTT needs the microphone to transmit on the radio channel.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>PRIVOX PTT uses your location to show your position on the dispatcher map.</string>
+	<!-- Без этих двух ключей iOS не показывает ошибку доступа — она молча и
+	     жёстко убивает приложение в момент, когда система пытается открыть
+	     камеру/галерею (найдено живой жалобой Eugene 2026-08-31: "нажать на
+	     скрепочку → Take Photo → вылетает из приложения"). Микрофон уже был
+	     объявлен (для рации), камера и галерея — нет, хотя кнопки "Attach"
+	     и "Take a photo" в мессенджере (MessengerPage.tsx) их используют. -->
+	<key>NSCameraUsageDescription</key>
+	<string>PRIVOX PTT needs the camera to take a photo to send in a message.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>PRIVOX PTT needs access to your photo library to attach a photo to a message.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>
