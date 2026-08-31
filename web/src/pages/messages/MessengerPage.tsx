@@ -51,24 +51,6 @@ function requestErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
-// Явно просим mp4/aac, а не дефолтный webm/opus в Chrome: WebKit (iOS) годами
-// не может проиграть webm/opus именно из blob-URL (см.
-// bugs.webkit.org/show_bug.cgi?id=245428) — на живом тесте 2026-08-31 это
-// проявилось так: голосовое с Android на iPhone доходило, "слушалось" и
-// самоудалялось, но звука не было вообще. iPhone по умолчанию и так
-// записывает в mp4/aac, поэтому в обратную сторону всё работало.
-const VOICE_NOTE_MIME_CANDIDATES = [
-  'audio/mp4;codecs=mp4a.40.2',
-  'audio/mp4',
-  'audio/webm;codecs=opus',
-  'audio/webm',
-];
-
-function pickVoiceNoteMimeType(): string | undefined {
-  if (typeof MediaRecorder === 'undefined' || !MediaRecorder.isTypeSupported) return undefined;
-  return VOICE_NOTE_MIME_CANDIDATES.find((type) => MediaRecorder.isTypeSupported(type));
-}
-
 function MessageAttachment({ message, currentUserId }: { message: ChatMessage; currentUserId?: string }) {
   const [url, setUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -112,27 +94,22 @@ function MessageAttachment({ message, currentUserId }: { message: ChatMessage; c
 
   if (isVoiceNote) {
     return (
-      <div className="space-y-1 min-w-[180px]">
-        <div className="flex items-center gap-2">
-          <Mic className="w-4 h-4 shrink-0 text-ptt-blue" />
-          {url ? (
-            <audio
-              controls
-              src={url}
-              className="h-8 max-w-[220px]"
-              onEnded={() => {
-                if (listenedRef.current || !isRecipient) return;
-                listenedRef.current = true;
-                messagesApi.markListened(message.id).catch(() => {});
-              }}
-            />
-          ) : (
-            <span className="text-xs text-ptt-muted">Loading…</span>
-          )}
-        </div>
-        {/* D34 debug 2026-08-31: временная подпись формата, убрать после
-            диагностики "нет звука Android→iPhone" */}
-        <p className="text-[9px] text-ptt-muted">{attachment.type} · {attachment.name}</p>
+      <div className="flex items-center gap-2 min-w-[180px]">
+        <Mic className="w-4 h-4 shrink-0 text-ptt-blue" />
+        {url ? (
+          <audio
+            controls
+            src={url}
+            className="h-8 max-w-[220px]"
+            onEnded={() => {
+              if (listenedRef.current || !isRecipient) return;
+              listenedRef.current = true;
+              messagesApi.markListened(message.id).catch(() => {});
+            }}
+          />
+        ) : (
+          <span className="text-xs text-ptt-muted">Loading…</span>
+        )}
       </div>
     );
   }
@@ -402,12 +379,17 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
 
   // Голосовые сообщения (D34) — только личка (кнопка вообще не показывается
   // в групповых чатах, см. selected?.type === 'direct' ниже).
+  //
+  // Не выбираем mimeType специально: сервер всё равно перекодирует любую
+  // запись в единый AAC/M4A через ffmpeg (server/src/services/transcode.ts),
+  // т.к. разные Android-телефоны иначе пишут несовместимые с iOS варианты
+  // mp4/webm (живой тест 2026-08-31: один и тот же клиентский код давал
+  // играющую запись на одном Android и неиграющую на другом).
   async function startRecording() {
     if (recording || !selected || selected.type !== 'direct') return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mimeType = pickVoiceNoteMimeType();
-      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      const recorder = new MediaRecorder(stream);
       recordedChunksRef.current = [];
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) recordedChunksRef.current.push(event.data);

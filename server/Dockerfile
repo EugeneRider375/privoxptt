@@ -21,8 +21,12 @@ RUN npm run build
 # ─── Production образ ─────────────────────────────────────
 FROM node:20-slim AS production
 
+# ffmpeg — перекодирование голосовых сообщений (D34) в единый AAC/M4A,
+# т.к. разные Android-телефоны пишут mp4/webm по-разному (в т.ч. в виде
+# фрагментированного mp4, который старые версии WebKit/iOS не проигрывают
+# из blob-URL) — см. docs/BACKLOG_RU.md, D34.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 python3-pip make g++ pkg-config \
+    python3 python3-pip make g++ pkg-config ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

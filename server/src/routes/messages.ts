@@ -3,12 +3,13 @@ import type { Server } from 'socket.io';
 import { UserRole } from '@prisma/client';
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
-import { mkdir, readFile, unlink, writeFile } from 'fs/promises';
+import { mkdir, readFile, stat, unlink, writeFile } from 'fs/promises';
 import path from 'path';
 import { prisma } from '../database/prisma';
 import { authenticate } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
 import { sendIncomingMessagePush } from '../services/push';
+import { transcodeVoiceNote } from '../services/transcode';
 import { checkGroupWindow, openGroupFilter, GROUP_WINDOW_SELECT } from '../services/groupAccess';
 import { logger } from '../utils/logger';
 
@@ -511,7 +512,29 @@ messagesRouter.post(
       await mkdir(uploadsDir, { recursive: true });
       const fileId = randomUUID();
       storedPath = path.join(uploadsDir, fileId);
-      await writeFile(storedPath, req.body);
+
+      let finalContentType = contentType;
+      let finalName = originalName;
+      let finalSize = req.body.length;
+
+      if (isVoiceNote(contentType)) {
+        // Перекодируем в canonical AAC/M4A (D34) — см. transcode.ts, разные
+        // Android-телефоны иначе пишут несовместимые с iOS варианты mp4/webm.
+        const rawPath = `${storedPath}.raw`;
+        await writeFile(rawPath, req.body);
+        try {
+          await transcodeVoiceNote(rawPath, storedPath);
+        } catch (err) {
+          await unlink(rawPath).catch(() => {});
+          throw new AppError(400, 'Unable to process voice note audio');
+        }
+        await unlink(rawPath).catch(() => {});
+        finalContentType = 'audio/mp4';
+        finalName = `${originalName.replace(/\.[^./]+$/, '')}.m4a`;
+        finalSize = (await stat(storedPath)).size;
+      } else {
+        await writeFile(storedPath, req.body);
+      }
 
       const created = await prisma.message.create({
         data: {
@@ -520,9 +543,9 @@ messagesRouter.post(
           recipientId: target.userId,
           groupId: target.groupId,
           body: '',
-          attachmentName: originalName,
-          attachmentType: contentType,
-          attachmentSize: req.body.length,
+          attachmentName: finalName,
+          attachmentType: finalContentType,
+          attachmentSize: finalSize,
           attachmentPath: storedPath,
           reads: { create: { userId } },
         },
