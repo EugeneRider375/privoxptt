@@ -178,6 +178,11 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
 
   const loadConversations = useCallback(async () => {
     const data = await messagesApi.conversations() as ChatConversation[];
+    // D40 debug 2026-08-31: временный лог — на iPhone кружочки непрочитанных
+    // не показывались в списке диалогов, хотя ручной fetch с того же
+    // устройства/сессии возвращал корректный unreadCount. Убрать после
+    // разбора.
+    console.log('[D40 debug] conversations loaded:', data.map((c) => ({ id: c.id, title: c.title, unreadCount: c.unreadCount })));
     setConversations(data);
     setUnreadFromConversations(data);
     if (embedded) {

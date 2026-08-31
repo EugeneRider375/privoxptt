@@ -259,3 +259,8 @@ export const useStore = create<AppStore>()(
     }
   )
 );
+
+// Отладка вживую через консоль (как window.__privoxSocket в useSocket.ts) —
+// пригодилось при разборе D40 (кружочки непрочитанных не показывались на
+// iPhone): window.__privoxStore.getState().directUnreadByUser.
+(window as any).__privoxStore = useStore;
