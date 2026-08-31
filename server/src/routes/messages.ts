@@ -300,8 +300,23 @@ function directContactFilter(
     intent === 'write'
       ? { ...openGroupFilter(), members: { some: { userId, canMessage: true } } }
       : { members: { some: { userId } } };
+  const sharedGroupFilter = { groupMembers: { some: { group: sharedGroup } } };
 
-  return { groupMembers: { some: { group: sharedGroup } } };
+  // Баг, найден Eugene 2026-08-31: если привилегированная роль (SUPERADMIN/
+  // ADMIN/DISPATCHER) пишет личное сообщение человеку, с которым не состоит
+  // в общей группе, — фильтр выше не пропускал этого отправителя ни в
+  // список диалогов получателя, ни в доступ на чтение/ответ. Сообщение
+  // реально сохранялось в базе, но было невидимым и непрочитываемым для
+  // получателя. Разрешаем читать/отвечать в уже начатой переписке
+  // независимо от общей группы — не даёт холодный старт диалога в обход
+  // группы, только продолжение того, что уже начал кто-то другой.
+  return {
+    OR: [
+      sharedGroupFilter,
+      { sentMessages: { some: { recipientId: userId } } },
+      { receivedMessages: { some: { senderId: userId } } },
+    ],
+  };
 }
 
 async function assertDirectAccess(
