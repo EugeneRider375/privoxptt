@@ -1933,8 +1933,11 @@ Inspector (Console + `getBoundingClientRect()`), пошагово исключи
 временный отладочный `console.log`. Оставлен постоянный
 `window.__privoxStore` (по аналогии с уже существующим
 `window.__privoxSocket`) — полезно для будущей диагностики через Safari/
-Chrome DevTools. `tsc --noEmit`/`vite build` чисто. **Не проверено
-вживую** — ждёт повторного теста на iPhone.
+Chrome DevTools. `tsc --noEmit`/`vite build` чисто.
+
+**✅ Подтверждено вживую 2026-08-31 (Eugene, iPhone): «наконец есть!»** —
+кружочки у DISPATCHER/RA3APR/SUPERADMIN появились на своих местах после
+деплоя фикса. D40 закрыт полностью.
 
 ### D41. ✅ Часть исправлена 2026-08-31 — краш при "Take Photo" в мессенджере на iOS; путаница с иконкой скачивания фото
 Eugene, живой тест: «если нажать в чате на скрепочку и опцию Take Photo —
