@@ -267,6 +267,10 @@ export const messagesApi = {
     api.post('/messages/read', target).then((r) => r.data),
   clearHistory: (target: { groupId?: string; userId?: string }) =>
     api.post('/messages/clear', target).then((r) => r.data),
+  // Голосовое сообщение (D34) — сервер удаляет его целиком (файл + строку в
+  // базе) в момент вызова, не только помечает прочитанным.
+  markListened: (messageId: string) =>
+    api.post(`/messages/${messageId}/listened`).then((r) => r.data),
 };
 
 function attachmentTypeFromName(name: string): string {
@@ -286,5 +290,9 @@ function attachmentTypeFromName(name: string): string {
     docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     xls: 'application/vnd.ms-excel',
     xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    webm: 'audio/webm',
+    m4a: 'audio/x-m4a',
+    mp3: 'audio/mpeg',
+    ogg: 'audio/ogg',
   } as Record<string, string>)[extension ?? ''] ?? 'application/octet-stream';
 }

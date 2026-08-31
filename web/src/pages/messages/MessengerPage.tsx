@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { isAxiosError } from 'axios';
-import { ArrowLeft, Camera, Download, FileText, Hash, Image, MessageSquare, Paperclip, Send, Trash2, UserRound } from 'lucide-react';
+import { ArrowLeft, Camera, Download, FileText, Hash, Image, Mic, MessageSquare, Paperclip, Send, Square, Trash2, UserRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { messagesApi } from '@/api/client';
 import { clearNativeMessageNotifications } from '@/hooks/useNativePush';
 import {
   PRIVOX_MESSAGE_CLEARED_EVENT,
+  PRIVOX_MESSAGE_DELETED_EVENT,
   PRIVOX_MESSAGE_NEW_EVENT,
   useSocket,
 } from '@/hooks/useSocket';
@@ -50,14 +51,17 @@ function requestErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
-function MessageAttachment({ message }: { message: ChatMessage }) {
+function MessageAttachment({ message, currentUserId }: { message: ChatMessage; currentUserId?: string }) {
   const [url, setUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const listenedRef = useRef(false);
   const attachment = message.attachment;
   const isImage = attachment?.type.startsWith('image/');
+  const isVoiceNote = attachment?.type.startsWith('audio/');
+  const isRecipient = message.recipientId === currentUserId;
 
   useEffect(() => {
-    if (!attachment || !isImage) return;
+    if (!attachment || !(isImage || isVoiceNote)) return;
     let disposed = false;
     let objectUrl: string | null = null;
     messagesApi.attachment(message.id).then((blob) => {
@@ -69,7 +73,7 @@ function MessageAttachment({ message }: { message: ChatMessage }) {
       disposed = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [attachment, isImage, message.id]);
+  }, [attachment, isImage, isVoiceNote, message.id]);
 
   if (!attachment) return null;
 
@@ -87,6 +91,28 @@ function MessageAttachment({ message }: { message: ChatMessage }) {
       setLoading(false);
     }
   };
+
+  if (isVoiceNote) {
+    return (
+      <div className="flex items-center gap-2 min-w-[180px]">
+        <Mic className="w-4 h-4 shrink-0 text-ptt-blue" />
+        {url ? (
+          <audio
+            controls
+            src={url}
+            className="h-8 max-w-[220px]"
+            onEnded={() => {
+              if (listenedRef.current || !isRecipient) return;
+              listenedRef.current = true;
+              messagesApi.markListened(message.id).catch(() => {});
+            }}
+          />
+        ) : (
+          <span className="text-xs text-ptt-muted">Loading…</span>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-2">
@@ -132,10 +158,13 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pageVisible, setPageVisible] = useState(() => document.visibilityState === 'visible');
+  const [recording, setRecording] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const composingRef = useRef(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
 
   const selected = useMemo(
     () => conversations.find((item) => item.id === selectedId && item.type === selectedType) ?? null,
@@ -260,6 +289,16 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
     return () => window.removeEventListener(PRIVOX_MESSAGE_CLEARED_EVENT, onCleared);
   }, [selected, setUnreadMessageCount]);
 
+  useEffect(() => {
+    const onDeleted = (event: Event) => {
+      const { messageId } = (event as CustomEvent<{ messageId: string }>).detail ?? {};
+      if (!messageId) return;
+      setMessages((items) => items.filter((item) => item.id !== messageId));
+    };
+    window.addEventListener(PRIVOX_MESSAGE_DELETED_EVENT, onDeleted);
+    return () => window.removeEventListener(PRIVOX_MESSAGE_DELETED_EVENT, onDeleted);
+  }, []);
+
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const textarea = event.currentTarget.elements.namedItem('message');
@@ -336,6 +375,37 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
       if (fileInputRef.current) fileInputRef.current.value = '';
       if (cameraInputRef.current) cameraInputRef.current.value = '';
     }
+  }
+
+  // Голосовые сообщения (D34) — только личка (кнопка вообще не показывается
+  // в групповых чатах, см. selected?.type === 'direct' ниже).
+  async function startRecording() {
+    if (recording || !selected || selected.type !== 'direct') return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      recordedChunksRef.current = [];
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) recordedChunksRef.current.push(event.data);
+      };
+      recorder.onstop = () => {
+        stream.getTracks().forEach((track) => track.stop());
+        const blob = new Blob(recordedChunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+        const extension = blob.type.includes('mp4') ? 'm4a' : 'webm';
+        void sendAttachment(new File([blob], `voice-note.${extension}`, { type: blob.type }));
+      };
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setRecording(true);
+    } catch {
+      setError('Microphone access is required to record a voice message');
+    }
+  }
+
+  function stopRecording() {
+    mediaRecorderRef.current?.stop();
+    mediaRecorderRef.current = null;
+    setRecording(false);
   }
 
   const content = (
@@ -454,7 +524,7 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
                       {message.body && (
                         <p className="font-rajdhani text-sm whitespace-pre-wrap break-words">{message.body}</p>
                       )}
-                      <MessageAttachment message={message} />
+                      <MessageAttachment message={message} currentUserId={user?.id} />
                       <p className="mt-1 text-right font-mono text-[9px] text-ptt-muted">
                         {timeLabel(message.createdAt)}
                       </p>
@@ -505,6 +575,19 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
               >
                 <Camera className="w-4 h-4" />
               </button>
+              {selected.type === 'direct' && (
+                <button
+                  type="button"
+                  onClick={() => (recording ? stopRecording() : startRecording())}
+                  disabled={uploading || sending}
+                  title={recording ? 'Stop recording' : 'Record a voice message'}
+                  className={`w-10 h-10 shrink-0 flex items-center justify-center disabled:opacity-40 ${
+                    recording ? 'text-ptt-danger' : 'text-ptt-muted hover:text-ptt-green'
+                  }`}
+                >
+                  {recording ? <Square className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                </button>
+              )}
               <textarea
                 name="message"
                 value={draft}

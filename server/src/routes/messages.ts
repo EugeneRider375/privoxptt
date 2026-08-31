@@ -36,6 +36,14 @@ const allowedAttachmentTypes = new Set([
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/vnd.ms-excel',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  // Голосовые сообщения (D34) — записываются в браузере/WebView через
+  // MediaRecorder, точный MIME зависит от платформы (Safari/WKWebView даёт
+  // mp4, Chrome/Android — webm).
+  'audio/webm',
+  'audio/mp4',
+  'audio/x-m4a',
+  'audio/mpeg',
+  'audio/ogg',
 ]);
 
 const attachmentTypesByExtension: Record<string, string> = {
@@ -53,7 +61,16 @@ const attachmentTypesByExtension: Record<string, string> = {
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   xls: 'application/vnd.ms-excel',
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  webm: 'audio/webm',
+  m4a: 'audio/x-m4a',
+  mp3: 'audio/mpeg',
+  ogg: 'audio/ogg',
 };
+
+/** Голосовое сообщение (D34) — распознаётся по MIME, отдельного флага в базе нет. */
+function isVoiceNote(attachmentType: string | null): boolean {
+  return !!attachmentType?.startsWith('audio/');
+}
 
 function attachmentType(headerValue: string, fileName: string) {
   const normalizedHeader = headerValue === 'image/jpg'
@@ -481,6 +498,12 @@ messagesRouter.post(
       if (!contentType) {
         throw new AppError(415, 'This file type is not allowed');
       }
+      // Голосовые сообщения (D34) — решение Eugene 2026-08-31: только личка,
+      // в группах даже не должно быть кнопки записи, но проверяем и здесь —
+      // иначе ограничение держалось бы только на честности клиента.
+      if (isVoiceNote(contentType) && target.groupId) {
+        throw new AppError(400, 'Voice notes can only be sent in direct messages');
+      }
 
       const { recipientIds, groupName } = await resolveRecipients(
         target, userId, organizationId, role,
@@ -538,6 +561,45 @@ messagesRouter.get('/:messageId/attachment', async (req: Request, res: Response,
       `inline; filename*=UTF-8''${encodeURIComponent(message.attachmentName ?? 'attachment')}`,
     );
     res.send(content);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * Голосовое сообщение (D34) — самоудаляющееся, только личка (1:1), только
+ * для получателя (не отправитель "слушает" собственную запись). Тот же
+ * порядок действий, что и в messageCleanup.ts (файл → потом строка в базе):
+ * осиротевшая строка в базе безвредна, осиротевший файл на диске — нет.
+ */
+messagesRouter.post('/:messageId/listened', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { userId, organizationId } = req.user!;
+    const message = await prisma.message.findFirst({
+      where: { id: String(req.params.messageId), organizationId },
+    });
+    if (!message) throw new AppError(404, 'Message not found');
+    if (message.groupId || !message.recipientId) {
+      throw new AppError(400, 'Voice notes only self-delete in direct messages');
+    }
+    if (message.recipientId !== userId) {
+      throw new AppError(403, 'Only the recipient can mark a voice note as listened');
+    }
+    if (!isVoiceNote(message.attachmentType) || !message.attachmentPath) {
+      throw new AppError(400, 'This message is not a voice note');
+    }
+
+    await unlink(message.attachmentPath).catch((err) => {
+      logger.warn({ msg: 'Voice note file already gone', messageId: message.id, err });
+    });
+    await prisma.message.delete({ where: { id: message.id } });
+
+    const io = req.app.get('io') as Server | undefined;
+    for (const participantId of new Set([message.senderId, message.recipientId])) {
+      io?.to(`user:${participantId}`).emit('message:deleted', { messageId: message.id });
+    }
+
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }

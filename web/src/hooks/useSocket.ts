@@ -15,6 +15,10 @@ export const PRIVOX_SOCKET_READY_EVENT = 'privox-socket-ready';
 export const PRIVOX_DATA_CHANGED_EVENT = 'privox-data-changed';
 export const PRIVOX_MESSAGE_NEW_EVENT = 'privox-message-new';
 export const PRIVOX_MESSAGE_CLEARED_EVENT = 'privox-message-cleared';
+// Голосовое сообщение (D34) самоудалилось после прослушивания — сервер шлёт
+// это ОБЕИМ сторонам диалога, чтобы у отправителя оно тоже пропало живьём,
+// не только у прослушавшего получателя.
+export const PRIVOX_MESSAGE_DELETED_EVENT = 'privox-message-deleted';
 
 let globalSocket: Socket | null = null;
 // Heartbeat-вотчдог: следим за временем последнего heartbeat-ack от сервера.
@@ -394,6 +398,10 @@ export function useSocket() {
           useStore.getState().setUnreadMessageCount(unread);
         })
         .catch(() => {});
+    });
+
+    socket.on('message:deleted', (event: { messageId: string }) => {
+      window.dispatchEvent(new CustomEvent(PRIVOX_MESSAGE_DELETED_EVENT, { detail: event }));
     });
 
     return () => {
