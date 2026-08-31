@@ -92,8 +92,15 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Called as part of the transition from the background to the active state; here you can undo many of the changes made on entering the background.
     }
 
+    // Красный бейдж выставляет сервер через aps.badge на каждый push о
+    // сообщении (D27 3/4) — сам по себе он никогда не гаснет, iOS просто
+    // держит последнее полученное число, пока приложение явно не скажет
+    // сбросить. Найдено 2026-08-31 живой жалобой тестировщика: "после
+    // прочтения сообщений не исчезает". Сбрасываем при каждом выходе на
+    // передний план — человек открыл приложение, дальше непрочитанное он
+    // увидит уже внутри самого чата.
     func applicationDidBecomeActive(_ application: UIApplication) {
-        // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.
+        UIApplication.shared.applicationIconBadgeNumber = 0
     }
 
     func applicationWillTerminate(_ application: UIApplication) {
