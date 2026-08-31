@@ -178,11 +178,6 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
 
   const loadConversations = useCallback(async () => {
     const data = await messagesApi.conversations() as ChatConversation[];
-    // D40 debug 2026-08-31: временный лог — на iPhone кружочки непрочитанных
-    // не показывались в списке диалогов, хотя ручной fetch с того же
-    // устройства/сессии возвращал корректный unreadCount. Убрать после
-    // разбора.
-    console.log('[D40 debug] conversations loaded:', data.map((c) => ({ id: c.id, title: c.title, unreadCount: c.unreadCount })));
     setConversations(data);
     setUnreadFromConversations(data);
     if (embedded) {
@@ -436,7 +431,7 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
 
   const content = (
     <div className="h-full min-h-0 grid md:grid-cols-[280px_1fr] bg-ptt-dark text-white">
-      <aside className={`${selected ? 'hidden md:flex' : 'flex'} min-h-0 flex-col border-r border-ptt-border bg-ptt-panel`}>
+      <aside className={`${selected ? 'hidden md:flex' : 'flex'} min-h-0 min-w-0 flex-col border-r border-ptt-border bg-ptt-panel`}>
         <div className="flex items-center gap-3 px-4 h-14 border-b border-ptt-border">
           {!embedded && (
             <button onClick={() => navigate(-1)} className="text-ptt-muted hover:text-white">
@@ -449,7 +444,7 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
             <p className="font-mono text-[10px] text-ptt-muted">{user?.callsign}</p>
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 min-w-0 overflow-y-auto">
           {loading && <p className="p-4 font-mono text-xs text-ptt-muted">LOADING...</p>}
           {!loading && conversations.length === 0 && (
             <p className="p-4 font-mono text-xs text-ptt-muted">NO CONVERSATIONS</p>
