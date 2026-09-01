@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PRIVOX for Security and Property Operations</title>
+<meta name="description" content="Private push-to-talk communication for security and facility management companies: group voice on phones and radios, dispatcher console, site sensors, your own server.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&display=swap">
+<link rel="stylesheet" href="../_style.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="/">PRIVOX <b>PTT</b></a>
+    <nav>
+      <span class="langs"><a href="../">RU</a></span>
+      <a href="/presentation/en/">System overview</a>
+      <a href="/">Main site</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+
+<div class="printhead">
+  <div>
+    <div class="ph-l">PRIVOX PTT</div>
+    <div class="ph-u">ptt.privox.tech/business/en · ptt.privox@gmail.com</div>
+  </div>
+  <svg xmlns="http://www.w3.org/2000/svg" width="220" height="220" viewBox="0 0 29 29" shape-rendering="crispEdges"><path fill="#FFFFFF" d="M0 0h29v29H0z"/><path stroke="#0F172A" d="M0 0.5h7m2 0h6m1 0h4m2 0h7M0 1.5h1m5 0h1m1 0h1m1 0h1m3 0h4m1 0h2m1 0h1m5 0h1M0 2.5h1m1 0h3m1 0h1m2 0h1m3 0h3m2 0h3m1 0h1m1 0h3m1 0h1M0 3.5h1m1 0h3m1 0h1m2 0h1m3 0h2m4 0h1m2 0h1m1 0h3m1 0h1M0 4.5h1m1 0h3m1 0h1m1 0h2m1 0h1m2 0h6m2 0h1m1 0h3m1 0h1M0 5.5h1m5 0h1m4 0h3m1 0h1m2 0h3m1 0h1m5 0h1M0 6.5h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7M11 7.5h4m1 0h5M0 8.5h1m1 0h1m1 0h1m1 0h1m2 0h2m3 0h4m2 0h1m3 0h1m2 0h1M3 9.5h1m1 0h1m1 0h1m2 0h1m1 0h1m1 0h1m1 0h2m2 0h1m1 0h1m2 0h1m2 0h1M4 10.5h3m1 0h2m2 0h2m3 0h2m1 0h1m1 0h1m3 0h3M0 11.5h1m2 0h1m3 0h4m1 0h1m2 0h3m1 0h3m2 0h1m2 0h1M0 12.5h1m1 0h1m1 0h3m1 0h2m2 0h1m3 0h2m3 0h2m2 0h1m1 0h2M0 13.5h2m2 0h1m2 0h3m3 0h1m2 0h3m1 0h1m1 0h2m1 0h1m2 0h1M2 14.5h1m3 0h3m1 0h3m1 0h1m5 0h1m1 0h1m1 0h2m1 0h2M1 15.5h2m1 0h2m2 0h3m1 0h3m1 0h3m1 0h3m2 0h1m1 0h1M1 16.5h1m3 0h3m2 0h1m3 0h4m1 0h5m1 0h1m1 0h2M3 17.5h2m2 0h1m1 0h1m1 0h2m1 0h1m2 0h2m2 0h2m2 0h2m1 0h1M0 18.5h1m4 0h2m3 0h1m2 0h1m3 0h2m1 0h1m3 0h1m2 0h2M1 19.5h1m6 0h1m1 0h1m1 0h1m4 0h3m5 0h1m1 0h1M0 20.5h1m1 0h2m2 0h2m1 0h2m1 0h1m4 0h1m1 0h6M8 21.5h1m1 0h4m2 0h1m3 0h1m3 0h1m1 0h3M0 22.5h7m2 0h1m2 0h1m1 0h1m3 0h3m1 0h1m1 0h2m1 0h2M0 23.5h1m5 0h1m3 0h1m2 0h2m2 0h2m1 0h1m3 0h2m1 0h1M0 24.5h1m1 0h3m1 0h1m1 0h1m3 0h1m1 0h1m2 0h1m2 0h5m2 0h2M0 25.5h1m1 0h3m1 0h1m7 0h1m1 0h1m3 0h1m3 0h1m1 0h3M0 26.5h1m1 0h3m1 0h1m1 0h1m2 0h3m3 0h1m1 0h1m1 0h1m1 0h3m2 0h1M0 27.5h1m5 0h1m2 0h3m3 0h3m1 0h2m2 0h1m3 0h1M0 28.5h7m1 0h1m3 0h1m3 0h2m1 0h2m3 0h2m1 0h2"/></svg>
+</div>
+
+<section class="cover" style="border-bottom:1px solid var(--line)">
+  <p class="kicker">PRIVATE PUSH-TO-TALK COMMUNICATION</p>
+  <h1>Communication for the people who run the property</h1>
+  <p class="lede">Security, engineering, maintenance and management on one channel — on the phones your staff already carry, and on radios where radios make sense.</p>
+  <div class="facts">
+    <span class="fact">RUNS OVER LTE AND WI-FI</span>
+    <span class="fact">SERVER CAN SIT ON YOUR SIDE</span>
+    <span class="fact">MANY SITES, ONE SYSTEM</span>
+  </div>
+</section>
+
+<section>
+  <p class="tag">THE PROBLEM</p>
+  <h2>People are spread out, decisions cannot wait</h2>
+  <p class="intro">On any working property several services operate at once, scattered across the grounds: a guard at the gate, an engineer in the plant room, housekeeping on the floors, the manager in the office.</p>
+  <p class="sub">A phone call does not solve this — you need the number, you wait for an answer, then you repeat yourself to the second and third person. A handheld radio works on one site but runs out of range and never links two properties together.</p>
+  <div class="cards">
+    <div class="card">
+      <span class="lab">WHAT GETS IN THE WAY</span>
+      <h3>Range</h3>
+      <p>Analogue radio stops at the property line. Between two sites there is simply no link.</p>
+    </div>
+    <div class="card">
+      <span class="lab">WHAT GETS IN THE WAY</span>
+      <h3>Fragmentation</h3>
+      <p>Every site has its own radios and its own frequencies. Management has no shared picture.</p>
+    </div>
+    <div class="card">
+      <span class="lab">WHAT GETS IN THE WAY</span>
+      <h3>Nights and weekends</h3>
+      <p>With nobody at the desk, an incident is discovered in the morning — by its consequences.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <p class="tag">THE SYSTEM</p>
+  <h2>Push-to-talk over cellular and Wi-Fi</h2>
+  <p class="intro">PRIVOX is press-and-speak communication carried over ordinary internet. Your voice reaches the whole group instantly — no number to dial, no waiting for anyone to pick up.</p>
+  <p class="sub">Distance stops being a factor: people in one group can be on different properties, in different cities and countries, and still hear each other as if they stood together.</p>
+
+  <figure>
+    <svg viewBox="0 0 900 200" role="img" aria-label="Diagram: staff terminals connect over LTE or Wi-Fi to the PRIVOX server, and the dispatcher console connects to the same server through a browser">
+      <defs><marker id="ar" viewBox="0 0 10 8" refX="9" refY="4" markerWidth="9" markerHeight="7" orient="auto-start-reverse"><polygon points="0,0 10,4 0,8" fill="currentColor"/></marker></defs>
+      <rect class="dg-box" x="6" y="60" width="170" height="76"/>
+      <text class="dg-t" x="91" y="88" text-anchor="middle">Staff</text>
+      <text class="dg-s" x="91" y="107" text-anchor="middle">PHONES AND RADIOS</text>
+      <text class="dg-s" x="91" y="123" text-anchor="middle">ON THE PROPERTIES</text>
+
+      <line class="dg-line" x1="176" y1="98" x2="336" y2="98" marker-end="url(#ar)"/>
+      <text class="dg-l" x="256" y="88" text-anchor="middle">LTE / Wi-Fi</text>
+
+      <rect class="dg-box" x="344" y="52" width="196" height="92" style="stroke:var(--accent);stroke-width:1.6"/>
+      <text class="dg-t" x="442" y="82" text-anchor="middle">PRIVOX server</text>
+      <text class="dg-s" x="442" y="101" text-anchor="middle">YOURS OR OURS</text>
+      <text class="dg-s" x="442" y="120" text-anchor="middle">VOICE · GROUPS · ACCESS</text>
+
+      <line class="dg-line" x1="540" y1="98" x2="700" y2="98" marker-end="url(#ar)"/>
+      <text class="dg-l" x="620" y="88" text-anchor="middle">browser</text>
+
+      <rect class="dg-box" x="708" y="60" width="186" height="76"/>
+      <text class="dg-t" x="801" y="88" text-anchor="middle">Dispatcher</text>
+      <text class="dg-s" x="801" y="107" text-anchor="middle">CONSOLE · MAP</text>
+      <text class="dg-s" x="801" y="123" text-anchor="middle">ALL SITES AT ONCE</text>
+    </svg>
+    <figcaption>Staff terminals reach the server over cellular or Wi-Fi. The dispatcher works in a browser — nothing to install.</figcaption>
+  </figure>
+
+  <div class="pull">
+    <p><strong>The server can sit on your side.</strong> That is what separates PRIVOX from cloud radio services: conversations and data stay inside your perimeter, and the system does not depend on somebody else's subscription or somebody else's decisions. It can also be hosted by us — the choice is yours.</p>
+  </div>
+</section>
+
+<section>
+  <p class="tag">WHY IT MATTERS FOR A CONTRACTOR</p>
+  <h2>Many properties, one system</h2>
+  <p class="intro">A security or facility company does not serve one address — it serves a dozen: hotels, villa estates, construction sites, residential complexes. Usually each has its own radios, its own frequencies and no shared view at all.</p>
+  <p class="sub">In PRIVOX the properties live in one system without interfering with each other: each has its own groups and its own people, while management sees everything at once. A shift on one site does not hear the traffic of another — unless you deliberately create a shared channel for supervisors.</p>
+  <div class="cards">
+    <div class="card">
+      <span class="lab">ON A SITE</span>
+      <h3>Its own channels</h3>
+      <p>Security, engineering, management — separate groups. Who listens and who speaks is your decision.</p>
+    </div>
+    <div class="card">
+      <span class="lab">ACROSS SITES</span>
+      <h3>One console</h3>
+      <p>The duty operator sees every shift, the map of people and the alarms — on a single screen.</p>
+    </div>
+    <div class="card">
+      <span class="lab">AS YOU GROW</span>
+      <h3>A new site without new infrastructure</h3>
+      <p>Adding a property means creating a group and handing out access, not buying and configuring equipment again.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <p class="tag">LIFECYCLE</p>
+  <h2>Communication is needed before the property opens</h2>
+  <p class="intro">A construction site is already a team that needs to talk. And once it is handed over the property does not empty out: permanent staff arrive, and they need communication every day for the whole life of the building.</p>
+  <div class="steps">
+    <div class="step">
+      <h3>Construction</h3>
+      <p>Site manager, perimeter security, engineers, contractors. Large grounds, many people, communication needed from day one.</p>
+      <p class="who">TEMPORARY TEAM</p>
+    </div>
+    <div class="step">
+      <h3>Commissioning and handover</h3>
+      <p>Operations services appear, acceptance work begins. Builders and future staff work side by side.</p>
+      <p class="who">TRANSITION PERIOD</p>
+    </div>
+    <div class="step">
+      <h3>Operations</h3>
+      <p>Security, engineering, maintenance, housekeeping, pool and grounds, property management.</p>
+      <p class="who">PERMANENT TEAM — FOR THE WHOLE LIFE OF THE PROPERTY</p>
+    </div>
+    <div class="step">
+      <h3>The next properties</h3>
+      <p>The company takes on a new address — the system already exists, one more site is added.</p>
+      <p class="who">GROWTH WITHOUT STARTING OVER</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <p class="tag">WHAT SETS IT APART</p>
+  <h2>The property joins the channel too</h2>
+  <p class="intro">Besides people, sensors connect to the system: cold room temperature, leaks and flooding, the condition of technical rooms. An alarm lands in the same channel where the shift works, and is mirrored to a manager in Telegram.</p>
+  <p class="sub">A sensor connects without modifying the hardware — the server polls it through its normal interface. Each has its own limits: one set for a freezer, another for a plant room.</p>
+  <div class="cards">
+    <div class="card">
+      <span class="lab">THRESHOLDS</span>
+      <h3>Its own normal for each</h3>
+      <p>A minimum, a maximum or both. Crossing the line raises the alarm immediately.</p>
+    </div>
+    <div class="card">
+      <span class="lab">NO NOISE</span>
+      <h3>One alarm, not two hundred</h3>
+      <p>The signal fires at the moment a value crosses the threshold, not every fifteen seconds while the problem lasts.</p>
+    </div>
+    <div class="card">
+      <span class="lab">THE IMPORTANT ONE</span>
+      <h3>Silence is an alarm too</h3>
+      <p>A sensor that stopped answering is more dangerous than one reporting bad numbers: a cold room may have been thawing for an hour while the screen still shows the last good temperature.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <p class="tag">CONSOLE</p>
+  <h2>The whole picture on one screen</h2>
+  <p class="intro">The duty operator sees the channels of every site, the shift roster with who is reachable right now, the sensors and their state — and can speak into any group without joining it.</p>
+  <div class="shot">
+    <img src="../img/console.jpg" alt="Dispatcher console: channels, sensor panel with an alarm, live channel and shift roster">
+    <p class="cap">The dispatcher console. Channels on the left, then the site's sensors — one in alarm, two silent. On the right the shift: who is on air, with a call button for each person.</p>
+  </div>
+  <div class="shot">
+    <img src="../img/map.jpg" alt="Dispatcher map with staff markers in real time">
+    <p class="cap">The shift on the map. Markers move with the people; the tooltip carries the callsign and speed. You can see who is closest to an incident.</p>
+  </div>
+</section>
+
+<section>
+  <p class="tag">DEVICES</p>
+  <h2>Phones and radios on the same channel</h2>
+  <p class="intro">A guard with a radio, a technician with a phone and a dispatcher at a desk sit in the same group and hear each other. No gateways, no adapters.</p>
+  <div class="duo">
+    <div class="dev">
+      <div class="frame"><img src="../img/phone.jpg" alt="The application on a phone"></div>
+      <p class="lab">PHONE</p>
+      <p>An app for Android and iPhone. An incoming call wakes a phone in a pocket — even with the app closed.</p>
+    </div>
+    <div class="dev rad">
+      <div class="frame"><img src="../img/radio.jpg" alt="A professional radio screen"></div>
+      <p class="lab">RADIO</p>
+      <p>A hardware talk key, one-handed operation, works with gloves on. For the posts where a phone is awkward.</p>
+    </div>
+  </div>
+  <div class="pull">
+    <p><strong>Which devices suit you is a conversation, not a package.</strong> In some places the phones people already carry are enough; at fixed posts a proper radio earns its keep. We match this to the property rather than selling one standard kit.</p>
+  </div>
+</section>
+
+<section>
+  <p class="tag">WHAT ELSE IS INCLUDED</p>
+  <h2>More than voice</h2>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Capability</th><th>What it is for on a property</th></tr></thead>
+      <tbody>
+        <tr><td>Private call</td><td>A one-to-one conversation like a phone call, without occupying the shared channel.</td></tr>
+        <tr><td>Calling the shift</td><td>One button and every member's phone rings for real, even at night.</td></tr>
+        <tr><td>Emergency button</td><td>The signal crosses group boundaries and reaches the whole organisation.</td></tr>
+        <tr><td>Messages and photos</td><td>An address, a plate number, a picture of a fault — things you cannot pass by voice.</td></tr>
+        <tr><td>Member permissions</td><td>Who may speak, who only listens, who shares a position.</td></tr>
+        <tr><td>Access with an expiry</td><td>Seasonal staff and contractors get access until a date, and it lapses on its own.</td></tr>
+        <tr><td>Joining by QR</td><td>A person scans a card with the camera and is on air — no logins, no setup.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <p class="tag">HOW TO START</p>
+  <h2>A trial on one real property</h2>
+  <p class="intro">Talking about communication is pointless until it has been used in the field. So we suggest starting with a trial deployment on one of your sites — with real people and a real shift.</p>
+  <p class="sub">Scope, duration and composition are matched to the property: how many people, which services, whether radios are needed. Afterwards we look at what only practice reveals — how the link holds inside real walls, how it moves between Wi-Fi and cellular, and whether people use it without being trained.</p>
+  <div class="cards">
+    <div class="card">
+      <span class="lab">STEP 1</span>
+      <h3>A conversation</h3>
+      <p>We look at your properties and services: where communication breaks down today and what costs you most.</p>
+    </div>
+    <div class="card">
+      <span class="lab">STEP 2</span>
+      <h3>A live demonstration</h3>
+      <p>We show the system working: voice, console, map, sensors. On your property if you prefer.</p>
+    </div>
+    <div class="card">
+      <span class="lab">STEP 3</span>
+      <h3>Trial deployment</h3>
+      <p>One site, a real shift. Terms are agreed together — they depend on the scope.</p>
+    </div>
+  </div>
+</section>
+
+<section class="contact">
+  <p class="tag">GET IN TOUCH</p>
+  <h2>Ready to show the system at work</h2>
+  <div class="cbox">
+    <div class="cinfo">
+      <a href="mailto:ptt.privox@gmail.com">ptt.privox@gmail.com</a>
+      <p>Write to us and we will arrange a demonstration — on your property or remotely. We will be straight about what the system does today and what is still ahead.</p>
+      <a class="btn" href="privox-business-en.pdf" download>Download PDF</a>
+    </div>
+    <div class="qr">
+      <svg xmlns="http://www.w3.org/2000/svg" width="220" height="220" viewBox="0 0 29 29" shape-rendering="crispEdges"><path fill="#FFFFFF" d="M0 0h29v29H0z"/><path stroke="#0F172A" d="M0 0.5h7m2 0h6m1 0h4m2 0h7M0 1.5h1m5 0h1m1 0h1m1 0h1m3 0h4m1 0h2m1 0h1m5 0h1M0 2.5h1m1 0h3m1 0h1m2 0h1m3 0h3m2 0h3m1 0h1m1 0h3m1 0h1M0 3.5h1m1 0h3m1 0h1m2 0h1m3 0h2m4 0h1m2 0h1m1 0h3m1 0h1M0 4.5h1m1 0h3m1 0h1m1 0h2m1 0h1m2 0h6m2 0h1m1 0h3m1 0h1M0 5.5h1m5 0h1m4 0h3m1 0h1m2 0h3m1 0h1m5 0h1M0 6.5h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7M11 7.5h4m1 0h5M0 8.5h1m1 0h1m1 0h1m1 0h1m2 0h2m3 0h4m2 0h1m3 0h1m2 0h1M3 9.5h1m1 0h1m1 0h1m2 0h1m1 0h1m1 0h1m1 0h2m2 0h1m1 0h1m2 0h1m2 0h1M4 10.5h3m1 0h2m2 0h2m3 0h2m1 0h1m1 0h1m3 0h3M0 11.5h1m2 0h1m3 0h4m1 0h1m2 0h3m1 0h3m2 0h1m2 0h1M0 12.5h1m1 0h1m1 0h3m1 0h2m2 0h1m3 0h2m3 0h2m2 0h1m1 0h2M0 13.5h2m2 0h1m2 0h3m3 0h1m2 0h3m1 0h1m1 0h2m1 0h1m2 0h1M2 14.5h1m3 0h3m1 0h3m1 0h1m5 0h1m1 0h1m1 0h2m1 0h2M1 15.5h2m1 0h2m2 0h3m1 0h3m1 0h3m1 0h3m2 0h1m1 0h1M1 16.5h1m3 0h3m2 0h1m3 0h4m1 0h5m1 0h1m1 0h2M3 17.5h2m2 0h1m1 0h1m1 0h2m1 0h1m2 0h2m2 0h2m2 0h2m1 0h1M0 18.5h1m4 0h2m3 0h1m2 0h1m3 0h2m1 0h1m3 0h1m2 0h2M1 19.5h1m6 0h1m1 0h1m1 0h1m4 0h3m5 0h1m1 0h1M0 20.5h1m1 0h2m2 0h2m1 0h2m1 0h1m4 0h1m1 0h6M8 21.5h1m1 0h4m2 0h1m3 0h1m3 0h1m1 0h3M0 22.5h7m2 0h1m2 0h1m1 0h1m3 0h3m1 0h1m1 0h2m1 0h2M0 23.5h1m5 0h1m3 0h1m2 0h2m2 0h2m1 0h1m3 0h2m1 0h1M0 24.5h1m1 0h3m1 0h1m1 0h1m3 0h1m1 0h1m2 0h1m2 0h5m2 0h2M0 25.5h1m1 0h3m1 0h1m7 0h1m1 0h1m3 0h1m3 0h1m1 0h3M0 26.5h1m1 0h3m1 0h1m1 0h1m2 0h3m3 0h1m1 0h1m1 0h1m1 0h3m2 0h1M0 27.5h1m5 0h1m2 0h3m3 0h3m1 0h2m2 0h1m3 0h1M0 28.5h7m1 0h1m3 0h1m3 0h2m1 0h2m3 0h2m1 0h2"/></svg>
+      <span>ptt.privox.tech/business/en</span>
+    </div>
+  </div>
+</section>
+
+</div>
+</body>
+</html>
