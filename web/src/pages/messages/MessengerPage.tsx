@@ -493,7 +493,12 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
         </div>
       </aside>
 
-      <section className={`${selected ? 'flex' : 'hidden md:flex'} min-h-0 flex-col`}>
+      {/* min-w-0 обязателен: у элемента grid минимальная ширина по умолчанию
+          равна min-content, то есть самому длинному неразрывному слову во всей
+          переписке. 01.09.2026 из-за этого один чат (куда прислали длинную
+          ссылку) разъехался на телефоне: колонка стала шире экрана и утащила
+          вправо всё, включая кнопку отправки. У соседнего aside min-w-0 был. */}
+      <section className={`${selected ? 'flex' : 'hidden md:flex'} min-h-0 min-w-0 flex-col`}>
         {selected ? (
           <>
             <header className="h-14 px-4 flex items-center gap-3 border-b border-ptt-border bg-ptt-panel">
@@ -545,8 +550,11 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
                       {!own && (
                         <p className="font-mono text-[10px] text-ptt-blue mb-1">{message.sender.callsign}</p>
                       )}
+                      {/* anywhere, а не break-words: overflow-wrap:break-word
+                          переносит слово, но НЕ уменьшает min-content — ширину
+                          оно всё равно требует. Ровно на этом и разъезжался чат. */}
                       {message.body && (
-                        <p className="font-rajdhani text-sm whitespace-pre-wrap break-words">{message.body}</p>
+                        <p className="font-rajdhani text-sm whitespace-pre-wrap [overflow-wrap:anywhere]">{message.body}</p>
                       )}
                       <MessageAttachment message={message} currentUserId={user?.id} />
                       <p className="mt-1 flex items-center justify-end gap-1 font-mono text-[9px] text-ptt-muted">
