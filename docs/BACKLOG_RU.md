@@ -2168,6 +2168,13 @@ SUPERADMIN (это личный рабочий инструмент Eugene дл�
 публичная страница). RU-only — внутренний документ, не клиентский
 маркетинг вроде `/business/`, мультиязычность не нужна.
 
+Плюс готовый файл лежит статически в `web/public/downloads/
+privox-ptt-client-questionnaire.pdf` — по прямой ссылке
+`ptt.privox.tech/downloads/privox-ptt-client-questionnaire.pdf`, без
+кнопки и без входа в SUPERADMIN, чтобы можно было скачать с любого
+устройства на встрече. Ссылка сознательно нигде не показана на сайте
+(намеренно, по решению Eugene — это не для случайных посетителей).
+
 Проверено по-настоящему (не только `tsc`/`vite build`): собрал PDF через
 `esbuild` + Node-обвязку (подмена `fetch`/`document`/`URL.createObjectURL`,
 т.к. `jsPDF.save()` в Node-окружении сам пишет файл на диск) и посмотрел
