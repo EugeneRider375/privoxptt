@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { Routes, Route, NavLink, useNavigate } from 'react-router-dom';
-import { Radio, Users, Layers, Building2, LogOut, ChevronLeft, ChevronRight, ClipboardList, MessageSquare, Thermometer } from 'lucide-react';
+import { Radio, Users, Layers, Building2, LogOut, ChevronLeft, ChevronRight, ClipboardList, ClipboardPen, MessageSquare, Thermometer } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { authApi } from '@/api/client';
+import { downloadClientQuestionnairePdf } from '@/utils/clientQuestionnairePdf';
 import { unregisterNativePushDevice } from '@/hooks/useNativePush';
 import { AlertPanel } from '@/components/ui/AlertPanel';
 import { PrivoxLogo } from '@/components/brand/PrivoxLogo';
@@ -30,8 +32,19 @@ export function AdminLayout() {
   const sidebarOpen = useStore((s) => s.sidebarOpen);
   const unreadMessageCount = useStore((s) => s.unreadMessageCount);
   const navigate = useNavigate();
+  const [generatingQuestionnaire, setGeneratingQuestionnaire] = useState(false);
 
   useSocket();
+
+  async function handleQuestionnaireDownload() {
+    if (generatingQuestionnaire) return;
+    setGeneratingQuestionnaire(true);
+    try {
+      await downloadClientQuestionnairePdf();
+    } finally {
+      setGeneratingQuestionnaire(false);
+    }
+  }
 
   const visibleNav = NAV.filter((n) => user && n.roles.includes(user.role));
 
@@ -108,8 +121,20 @@ export function AdminLayout() {
       <main className="flex-1 overflow-hidden">
         <header className="flex items-center justify-between px-4 h-10 bg-ptt-panel border-b border-ptt-border">
           <span className="font-mono text-ptt-text text-xs tracking-widest">CONTROL PANEL · {user?.organization?.name}</span>
-          <button
-            onClick={() => navigate('/admin/messages')}
+          <div className="flex items-center gap-2">
+            {user?.role === 'SUPERADMIN' && (
+              <button
+                onClick={handleQuestionnaireDownload}
+                disabled={generatingQuestionnaire}
+                title="Printable client discovery questionnaire (PDF)"
+                className="h-7 px-2.5 rounded border border-ptt-border text-ptt-muted hover:text-white hover:border-ptt-text/60 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+              >
+                <ClipboardPen className="w-3.5 h-3.5" />
+                <span className="font-mono text-[10px]">QUESTIONNAIRE</span>
+              </button>
+            )}
+            <button
+              onClick={() => navigate('/admin/messages')}
             className={`relative h-7 px-2.5 rounded border transition-colors flex items-center gap-1.5 ${
               unreadMessageCount > 0
                 ? 'border-ptt-warn bg-ptt-warn/20 text-ptt-warn animate-pulse'
@@ -123,7 +148,8 @@ export function AdminLayout() {
                 {unreadMessageCount > 99 ? '99+' : unreadMessageCount}
               </span>
             )}
-          </button>
+            </button>
+          </div>
         </header>
         <div className="h-[calc(100%-40px)] overflow-auto">
           <Routes>
