@@ -43,6 +43,9 @@ const navLinks = [
   // EN/FR — в футере (см. PublicLayout), там же, где она видна и на мобильных
   // (верхнее меню скрыто на маленьких экранах, footer — нет).
   { to: '/presentation/', label: 'Overview', external: true },
+  // Презентация для заказчика: то же устройство (статика + external), но
+  // разговор другой — не как система устроена, а зачем она объекту.
+  { to: '/business/', label: 'For business', external: true },
   { to: '/docs', label: 'Docs' },
   { to: '/faq', label: 'FAQ' },
   { to: '/support', label: 'Support' },
@@ -376,6 +379,9 @@ function PublicLayout({ children }: { children: React.ReactNode }) {
             <a href="/presentation/" className="hover:text-sky-700">Overview (RU)</a>
             <a href="/presentation/en/" className="hover:text-sky-700">EN</a>
             <a href="/presentation/fr/" className="hover:text-sky-700">FR</a>
+            <span className="text-slate-400">·</span>
+            <a href="/business/" className="hover:text-sky-700">For business (RU)</a>
+            <a href="/business/en/" className="hover:text-sky-700">EN</a>
           </div>
         </div>
       </footer>

@@ -1,0 +1,141 @@
+:root{
+  --paper:#FFFFFF; --tint:#F8FAFC; --line:#E2E8F0; --line-soft:#EEF2F6;
+  --ink:#0F172A; --body:#475569; --dim:#64748B;
+  --accent:#0369A1; --deep:#0C4A6E; --signal:#0C8A4B; --warn:#B45309; --alarm:#B91C1C;
+  --display:'Rajdhani','Segoe UI',system-ui,sans-serif;
+  --text:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --data:'Share Tech Mono',ui-monospace,'SF Mono',monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--paper);color:var(--body);
+  font-family:var(--text);font-size:17px;line-height:1.65;-webkit-font-smoothing:antialiased}
+h1,h2,h3{margin:0;color:var(--ink);text-wrap:balance;font-family:var(--display);font-weight:700;letter-spacing:-.01em}
+p{margin:0}
+a{color:var(--accent)}
+.wrap{max-width:940px;margin:0 auto;padding:0 28px}
+
+/* шапка сайта — та же, что на остальных страницах */
+.top{border-bottom:1px solid var(--line);background:var(--paper)}
+.top .wrap{display:flex;align-items:center;justify-content:space-between;height:62px}
+.brand{font-family:var(--display);font-weight:700;font-size:19px;color:var(--ink);text-decoration:none;letter-spacing:-.01em}
+.brand b{color:var(--accent);font-weight:700}
+.top nav{display:flex;gap:16px;align-items:center}
+.top nav a{font-size:14px;color:var(--dim);text-decoration:none}
+.top nav a:hover{color:var(--accent)}
+
+/* обложка */
+.cover{padding:64px 0 52px;border-bottom:1px solid var(--line)}
+.kicker{font-family:var(--data);font-size:12px;letter-spacing:.24em;color:var(--accent);margin-bottom:20px}
+.cover h1{font-size:clamp(34px,5.4vw,56px);line-height:1.06}
+.cover .lede{font-size:clamp(18px,2.1vw,22px);max-width:34ch;margin-top:22px;color:var(--body)}
+.facts{display:flex;flex-wrap:wrap;gap:10px;margin-top:30px}
+.fact{font-family:var(--data);font-size:12px;letter-spacing:.08em;color:var(--deep);
+  border:1px solid var(--line);background:var(--tint);padding:8px 13px;border-radius:3px}
+
+section{padding:52px 0;border-bottom:1px solid var(--line-soft)}
+.tag{font-family:var(--data);font-size:11px;letter-spacing:.2em;color:var(--dim);margin-bottom:12px}
+h2{font-size:clamp(24px,3.1vw,32px)}
+.intro{max-width:64ch;margin-top:16px;font-size:18px}
+.sub{max-width:64ch;margin-top:14px}
+
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px;margin-top:32px}
+.card{border:1px solid var(--line);border-radius:5px;padding:22px 20px;background:var(--paper)}
+.card h3{font-size:19px;margin-bottom:8px}
+.card p{font-size:16px;line-height:1.55}
+.card .lab{font-family:var(--data);font-size:11px;letter-spacing:.16em;color:var(--accent);display:block;margin-bottom:11px}
+
+.steps{margin-top:34px;border-left:2px solid var(--line);padding-left:26px;display:grid;gap:26px}
+.step{position:relative}
+.step::before{content:'';position:absolute;left:-33px;top:7px;width:11px;height:11px;border-radius:50%;
+  background:var(--paper);border:2px solid var(--accent)}
+.step h3{font-size:18px;margin-bottom:5px}
+.step p{font-size:16px}
+.step .who{font-family:var(--data);font-size:11px;letter-spacing:.14em;color:var(--dim);margin-top:7px}
+
+.pull{margin-top:34px;background:var(--tint);border-left:3px solid var(--accent);padding:24px 26px;border-radius:0 4px 4px 0}
+.pull p{font-size:17.5px;color:var(--ink)}
+.pull strong{font-weight:700}
+
+.shot{margin-top:32px;border:1px solid var(--line);border-radius:5px;overflow:hidden;background:var(--tint)}
+.shot img{display:block;width:100%;height:auto}
+.shot .cap{padding:13px 18px;font-size:15px;color:var(--dim);border-top:1px solid var(--line);background:var(--paper)}
+.duo{display:flex;flex-wrap:wrap;gap:26px;margin-top:32px;align-items:flex-end}
+.dev{flex:1 1 210px;max-width:290px}
+.dev .frame{border:1px solid var(--line);border-radius:16px;padding:12px 9px;background:var(--tint)}
+.dev.rad .frame{border-radius:9px}
+.dev img{display:block;width:100%;height:auto;border-radius:4px}
+.dev .lab{font-family:var(--data);font-size:11px;letter-spacing:.14em;color:var(--accent);margin-top:12px}
+.dev p{font-size:15px;margin-top:5px}
+
+table{border-collapse:collapse;width:100%;margin-top:28px;font-size:16px}
+th,td{text-align:left;padding:12px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:var(--data);font-size:11px;letter-spacing:.14em;color:var(--dim);font-weight:400;background:var(--tint)}
+td:first-child{color:var(--ink);font-weight:600}
+.tw{overflow-x:auto}
+
+figure{margin:32px 0 0}
+figure svg{display:block;width:100%;height:auto;color:var(--dim)}
+figcaption{margin-top:12px;font-size:15px;color:var(--dim);max-width:64ch}
+.dg-box{fill:var(--paper);stroke:currentColor;stroke-width:1}
+.dg-t{fill:var(--ink);font-family:var(--text);font-size:14px;font-weight:600}
+.dg-s{fill:var(--dim);font-family:var(--data);font-size:11px;letter-spacing:.05em}
+.dg-l{fill:var(--dim);font-family:var(--data);font-size:11px}
+.dg-line{stroke:currentColor;stroke-width:1.4;fill:none}
+.g-ac{stroke:var(--accent)} .g-al{stroke:var(--alarm)} .f-ac{fill:var(--accent)} .f-al{fill:var(--alarm)}
+
+.contact{padding:52px 0 64px}
+.contact h2{font-size:clamp(24px,3.1vw,32px)}
+.cbox{margin-top:26px;display:flex;flex-wrap:wrap;gap:34px;align-items:center}
+.cinfo{flex:1 1 300px}
+.cinfo a{font-size:20px;font-weight:600;text-decoration:none;font-family:var(--display)}
+.cinfo p{margin-top:10px;font-size:16px}
+.qr{flex:0 0 auto;text-align:center}
+.qr svg{width:132px;height:132px;display:block;border:1px solid var(--line);padding:9px;border-radius:4px;background:#fff}
+.qr span{display:block;margin-top:9px;font-family:var(--data);font-size:11px;color:var(--dim);letter-spacing:.06em}
+
+.btn{display:inline-flex;align-items:center;gap:9px;margin-top:26px;
+  background:var(--accent);color:#fff;text-decoration:none;font-weight:600;font-size:16px;
+  padding:13px 22px;border-radius:4px}
+.btn:hover{background:var(--deep)}
+.langs{display:flex;gap:8px}
+.langs a{font-family:var(--data);font-size:12px;letter-spacing:.1em;color:var(--dim);
+  border:1px solid var(--line);padding:6px 11px;border-radius:3px;text-decoration:none}
+.langs a:hover{color:var(--accent);border-color:var(--accent)}
+
+/* печатная шапка — только в PDF и на бумаге */
+.printhead{display:none}
+@media print{
+  @page{margin:14mm 13mm}
+  /* Без этого Chrome выбрасывает фоновые заливки, и подложки блоков
+     и шапка таблицы печатаются белым по белому. */
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{font-size:11.5pt;line-height:1.5}
+  .top,.btn,.langs{display:none!important}
+  .printhead{display:flex;align-items:center;justify-content:space-between;gap:18px;
+    border-bottom:1.5pt solid var(--ink);padding-bottom:9pt;margin-bottom:14pt}
+  .printhead .ph-l{font-family:var(--display);font-weight:700;font-size:15pt;color:var(--ink)}
+  .printhead .ph-u{font-family:var(--data);font-size:9pt;color:var(--body);margin-top:2pt}
+  .printhead svg{width:64pt;height:64pt}
+  section,.cover,.contact{padding:16pt 0;border-bottom:0.5pt solid var(--line)}
+  .cover h1{font-size:26pt} h2{font-size:15pt} .card h3,.step h3{font-size:12pt}
+  .wrap{max-width:none;padding:0}
+  /* Целую секцию через разрыв не тащим: не влезающая в остаток листа секция
+     прыгала на следующую страницу и оставляла полстраницы пустоты — так
+     получалось 12 листов вместо восьми. Неразрывны только мелкие блоки. */
+  .card,.step,figure,.shot,.dev,.pull,tr{break-inside:avoid;page-break-inside:avoid}
+  .cards,.duo{break-before:auto}
+  h2{break-after:avoid;page-break-after:avoid}
+  /* На бумаге ширина листа фиксирована, и auto-fit разбивал тройки карточек
+     на 2+1 — ряд становился вдвое выше, не влезал в остаток листа и уезжал
+     целиком, оставляя пустую нижнюю треть. В печати колонки задаём жёстко. */
+  .cards{grid-template-columns:repeat(3,1fr);gap:9pt;margin-top:14pt}
+  .card{padding:11pt 12pt}
+  .steps{margin-top:16pt;gap:13pt}
+  figure,.shot,.duo,.tw{margin-top:14pt}
+  .shot img{max-height:96mm;object-fit:contain;object-position:left top}
+  .dev .frame img{max-height:78mm;width:auto;object-fit:contain}
+  .dev{max-width:46%}
+  a{color:var(--ink);text-decoration:none}
+}

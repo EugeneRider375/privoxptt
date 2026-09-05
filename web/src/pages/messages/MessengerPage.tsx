@@ -55,6 +55,8 @@ function requestErrorMessage(error: unknown, fallback: string) {
 function MessageAttachment({ message, currentUserId }: { message: ChatMessage; currentUserId?: string }) {
   const [url, setUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
+  const blobRef = useRef<Blob | null>(null);
   const listenedRef = useRef(false);
   const attachment = message.attachment;
   const isImage = attachment?.type.startsWith('image/');
@@ -78,16 +80,50 @@ function MessageAttachment({ message, currentUserId }: { message: ChatMessage; c
 
   if (!attachment) return null;
 
+  /**
+   * 01.09.2026: на iPhone кнопка молчала. Приложение — это WKWebView, а в нём
+   * НЕТ менеджера загрузок: невидимая ссылка с download просто ничего не
+   * делает, без ошибки. На Android и на компьютере тот же код работал, поэтому
+   * баг всплыл только сейчас. Файл при этом на сервере целый — с компьютера
+   * скачивался.
+   *
+   * Родной для iOS путь — системный «Поделиться»: оттуда есть «Сохранить в
+   * Файлы». Работает внутри WKWebView и не требует ни плагинов, ни пересборки
+   * приложения.
+   */
   const download = async () => {
     setLoading(true);
+    setFailed(null);
     try {
-      const blob = await messagesApi.attachment(message.id);
+      // Блоб держим: navigator.share на iOS хочет вызова по жесту, и повторное
+      // нажатие уже не тратит время на загрузку.
+      const blob = blobRef.current ?? await messagesApi.attachment(message.id);
+      blobRef.current = blob;
+
+      const file = new File([blob], attachment.name, { type: attachment.type });
+      if (navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file] });
+          return;
+        } catch (err) {
+          // Человек закрыл системную шторку — это не ошибка, молчим.
+          if ((err as Error)?.name === 'AbortError') return;
+        }
+      }
+
       const objectUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = objectUrl;
       link.download = attachment.name;
+      // Safari не нажимает ссылку, которой нет в документе.
+      link.style.display = 'none';
+      document.body.appendChild(link);
       link.click();
+      link.remove();
       window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    } catch {
+      // Раньше отказ проходил бесследно и выглядел как мёртвая кнопка.
+      setFailed('Could not open the file. Tap to try again.');
     } finally {
       setLoading(false);
     }
@@ -139,6 +175,7 @@ function MessageAttachment({ message, currentUserId }: { message: ChatMessage; c
         </span>
         <Download className="w-4 h-4 shrink-0" />
       </button>
+      {failed && <p className="text-[10px] text-ptt-danger">{failed}</p>}
     </div>
   );
 }
@@ -493,7 +530,12 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
         </div>
       </aside>
 
-      <section className={`${selected ? 'flex' : 'hidden md:flex'} min-h-0 flex-col`}>
+      {/* min-w-0 обязателен: у элемента grid минимальная ширина по умолчанию
+          равна min-content, то есть самому длинному неразрывному слову во всей
+          переписке. 01.09.2026 из-за этого один чат (куда прислали длинную
+          ссылку) разъехался на телефоне: колонка стала шире экрана и утащила
+          вправо всё, включая кнопку отправки. У соседнего aside min-w-0 был. */}
+      <section className={`${selected ? 'flex' : 'hidden md:flex'} min-h-0 min-w-0 flex-col`}>
         {selected ? (
           <>
             <header className="h-14 px-4 flex items-center gap-3 border-b border-ptt-border bg-ptt-panel">
@@ -545,8 +587,11 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
                       {!own && (
                         <p className="font-mono text-[10px] text-ptt-blue mb-1">{message.sender.callsign}</p>
                       )}
+                      {/* anywhere, а не break-words: overflow-wrap:break-word
+                          переносит слово, но НЕ уменьшает min-content — ширину
+                          оно всё равно требует. Ровно на этом и разъезжался чат. */}
                       {message.body && (
-                        <p className="font-rajdhani text-sm whitespace-pre-wrap break-words">{message.body}</p>
+                        <p className="font-rajdhani text-sm whitespace-pre-wrap [overflow-wrap:anywhere]">{message.body}</p>
                       )}
                       <MessageAttachment message={message} currentUserId={user?.id} />
                       <p className="mt-1 flex items-center justify-end gap-1 font-mono text-[9px] text-ptt-muted">
