@@ -397,6 +397,80 @@ usersRouter.put('/:id', async (req: Request, res: Response, next: NextFunction) 
   }
 });
 
+const dispatcherScopeSchema = z.object({
+  groupIds: z.array(z.string().uuid()).max(200),
+});
+
+/**
+ * D30 — какие группы видит этот диспетчер. Пусто = без ограничений
+ * (сегодняшнее поведение). Смысла нет для не-DISPATCHER, поэтому PUT
+ * отклоняет запрос заранее, а не молча копит бесполезные строки.
+ */
+// GET /api/users/:id/dispatcher-scope
+usersRouter.get('/:id/dispatcher-scope', requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = param(req.params.id, 'user id');
+    const target = await prisma.user.findUnique({ where: { id } });
+    if (!target) throw new AppError(404, 'User not found');
+
+    const isAdminOfOrg =
+      req.user!.role === UserRole.SUPERADMIN || target.organizationId === req.user!.organizationId;
+    if (!isAdminOfOrg) throw new AppError(403, 'Access denied');
+
+    const rows = await prisma.dispatcherGroupScope.findMany({
+      where: { userId: id },
+      select: { groupId: true },
+    });
+    res.json({ groupIds: rows.map((row) => row.groupId) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /api/users/:id/dispatcher-scope — полная замена одной транзакцией
+usersRouter.put('/:id/dispatcher-scope', requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = param(req.params.id, 'user id');
+    const target = await prisma.user.findUnique({ where: { id } });
+    if (!target) throw new AppError(404, 'User not found');
+
+    const isAdminOfOrg =
+      req.user!.role === UserRole.SUPERADMIN || target.organizationId === req.user!.organizationId;
+    if (!isAdminOfOrg) throw new AppError(403, 'Access denied');
+
+    if (target.role !== UserRole.DISPATCHER) {
+      throw new AppError(400, 'Group scope only applies to the DISPATCHER role');
+    }
+
+    const { groupIds } = dispatcherScopeSchema.parse(req.body);
+
+    // Каждая группа обязательно из той же организации — иначе диспетчер
+    // молча получил бы scope на чужую организацию.
+    if (groupIds.length > 0) {
+      const validCount = await prisma.group.count({
+        where: { id: { in: groupIds }, organizationId: target.organizationId },
+      });
+      if (validCount !== groupIds.length) {
+        throw new AppError(400, "One or more groups do not belong to this user's organization");
+      }
+    }
+
+    await prisma.$transaction([
+      prisma.dispatcherGroupScope.deleteMany({ where: { userId: id } }),
+      ...(groupIds.length > 0
+        ? [prisma.dispatcherGroupScope.createMany({
+            data: groupIds.map((groupId) => ({ userId: id, groupId })),
+          })]
+        : []),
+    ]);
+
+    emitOrgDataChanged(req, target.organizationId, 'users', { userId: id, action: 'dispatcher_scope_updated' });
+    res.json({ groupIds });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/users/:id/change-password
 usersRouter.post('/:id/change-password', async (req: Request, res: Response, next: NextFunction) => {
   try {

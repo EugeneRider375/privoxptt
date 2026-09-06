@@ -598,8 +598,19 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
   }) => {
     if (!(await canShareLocationNow())) return;
 
-    // Рассылаем диспетчерам и администраторам в организации
-    socket.to(`org:${organizationId}`).emit('user-location', {
+    // Рассылаем диспетчерам/админам (без ограничений) и scoped-диспетчерам,
+    // у которых в scope есть хотя бы одна группа, где эта точка видна (D30).
+    // Тот же критерий видимости, что и у REST GET /api/locations —
+    // GroupMember.canShareLocation в открытой сейчас группе.
+    const shareableGroups = await prisma.groupMember.findMany({
+      where: { userId, canShareLocation: true, group: openGroupFilter() },
+      select: { groupId: true },
+    });
+    const locationTargetRooms = [
+      `org:${organizationId}:dispatchers`,
+      ...shareableGroups.map((g) => `org:${organizationId}:dispatch-group:${g.groupId}`),
+    ];
+    socket.to(locationTargetRooms).emit('user-location', {
       userId,
       callsign,
       lat: data.lat,
@@ -661,7 +672,10 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
         createdAt: Date.now(),
       };
 
-      io.to(`org:${organizationId}:dispatchers`).emit('dispatcher-call-incoming', payload);
+      // D30 — без ограничений (org-wide комната) + scoped-диспетчеры этой
+      // конкретной группы; Socket.IO сам объединяет комнаты без дублей.
+      io.to([`org:${organizationId}:dispatchers`, `org:${organizationId}:dispatch-group:${groupId}`])
+        .emit('dispatcher-call-incoming', payload);
       socket.emit('dispatcher-call-sent', payload);
       callback?.({ ok: true, callId: payload.callId });
       logger.info({ msg: 'Dispatcher call requested', userId, callsign, groupId, callId: payload.callId });
@@ -701,7 +715,11 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
         answeredAt: Date.now(),
       };
 
-      io.to(`org:${organizationId}:dispatchers`).emit('dispatcher-call-status', payload);
+      // Тем же двум комнатам, что и сам запрос (D30) — иначе scoped-диспетчер
+      // этой группы не узнал бы, что коллега уже ответил, и его экран продолжал
+      // бы звонить.
+      io.to([`org:${organizationId}:dispatchers`, `org:${organizationId}:dispatch-group:${groupId}`])
+        .emit('dispatcher-call-status', payload);
       io.to(`user:${fromUserId}`).emit('dispatcher-call-status', payload);
       callback?.({ ok: true });
       logger.info({ msg: 'Dispatcher call accepted', callId, groupId, fromUserId, dispatcherId: userId });

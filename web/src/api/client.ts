@@ -131,6 +131,14 @@ export const usersApi = {
     api.post(`/users/${id}/change-password`, { currentPassword, newPassword }),
 };
 
+// D30 — какие группы видит конкретный диспетчер (пусто = без ограничений).
+export const dispatcherScopeApi = {
+  get: (userId: string) =>
+    api.get(`/users/${userId}/dispatcher-scope`).then((r) => r.data as { groupIds: string[] }),
+  update: (userId: string, groupIds: string[]) =>
+    api.put(`/users/${userId}/dispatcher-scope`, { groupIds }).then((r) => r.data),
+};
+
 // ─── Groups ───────────────────────────────────────────────
 export const groupsApi = {
   list: (orgId?: string) => api.get('/groups', { params: { orgId } }).then((r) => r.data),

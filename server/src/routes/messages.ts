@@ -10,7 +10,14 @@ import { authenticate } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
 import { sendIncomingMessagePush } from '../services/push';
 import { transcodeVoiceNote } from '../services/transcode';
-import { checkGroupWindow, openGroupFilter, GROUP_WINDOW_SELECT } from '../services/groupAccess';
+import {
+  checkGroupWindow,
+  openGroupFilter,
+  GROUP_WINDOW_SELECT,
+  dispatcherGroupWhere,
+  getDispatcherScope,
+  PRIVILEGED_ROLES,
+} from '../services/groupAccess';
 import { logger } from '../utils/logger';
 
 export const messagesRouter = Router();
@@ -84,11 +91,7 @@ function attachmentType(headerValue: string, fileName: string) {
   return attachmentTypesByExtension[extension];
 }
 
-const privilegedRoles: UserRole[] = [
-  UserRole.SUPERADMIN,
-  UserRole.ADMIN,
-  UserRole.DISPATCHER,
-];
+const privilegedRoles = PRIVILEGED_ROLES;
 
 const targetSchema = z.object({
   groupId: z.string().uuid().optional(),
@@ -156,6 +159,31 @@ function serializeMessage(message: {
   };
 }
 
+/**
+ * Кто должен узнать о событии по всей группе (новое сообщение, POST /clear).
+ * Не путать с assertGroupAccess — там доступ АВТОРА действия к группе, здесь —
+ * кому ещё разослать. Обычные участники + SUPERADMIN/ADMIN всегда + DISPATCHER
+ * либо без ограничений (D30, `dispatcherScope: { none: {} }`), либо с этой
+ * группой в scope. Раньше (до D30) сюда фан-инились все привилегированные
+ * роли разом — теперь scoped-диспетчер получает события только своих групп.
+ */
+async function groupEventRecipientIds(groupId: string, organizationId: string): Promise<string[]> {
+  const recipients = await prisma.user.findMany({
+    where: {
+      organizationId,
+      isActive: true,
+      OR: [
+        { groupMembers: { some: { groupId } } },
+        { role: { in: [UserRole.SUPERADMIN, UserRole.ADMIN] } },
+        { role: UserRole.DISPATCHER, dispatcherScope: { none: {} } },
+        { role: UserRole.DISPATCHER, dispatcherScope: { some: { groupId } } },
+      ],
+    },
+    select: { id: true },
+  });
+  return recipients.map((recipient) => recipient.id);
+}
+
 /** Вызывается только путями отправки, поэтому проверки всегда 'write'. */
 async function resolveRecipients(
   target: z.infer<typeof targetSchema>,
@@ -165,18 +193,8 @@ async function resolveRecipients(
 ) {
   if (target.groupId) {
     const group = await assertGroupAccess(target.groupId, userId, organizationId, role, 'write');
-    const recipients = await prisma.user.findMany({
-      where: {
-        organizationId,
-        isActive: true,
-        OR: [
-          { groupMembers: { some: { groupId: target.groupId } } },
-          { role: { in: privilegedRoles } },
-        ],
-      },
-      select: { id: true },
-    });
-    return { recipientIds: recipients.map((recipient) => recipient.id), groupName: group.name };
+    const recipientIds = await groupEventRecipientIds(target.groupId, organizationId);
+    return { recipientIds, groupName: group.name };
   }
   const recipient = await assertDirectAccess(target.userId!, userId, organizationId, role, 'write');
   return { recipientIds: [userId, recipient.id], groupName: undefined };
@@ -225,9 +243,10 @@ async function publishMessage(
 }
 
 async function accessibleGroups(userId: string, organizationId: string, role: UserRole) {
+  const scope = await getDispatcherScope(userId, role);
   return prisma.group.findMany({
     where: privilegedRoles.includes(role)
-      ? { organizationId }
+      ? { organizationId, ...dispatcherGroupWhere(scope) }
       : { organizationId, members: { some: { userId } } },
     select: { id: true, name: true, color: true },
     orderBy: [{ priority: 'desc' }, { name: 'asc' }],
@@ -248,9 +267,10 @@ async function assertGroupAccess(
   role: UserRole,
   intent: 'read' | 'write' = 'read',
 ) {
+  const scope = await getDispatcherScope(userId, role);
   const group = await prisma.group.findFirst({
     where: privilegedRoles.includes(role)
-      ? { id: groupId, organizationId }
+      ? { id: groupId, organizationId, ...dispatcherGroupWhere(scope) }
       : { id: groupId, organizationId, members: { some: { userId } } },
     select: {
       id: true,
@@ -291,9 +311,19 @@ function directContactFilter(
   organizationId: string,
   role: UserRole,
   intent: 'read' | 'write' = 'read',
+  scope: string[] | null = null,
 ) {
   if (privilegedRoles.includes(role)) {
-    return { groupMembers: { some: { group: { organizationId } } } };
+    // D30 — scoped-диспетчер холодным стартом пишет только в свои группы, но
+    // уже начатую переписку (см. фикс ниже) не теряет, даже если её группа
+    // позже выпала из scope.
+    return {
+      OR: [
+        { groupMembers: { some: { group: { organizationId, ...dispatcherGroupWhere(scope) } } } },
+        { sentMessages: { some: { recipientId: userId } } },
+        { receivedMessages: { some: { senderId: userId } } },
+      ],
+    };
   }
 
   const sharedGroup =
@@ -327,12 +357,13 @@ async function assertDirectAccess(
   intent: 'read' | 'write' = 'read',
 ) {
   if (targetUserId === userId) throw new AppError(400, 'You cannot message yourself');
+  const scope = await getDispatcherScope(userId, role);
   const target = await prisma.user.findFirst({
     where: {
       id: targetUserId,
       organizationId,
       isActive: true,
-      ...directContactFilter(userId, organizationId, role, intent),
+      ...directContactFilter(userId, organizationId, role, intent, scope),
     },
     select: { id: true, callsign: true, displayName: true, role: true },
   });
@@ -360,6 +391,7 @@ function conversationWhere(userId: string, target: z.infer<typeof targetSchema>)
 messagesRouter.get('/conversations', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { userId, organizationId, role } = req.user!;
+    const scope = await getDispatcherScope(userId, role);
     const [groups, users] = await Promise.all([
       accessibleGroups(userId, organizationId, role),
       prisma.user.findMany({
@@ -367,7 +399,7 @@ messagesRouter.get('/conversations', async (req: Request, res: Response, next: N
           organizationId,
           isActive: true,
           id: { not: userId },
-          ...directContactFilter(userId, organizationId, role),
+          ...directContactFilter(userId, organizationId, role, undefined, scope),
         },
         select: { id: true, callsign: true, displayName: true, role: true },
         orderBy: { callsign: 'asc' },
@@ -691,18 +723,7 @@ messagesRouter.post('/clear', async (req: Request, res: Response, next: NextFunc
       if (!privilegedRoles.includes(role)) {
         throw new AppError(403, 'Only a dispatcher or administrator can clear group history');
       }
-      const recipients = await prisma.user.findMany({
-        where: {
-          organizationId,
-          isActive: true,
-          OR: [
-            { groupMembers: { some: { groupId: target.groupId } } },
-            { role: { in: privilegedRoles } },
-          ],
-        },
-        select: { id: true },
-      });
-      recipientIds = recipients.map((recipient) => recipient.id);
+      recipientIds = await groupEventRecipientIds(target.groupId, organizationId);
     } else {
       await assertDirectAccess(target.userId!, userId, organizationId, role);
       recipientIds = [userId, target.userId!];

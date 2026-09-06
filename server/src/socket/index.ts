@@ -8,6 +8,7 @@ import { setupPresence } from './presence';
 import { setupPtt } from './ptt';
 import { setupMediasoupSocket } from '../mediasoup/router';
 import { UserRole } from '@prisma/client';
+import { getDispatcherScope } from '../services/groupAccess';
 
 export interface SocketUserData {
   userId: string;
@@ -101,6 +102,19 @@ export function setupSocketIO(httpServer: HttpServer): Server {
     socket.join(`org:${organizationId}`);
     if (['SUPERADMIN', 'ADMIN', 'DISPATCHER'].includes(role)) {
       socket.join(`org:${organizationId}:dispatchers`);
+      // D30 — scoped-диспетчер дополнительно вступает в комнаты своих групп,
+      // чтобы user-location/dispatcher-call-request могли адресоваться точнее,
+      // чем всей org:{id}:dispatchers разом. Не блокирует остальную настройку
+      // сокета — новая строка в scope применяется со следующего подключения,
+      // как и смена роли (не мгновенно, той же логике уже следует JWT).
+      if (role === 'DISPATCHER') {
+        getDispatcherScope(userId, role as UserRole)
+          .then((scope) => {
+            if (!scope) return;
+            for (const groupId of scope) socket.join(`org:${organizationId}:dispatch-group:${groupId}`);
+          })
+          .catch((err) => logger.error({ msg: 'Не удалось получить scope диспетчера', err, userId }));
+      }
     }
 
     setupPresence(io, s);

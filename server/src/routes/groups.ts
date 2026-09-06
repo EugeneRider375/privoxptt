@@ -7,13 +7,13 @@ import { GroupStatus, UserRole } from '@prisma/client';
 import { getPttLockOwner, isUserOnline } from '../database/redis';
 import { emitOrgDataChanged } from '../utils/realtime';
 import { hasReachablePushDevice } from '../services/push';
-import { assertPeriodOrder } from '../services/groupAccess';
+import { assertPeriodOrder, dispatcherGroupWhere, getDispatcherScope, PRIVILEGED_ROLES } from '../services/groupAccess';
 
 export const groupsRouter = Router();
 
 groupsRouter.use(authenticate);
 
-const privilegedRoles: UserRole[] = [UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.DISPATCHER];
+const privilegedRoles = PRIVILEGED_ROLES;
 
 function param(value: string | string[] | undefined, name: string): string {
   if (typeof value !== 'string') throw new AppError(400, `Invalid ${name}`);
@@ -87,14 +87,17 @@ groupsRouter.get('/', async (req: Request, res: Response, next: NextFunction) =>
     const orgId = req.user!.organizationId;
     const requestedOrgId = typeof req.query.orgId === 'string' ? req.query.orgId : undefined;
     const role = req.user!.role;
+    // D30 — диспетчер без явно назначенных групп по-прежнему видит всё
+    // (null = без ограничений); ограничен только если админ назначил scope.
+    const scope = await getDispatcherScope(userId, role);
 
-    // Суперадмин и диспетчер видят все группы организации
+    // Суперадмин и диспетчер видят все группы организации (или только свой scope)
     const groups =
       privilegedRoles.includes(role)
         ? await prisma.group.findMany({
             where: role === UserRole.SUPERADMIN
               ? (requestedOrgId ? { organizationId: requestedOrgId } : {})
-              : { organizationId: orgId },
+              : { organizationId: orgId, ...dispatcherGroupWhere(scope) },
             include: {
               _count: { select: { members: true } },
               organization: { select: { name: true, slug: true } },
@@ -152,9 +155,14 @@ groupsRouter.get('/:id', async (req: Request, res: Response, next: NextFunction)
 
     if (!group) throw new AppError(404, 'Group not found');
 
+    // D30 — scoped-диспетчер вне своей группы падает в проверку isMember ниже,
+    // как обычный пользователь; scope===null (не ограничен) ведёт себя как раньше.
+    const scope = await getDispatcherScope(req.user!.userId, req.user!.role);
     const isAdmin =
       req.user!.role === UserRole.SUPERADMIN ||
-      (privilegedRoles.includes(req.user!.role) && group.organization.id === req.user!.organizationId);
+      (privilegedRoles.includes(req.user!.role) &&
+        group.organization.id === req.user!.organizationId &&
+        (scope === null || scope.includes(group.id)));
     const isMember = group.members.some((m) => m.userId === req.user!.userId);
 
     if (!isAdmin && !isMember) throw new AppError(403, 'You are not a member of this group');

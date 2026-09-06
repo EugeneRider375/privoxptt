@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Plus, Pencil, Trash2, RotateCcw, Search, X, Check, MicOff, Ban, Power, History, LogIn, LogOut, Clock, IdCard, Loader2 } from 'lucide-react';
-import { usersApi, groupsApi, orgsApi, activityApi, onboardingApi } from '@/api/client';
+import { usersApi, groupsApi, orgsApi, activityApi, onboardingApi, dispatcherScopeApi } from '@/api/client';
 import { useStore } from '@/store/useStore';
 import type { User, Group, UserRole, Organization, ActivityLogEntry } from '@/types';
 import { IndividualInviteCard, type FreshLink } from '@/components/admin/IndividualInviteCard';
@@ -46,6 +46,9 @@ export function AdminUsers() {
   const [modal, setModal] = useState<'create' | 'edit' | 'reset' | null>(null);
   const [selected, setSelected] = useState<User | null>(null);
   const [form, setForm] = useState<UserFormData>(EMPTY_FORM);
+  // D30 — какие группы видит этот диспетчер, если он ограничен (пусто = без ограничений).
+  const [scopeGroupIds, setScopeGroupIds] = useState<string[]>([]);
+  const [scopeLoading, setScopeLoading] = useState(false);
   const [newPass, setNewPass] = useState('');
   /** Подтверждение смены пароля — иначе непонятно, сработало или нет. */
   const [resetDone, setResetDone] = useState('');
@@ -102,6 +105,16 @@ export function AdminUsers() {
     setForm({ email: u.email ?? '', login: u.login ?? '', password: '', callsign: u.callsign, displayName: u.displayName, role: u.role, organizationId: u.organizationId });
     setError('');
     setModal('edit');
+
+    // D30 — подгружаем текущий scope только для диспетчера, остальным ролям он не нужен.
+    setScopeGroupIds([]);
+    if (u.role === 'DISPATCHER') {
+      setScopeLoading(true);
+      dispatcherScopeApi.get(u.id)
+        .then((data) => setScopeGroupIds(data.groupIds))
+        .catch(console.error)
+        .finally(() => setScopeLoading(false));
+    }
   }
 
   function openReset(u: User) {
@@ -150,6 +163,11 @@ export function AdminUsers() {
       };
 
       await usersApi.update(selected.id, payload);
+      // D30 — scope сохраняем отдельным запросом, только если роль DISPATCHER;
+      // при демоушене роли из DISPATCHER сервер сам отклонит запись — не шлём.
+      if (form.role === 'DISPATCHER') {
+        await dispatcherScopeApi.update(selected.id, scopeGroupIds);
+      }
       load();
       setModal(null);
     } catch (e: any) {
@@ -491,6 +509,42 @@ export function AdminUsers() {
                 {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
               </select>
             </Field>
+            {/* D30 — назначить конкретному диспетчеру ограниченный список групп.
+                Только для уже существующего пользователя: у нового ещё нет id,
+                к которому можно привязать scope. */}
+            {modal === 'edit' && form.role === 'DISPATCHER' && (
+              <Field label="DISPATCHER SCOPE">
+                <p className="font-mono text-ptt-muted text-[11px] mb-2">
+                  Leave empty — this dispatcher keeps seeing every group (today&apos;s behavior).
+                  Check groups to restrict them to only those.
+                </p>
+                {scopeLoading ? (
+                  <p className="font-mono text-ptt-muted text-xs">Loading…</p>
+                ) : (
+                  <div className="space-y-1 max-h-48 overflow-y-auto border border-ptt-border rounded p-2">
+                    {groups
+                      .filter((g) => g.organizationId === selected?.organizationId)
+                      .map((g) => (
+                        <label key={g.id} className="flex items-center gap-2 cursor-pointer py-0.5">
+                          <input
+                            type="checkbox"
+                            checked={scopeGroupIds.includes(g.id)}
+                            onChange={(e) =>
+                              setScopeGroupIds(
+                                e.target.checked
+                                  ? [...scopeGroupIds, g.id]
+                                  : scopeGroupIds.filter((id) => id !== g.id)
+                              )
+                            }
+                            className="accent-ptt-green"
+                          />
+                          <span className="font-mono text-xs text-ptt-text">{g.name}</span>
+                        </label>
+                      ))}
+                  </div>
+                )}
+              </Field>
+            )}
             {error && <p className="font-mono text-ptt-danger text-xs">{error}</p>}
             <button
               onClick={modal === 'create' ? handleCreate : handleEdit}

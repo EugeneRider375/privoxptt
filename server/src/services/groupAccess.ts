@@ -1,6 +1,7 @@
-import { GroupStatus, Prisma } from '@prisma/client';
+import { GroupStatus, Prisma, UserRole } from '@prisma/client';
 
 import { AppError } from '../middleware/errorHandler';
+import { prisma } from '../database/prisma';
 
 /**
  * Срок действия группы и права участника внутри неё.
@@ -102,4 +103,34 @@ export function assertPeriodOrder(startsAt: Date | null, endsAt: Date | null): v
   if (startsAt && endsAt && endsAt.getTime() <= startsAt.getTime()) {
     throw new AppError(400, 'End date must be later than the start date');
   }
+}
+
+/**
+ * D30 — диспетчер, ограниченный конкретными группами.
+ *
+ * Раньше эти три роли (SUPERADMIN/ADMIN/DISPATCHER) везде получали доступ ко
+ * ВСЕЙ организации разом — константа была независимо продублирована в
+ * groups.ts/messages.ts/locations.ts. Собрана здесь в одном месте.
+ */
+export const PRIVILEGED_ROLES: UserRole[] = [UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.DISPATCHER];
+
+/**
+ * Список ID групп, которыми ограничен диспетчер, или `null` — без ограничений.
+ * `null` — это либо не DISPATCHER (SUPERADMIN/ADMIN всегда без ограничений),
+ * либо DISPATCHER, которому ещё никто не назначил ни одной группы: до явного
+ * назначения диспетчер продолжает видеть всё, как было до D30 — иначе выкатка
+ * этой фичи молча ослепила бы всех существующих диспетчеров.
+ */
+export async function getDispatcherScope(userId: string, role: UserRole): Promise<string[] | null> {
+  if (role !== UserRole.DISPATCHER) return null;
+  const rows = await prisma.dispatcherGroupScope.findMany({
+    where: { userId },
+    select: { groupId: true },
+  });
+  return rows.length === 0 ? null : rows.map((row) => row.groupId);
+}
+
+/** Фрагмент WHERE для Group: «эта группа входит в scope диспетчера». */
+export function dispatcherGroupWhere(scope: string[] | null): Prisma.GroupWhereInput {
+  return scope === null ? {} : { id: { in: scope } };
 }

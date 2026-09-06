@@ -57,6 +57,9 @@ model User {
   receivedMessages Message[]      @relation("MessageRecipient")
   messageReads     MessageRead[]
   invites          Invite[]
+  // D30 — если у диспетчера есть хотя бы одна строка здесь, он видит только
+  // перечисленные группы. Пусто = без ограничений (сегодняшнее поведение).
+  dispatcherScope  DispatcherGroupScope[] @relation("DispatcherScope")
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -141,6 +144,7 @@ model Group {
   messages       Message[]
   sensors        Sensor[]
   invites        Invite[]
+  dispatcherScope DispatcherGroupScope[]
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   isPrivate      Boolean       @default(false)
@@ -178,6 +182,22 @@ model GroupMember {
   @@unique([userId, groupId])
   @@index([groupId])
   @@index([userId])
+}
+
+// D30 — какие группы видит конкретный диспетчер, если он ограничен.
+// Отдельная таблица, не GroupMember: там canSpeak/canMessage/canShareLocation —
+// права ОБЫЧНОГО абонента внутри группы, смысл был бы другим и путаным.
+model DispatcherGroupScope {
+  id        String   @id @default(uuid())
+  userId    String
+  groupId   String
+  user      User     @relation("DispatcherScope", fields: [userId], references: [id], onDelete: Cascade)
+  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, groupId])
+  @@index([userId])
+  @@index([groupId])
 }
 
 model Message {
@@ -372,7 +392,7 @@ enum InviteStatus {
 enum UserRole {
   SUPERADMIN // Владелец всей системы — видит всё
   ADMIN // Администратор организации
-  DISPATCHER // Диспетчер — видит всё, говорит в любую группу
+  DISPATCHER // Диспетчер — по умолчанию видит всё; может быть ограничен списком групп (D30, DispatcherGroupScope)
   USER // Обычный пользователь рации
 }
 
