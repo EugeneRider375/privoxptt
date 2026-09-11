@@ -6,7 +6,7 @@ import type { Sensor } from '@prisma/client';
 import { prisma } from '../../database/prisma';
 import { logger } from '../../utils/logger';
 import { thresholdsToRules, evaluateRules, type MetricValue } from './adapters';
-import { sendSensorAlertPushToUsers } from '../push';
+import { sendSensorAlertPushToUsers, sendIosSensorAlertPush } from '../push';
 import { sendTelegram } from '../telegram';
 
 const DEFAULT_STALE_MS = 20 * 60_000; // молчание дольше → STALE (если не задан reportIntervalSec)
@@ -318,12 +318,18 @@ async function notify(
   staff.forEach((u) => recipientIds.add(u.id));
 
   if (recipientIds.size > 0) {
-    void sendSensorAlertPushToUsers([...recipientIds], {
+    const ids = [...recipientIds];
+    const pushPayload = {
       sensorId: sensor.id,
       sensorName: sensor.name,
-      status: status === 'STALE' ? 'STALE' : 'ALERT',
+      status: (status === 'STALE' ? 'STALE' : 'ALERT') as 'ALERT' | 'STALE',
       message,
-    }).catch((err) => logger.warn({ msg: 'sensor push failed', sensorId: sensor.id, err }));
+    };
+    void sendSensorAlertPushToUsers(ids, pushPayload)
+      .catch((err) => logger.warn({ msg: 'sensor push failed (Android)', sensorId: sensor.id, err }));
+    // D27-доп — то же самое на iPhone, отдельный канал (APNs, а не FCM).
+    void sendIosSensorAlertPush(ids, pushPayload)
+      .catch((err) => logger.warn({ msg: 'sensor push failed (iOS)', sensorId: sensor.id, err }));
   }
 }
 

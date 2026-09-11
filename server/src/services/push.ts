@@ -519,6 +519,70 @@ export interface SensorAlertPush {
   message: string;
 }
 
+// D27-доп — тревога датчика на iPhone. Обычный alert-пуш через APNs, тот же
+// приём, что sendIosMessagePush: показывается системным уведомлением, без
+// какого-либо кода в приложении под конкретный тип — как и на Android,
+// отдельный обработчик не требуется.
+export async function sendIosSensorAlertPush(
+  userIds: string[],
+  payload: SensorAlertPush,
+): Promise<{ sent: number; failed: number }> {
+  if (!isApnsConfigured()) return { sent: 0, failed: 0 };
+  if (userIds.length === 0) return { sent: 0, failed: 0 };
+
+  const devices = await prisma.device.findMany({
+    where: { userId: { in: userIds }, platform: 'IOS', enabled: true, pushToken: { not: null } },
+    select: { id: true, pushToken: true, updatedAt: true },
+  });
+  if (devices.length === 0) return { sent: 0, failed: 0 };
+
+  const title = payload.status === 'STALE' ? `🟠 ${payload.sensorName}` : `⚠️ ${payload.sensorName}`;
+  const apnsBody = {
+    aps: { alert: { title, body: payload.message }, sound: 'default' },
+    type: 'sensor_alert',
+    sensorId: payload.sensorId,
+    sensorName: payload.sensorName,
+    status: payload.status,
+    message: payload.message,
+  };
+
+  const results = await Promise.all(devices.map(async (device) => {
+    const result = await sendApns(device.pushToken!, apnsBody, {
+      pushType: 'alert',
+      priority: 10,
+      collapseId: payload.sensorId,
+    });
+    return { device, result };
+  }));
+
+  const TOKEN_GRACE_MS = 10 * 60 * 1000;
+  const now = Date.now();
+  const dead = results
+    .filter(({ result, device }) =>
+      !result.ok &&
+      isDeadTokenReason(result.reason) &&
+      now - device.updatedAt.getTime() > TOKEN_GRACE_MS,
+    )
+    .map(({ device }) => device.id);
+
+  if (dead.length > 0) {
+    await prisma.device.updateMany({ where: { id: { in: dead } }, data: { pushToken: null } });
+  }
+
+  const sent = results.filter(({ result }) => result.ok).length;
+  const failed = results.length - sent;
+
+  logger.info({
+    msg: 'iOS sensor alert push sent',
+    sensorId: payload.sensorId,
+    sent,
+    failed,
+    reasons: results.filter(({ result }) => !result.ok).map(({ result }) => result.reason),
+  });
+
+  return { sent, failed };
+}
+
 // Push о тревоге датчика на телефоны участников группы.
 // Показывается системным уведомлением (notification), отдельный обработчик
 // в Android-приложении не требуется.
