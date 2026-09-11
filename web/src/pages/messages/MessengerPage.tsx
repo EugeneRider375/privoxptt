@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { isAxiosError } from 'axios';
-import { ArrowLeft, Camera, Check, CheckCheck, Download, FileText, Hash, Image, Mic, MessageSquare, Paperclip, Send, Square, Trash2, UserRound } from 'lucide-react';
+import { ArrowLeft, Camera, Check, CheckCheck, Download, FileText, Hash, Image, Mic, MessageSquare, Paperclip, Send, Square, Trash2, UserRound, Video } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { messagesApi } from '@/api/client';
 import { clearNativeMessageNotifications } from '@/hooks/useNativePush';
@@ -61,10 +61,11 @@ function MessageAttachment({ message, currentUserId }: { message: ChatMessage; c
   const attachment = message.attachment;
   const isImage = attachment?.type.startsWith('image/');
   const isVoiceNote = attachment?.type.startsWith('audio/');
+  const isVideo = attachment?.type.startsWith('video/');
   const isRecipient = message.recipientId === currentUserId;
 
   useEffect(() => {
-    if (!attachment || !(isImage || isVoiceNote)) return;
+    if (!attachment || !(isImage || isVoiceNote || isVideo)) return;
     let disposed = false;
     let objectUrl: string | null = null;
     messagesApi.attachment(message.id).then((blob) => {
@@ -76,7 +77,7 @@ function MessageAttachment({ message, currentUserId }: { message: ChatMessage; c
       disposed = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [attachment, isImage, isVoiceNote, message.id]);
+  }, [attachment, isImage, isVoiceNote, isVideo, message.id]);
 
   if (!attachment) return null;
 
@@ -162,13 +163,16 @@ function MessageAttachment({ message, currentUserId }: { message: ChatMessage; c
           />
         </button>
       )}
+      {isVideo && url && (
+        <video controls src={url} className="max-h-64 max-w-full rounded" />
+      )}
       <button
         type="button"
         onClick={download}
         disabled={loading}
         className="w-full flex items-center gap-2 text-left text-xs text-ptt-blue disabled:opacity-50"
       >
-        {isImage ? <Image className="w-4 h-4 shrink-0" /> : <FileText className="w-4 h-4 shrink-0" />}
+        {isImage ? <Image className="w-4 h-4 shrink-0" /> : isVideo ? <Video className="w-4 h-4 shrink-0" /> : <FileText className="w-4 h-4 shrink-0" />}
         <span className="min-w-0 flex-1">
           <span className="block truncate">{attachment.name}</span>
           <span className="text-[9px] text-ptt-muted">{fileSizeLabel(attachment.size)}</span>
@@ -406,8 +410,12 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
 
   async function sendAttachment(file: File) {
     if (!selected || uploading) return;
-    if (file.size > 25 * 1024 * 1024) {
-      setError('File is larger than 25 MB');
+    // D31 — видео разрешено до 50 МБ (весит больше фото), остальное — до 25 МБ.
+    // Держать синхронно с server/src/routes/messages.ts (maxAttachmentSize/maxVideoAttachmentSize).
+    const isVideo = file.type.startsWith('video/');
+    const maxBytes = isVideo ? 50 * 1024 * 1024 : 25 * 1024 * 1024;
+    if (file.size > maxBytes) {
+      setError(`File is larger than ${maxBytes / (1024 * 1024)} MB`);
       return;
     }
     setUploading(true);
@@ -621,7 +629,7 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
                 ref={fileInputRef}
                 type="file"
                 className="hidden"
-                accept="image/*,application/pdf,text/plain,text/csv,.doc,.docx,.xls,.xlsx"
+                accept="image/*,video/mp4,video/quicktime,video/webm,application/pdf,text/plain,text/csv,.doc,.docx,.xls,.xlsx"
                 onChange={(event) => {
                   const file = event.target.files?.[0];
                   if (file) void sendAttachment(file);
@@ -631,7 +639,9 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
                 ref={cameraInputRef}
                 type="file"
                 className="hidden"
-                accept="image/*"
+                // D31 — камера теперь снимает и фото, и видео с одной кнопки:
+                // системная камера сама предлагает переключатель режима.
+                accept="image/*,video/mp4,video/quicktime,video/webm"
                 capture="environment"
                 onChange={(event) => {
                   const file = event.target.files?.[0];
@@ -651,7 +661,7 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
                 type="button"
                 onClick={() => cameraInputRef.current?.click()}
                 disabled={uploading || sending}
-                title="Take a photo"
+                title="Take a photo or video"
                 className="w-10 h-10 shrink-0 flex items-center justify-center text-ptt-muted hover:text-ptt-green disabled:opacity-40"
               >
                 <Camera className="w-4 h-4" />

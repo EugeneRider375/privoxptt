@@ -30,6 +30,13 @@ const uploadsDir = process.env.MESSAGE_UPLOAD_DIR ?? '/app/uploads/messages';
 // web/nginx.conf (client_max_body_size — иначе nginx обрежет запрос раньше,
 // чем до этого лимита вообще дойдёт дело).
 const maxAttachmentSize = 25 * 1024 * 1024;
+// D31 — видео (2026-09-11): отдельный, больший лимит — ролик с телефона
+// обычно весит больше фото. express.raw() ниже принимает тело до размера
+// БОЛЬШЕГО из двух лимитов (иначе видео обрубится ещё на парсинге, раньше
+// чем дойдёт дело до проверки типа); меньший лимит для остальных типов
+// проверяется вручную после того, как тип файла уже известен. Как и выше —
+// при изменении синхронно поправить MessengerPage.tsx и nginx.conf.
+const maxVideoAttachmentSize = 50 * 1024 * 1024;
 const allowedAttachmentTypes = new Set([
   'image/jpeg',
   'image/png',
@@ -52,6 +59,10 @@ const allowedAttachmentTypes = new Set([
   'audio/x-m4a',
   'audio/mpeg',
   'audio/ogg',
+  // Видео (D31, 2026-09-11) — mp4/quicktime покрывают iPhone, webm — Android/Chrome.
+  'video/mp4',
+  'video/quicktime',
+  'video/webm',
 ]);
 
 const attachmentTypesByExtension: Record<string, string> = {
@@ -73,11 +84,18 @@ const attachmentTypesByExtension: Record<string, string> = {
   m4a: 'audio/x-m4a',
   mp3: 'audio/mpeg',
   ogg: 'audio/ogg',
+  mp4: 'video/mp4',
+  mov: 'video/quicktime',
 };
 
 /** Голосовое сообщение (D34) — распознаётся по MIME, отдельного флага в базе нет. */
 function isVoiceNote(attachmentType: string | null): boolean {
   return !!attachmentType?.startsWith('audio/');
+}
+
+/** Видео (D31) — как и голосовые, отдельного флага в базе нет, судим по MIME. */
+function isVideo(attachmentType: string | null): boolean {
+  return !!attachmentType?.startsWith('video/');
 }
 
 function attachmentType(headerValue: string, fileName: string) {
@@ -526,7 +544,10 @@ messagesRouter.post('/', async (req: Request, res: Response, next: NextFunction)
 
 messagesRouter.post(
   '/attachments',
-  raw({ type: () => true, limit: maxAttachmentSize }),
+  // Лимит здесь — самый большой из допустимых (видео), иначе видео
+  // обрубится ещё на парсинге тела запроса. Меньший лимит для остальных
+  // типов проверяется вручную ниже, когда тип файла уже известен.
+  raw({ type: () => true, limit: maxVideoAttachmentSize }),
   async (req: Request, res: Response, next: NextFunction) => {
     let storedPath: string | null = null;
     try {
@@ -545,6 +566,12 @@ messagesRouter.post(
       );
       if (!contentType) {
         throw new AppError(415, 'This file type is not allowed');
+      }
+      // Видео разрешено до maxVideoAttachmentSize (уже проверено express.raw()
+      // выше), остальные типы — до меньшего maxAttachmentSize.
+      const sizeCap = isVideo(contentType) ? maxVideoAttachmentSize : maxAttachmentSize;
+      if (req.body.length > sizeCap) {
+        throw new AppError(413, 'File is too large');
       }
       // Голосовые сообщения (D34) — решение Eugene 2026-08-31: только личка,
       // в группах даже не должно быть кнопки записи, но проверяем и здесь —

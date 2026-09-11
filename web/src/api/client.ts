@@ -267,12 +267,15 @@ export const messagesApi = {
         'Content-Type': file.type || attachmentTypeFromName(file.name),
         'X-File-Name': encodeURIComponent(file.name),
       },
-      timeout: 120_000,
+      // D31 — видео до 50 МБ (было только фото/файлы до 25 МБ), таймаут
+      // поднят вместе с web/nginx.conf (proxy_read/send_timeout), иначе на
+      // слабой связи клиент сдастся раньше, чем nginx оборвёт запрос сам.
+      timeout: 240_000,
     }).then((r) => r.data),
   attachment: (messageId: string) =>
     api.get(`/messages/${messageId}/attachment`, {
       responseType: 'blob',
-      timeout: 30_000,
+      timeout: 60_000,
     }).then((r) => r.data as Blob),
   markRead: (target: { groupId?: string; userId?: string }) =>
     api.post('/messages/read', target).then((r) => r.data),
