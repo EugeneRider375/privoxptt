@@ -134,13 +134,19 @@ const sensorGroupsInclude = {
 
 type SensorWithGroups = Prisma.SensorGetPayload<{ include: typeof sensorGroupsInclude }>;
 
-/** Плоская форма ответа: groups[] вместо вложенной SensorGroup-обёртки, + isForeign. */
-function serializeSensor<T extends SensorWithGroups>(sensor: T, requesterOrgId: string) {
+/**
+ * Плоская форма ответа: groups[] вместо вложенной SensorGroup-обёртки, + isForeign.
+ * SUPERADMIN не привязан ни к одной организации по правам — хозяйничает
+ * везде, поэтому для него isForeign всегда false, независимо от того, какая
+ * organizationId стоит у его собственной учётной записи (это чисто
+ * формальное поле, на права SUPERADMIN не влияет нигде в проекте).
+ */
+function serializeSensor<T extends SensorWithGroups>(sensor: T, requesterOrgId: string, requesterRole: UserRole) {
   const { groups, ...rest } = sensor;
   return {
     ...rest,
     groups: serializeSensorGroups(groups),
-    isForeign: sensor.organizationId !== requesterOrgId,
+    isForeign: requesterRole !== UserRole.SUPERADMIN && sensor.organizationId !== requesterOrgId,
   };
 }
 
@@ -164,7 +170,7 @@ sensorsRouter.get('/', requireDispatcher, async (req: Request, res: Response, ne
       orderBy: { name: 'asc' },
     });
 
-    res.json(sensors.map((s) => serializeSensor(s, orgId)));
+    res.json(sensors.map((s) => serializeSensor(s, orgId, role)));
   } catch (err) {
     next(err);
   }
@@ -187,7 +193,7 @@ sensorsRouter.get('/:id', requireDispatcher, async (req: Request, res: Response,
       throw new AppError(403, 'Access denied');
     }
 
-    res.json(serializeSensor(sensor, orgId));
+    res.json(serializeSensor(sensor, orgId, req.user!.role));
   } catch (err) {
     next(err);
   }
@@ -227,7 +233,7 @@ sensorsRouter.post('/', requireSuperAdmin, async (req: Request, res: Response, n
     });
 
     emitOrgDataChanged(req, orgId, 'sensors', { sensorId: sensor.id, action: 'created' });
-    res.status(201).json(serializeSensor(sensor, req.user!.organizationId)); // для PUSH включает sensorKey
+    res.status(201).json(serializeSensor(sensor, req.user!.organizationId, req.user!.role)); // для PUSH включает sensorKey
   } catch (err) {
     next(err);
   }
@@ -290,7 +296,7 @@ sensorsRouter.patch('/:id', requireAdmin, async (req: Request, res: Response, ne
     });
 
     emitOrgDataChanged(req, sensor.organizationId, 'sensors', { sensorId: id, action: 'updated' });
-    res.json(serializeSensor(updated, req.user!.organizationId));
+    res.json(serializeSensor(updated, req.user!.organizationId, req.user!.role));
   } catch (err) {
     next(err);
   }
