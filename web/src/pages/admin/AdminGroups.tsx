@@ -185,10 +185,11 @@ export function AdminGroups() {
 
   const nonMembers = allUsers.filter((u) => !members.some((m) => m.userId === u.id));
 
-  // Датчики, привязанные к каждой группе (read-only индикатор; управление — на странице Sensors)
+  // Датчики, привязанные к каждой группе (read-only индикатор; управление — на странице Sensors).
+  // D37 — датчик может целиться в несколько групп разом, попадает в индекс под каждой.
   const sensorsByGroup: Record<string, Sensor[]> = {};
   for (const s of sensors) {
-    if (s.groupId) (sensorsByGroup[s.groupId] ??= []).push(s);
+    for (const g of s.groups) (sensorsByGroup[g.id] ??= []).push(s);
   }
 
   return (

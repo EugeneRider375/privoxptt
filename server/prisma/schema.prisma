@@ -144,10 +144,10 @@ model Group {
   organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   members        GroupMember[]
   messages       Message[]
-  sensors        Sensor[]
   invites        Invite[]
   dispatcherScope DispatcherGroupScope[]
   arrivalCheckIns ArrivalCheckIn[]
+  sensorTargets   SensorGroup[]
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   isPrivate      Boolean       @default(false)
@@ -282,8 +282,13 @@ model Sensor {
   lat        Float? // для маркера на карте
   lng        Float?
 
-  groupId String? // в какую группу слать тревоги/push
-  group   Group?  @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  // D37 (2026-09-11) — было: одна группа, обязательно из ТОЙ ЖЕ организации,
+  // что и сам датчик. Заменено на groups[] — датчик теперь может слать
+  // тревоги в НЕСКОЛЬКО групп, в том числе из ДРУГИХ организаций (кросс-орг
+  // разрешено только SUPERADMIN, см. sensors.ts). Старое скалярное поле
+  // groupId убрано миграцией `20260911150500_sensor_group_backfill_drop`,
+  // которая сама переносит данные в SensorGroup перед дропом колонки.
+  groups SensorGroup[]
 
   // Здоровье устройства
   reportIntervalSec Int? // ожидаемый интервал отчёта (null = событийный, как дверь)
@@ -303,6 +308,23 @@ model Sensor {
   incidents Incident[]
 
   @@index([organizationId, enabled])
+}
+
+// D37 — целевые группы датчика (многие-ко-многим), в том числе из других
+// организаций. groupId НЕ обязан принадлежать organizationId самого
+// датчика — привязку к чужой организации разрешает делать только
+// SUPERADMIN (проверка в server/src/routes/sensors.ts, не на уровне схемы).
+model SensorGroup {
+  id        String   @id @default(uuid())
+  sensorId  String
+  sensor    Sensor   @relation(fields: [sensorId], references: [id], onDelete: Cascade)
+  groupId   String
+  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([sensorId, groupId])
+  @@index([sensorId])
+  @@index([groupId])
 }
 
 model SensorReading {

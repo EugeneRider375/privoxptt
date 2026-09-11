@@ -49,7 +49,9 @@ const createSensorSchema = z.object({
   externalId: z.string().max(64).optional(),
   sensorKey: z.string().min(16).max(128).optional(), // PUSH: можно задать свой ключ; иначе сгенерится
   organizationId: z.string().uuid().optional(),
-  groupId: z.string().max(64).optional(),
+  // D37 — было groupId (одна группа, обязательно своя орг). Теперь список,
+  // может включать группы ДРУГИХ организаций (см. assertGroupsForSensor).
+  groupIds: z.array(z.string().max(64)).max(50).optional(),
   thresholds: thresholdsSchema.optional(),
   reportIntervalSec: z.number().int().positive().optional(),
   lat: z.number().optional(),
@@ -58,11 +60,12 @@ const createSensorSchema = z.object({
   alarmSound: z.boolean().default(false),
 });
 
-// PATCH — настройка (ADMIN): правила, группа, вкл/выкл, имя, координаты, интервал.
+// PATCH — настройка (ADMIN): правила, группы, вкл/выкл, имя, координаты, интервал.
 const updateSensorSchema = z.object({
   name: z.string().min(1).max(120).optional(),
   thresholds: thresholdsSchema.optional(),
-  groupId: z.string().max(64).nullable().optional(),
+  // undefined = не трогать группы; массив (в т.ч. пустой) = заменить набор целиком.
+  groupIds: z.array(z.string().max(64)).max(50).optional(),
   reportIntervalSec: z.number().int().positive().nullable().optional(),
   enabled: z.boolean().optional(),
   lat: z.number().nullable().optional(),
@@ -73,14 +76,77 @@ const updateSensorSchema = z.object({
   sensorKey: z.string().min(16).max(128).optional(), // сменить/вписать ключ push-датчика
 });
 
-async function assertGroupInOrg(groupId: string, organizationId: string): Promise<void> {
-  const group = await prisma.group.findUnique({ where: { id: groupId }, select: { organizationId: true } });
-  if (!group || group.organizationId !== organizationId) {
-    throw new AppError(400, 'Group not found in this organization');
+/**
+ * D37 — целевые группы датчика могут принадлежать ДРУГИМ организациям, но
+ * привязывать чужую группу может только SUPERADMIN (решение Eugene,
+ * 2026-09-11). Обычный ADMIN по-прежнему ограничен своей организацией —
+ * ровно как раньше вело себя assertGroupInOrg, просто теперь для списка.
+ */
+async function assertGroupsForSensor(
+  groupIds: string[],
+  sensorOrgId: string,
+  actingRole: UserRole,
+): Promise<void> {
+  if (groupIds.length === 0) return;
+  const groups = await prisma.group.findMany({
+    where: { id: { in: groupIds } },
+    select: { id: true, organizationId: true },
+  });
+  if (groups.length !== new Set(groupIds).size) {
+    throw new AppError(400, 'One or more groups not found');
+  }
+  if (actingRole !== UserRole.SUPERADMIN) {
+    const foreign = groups.some((g) => g.organizationId !== sensorOrgId);
+    if (foreign) {
+      throw new AppError(403, 'Only superadmin can target a group from another organization');
+    }
   }
 }
 
-// GET /api/sensors — список датчиков своей организации (SUPERADMIN — все/по orgId)
+/** Плоский вид groups[] для ответа клиенту — включая имя/организацию каждой цели. */
+function serializeSensorGroups(
+  groups: Array<{ group: { id: string; name: string; organizationId: string; organization: { name: string; slug: string } } }>,
+) {
+  return groups.map(({ group }) => ({
+    id: group.id,
+    name: group.name,
+    organizationId: group.organizationId,
+    organizationName: group.organization.name,
+    organizationSlug: group.organization.slug,
+  }));
+}
+
+const sensorGroupsInclude = {
+  groups: {
+    include: {
+      group: {
+        select: {
+          id: true,
+          name: true,
+          organizationId: true,
+          organization: { select: { name: true, slug: true } },
+        },
+      },
+    },
+  },
+  organization: { select: { name: true, slug: true } },
+} satisfies Prisma.SensorInclude;
+
+type SensorWithGroups = Prisma.SensorGetPayload<{ include: typeof sensorGroupsInclude }>;
+
+/** Плоская форма ответа: groups[] вместо вложенной SensorGroup-обёртки, + isForeign. */
+function serializeSensor<T extends SensorWithGroups>(sensor: T, requesterOrgId: string) {
+  const { groups, ...rest } = sensor;
+  return {
+    ...rest,
+    groups: serializeSensorGroups(groups),
+    isForeign: sensor.organizationId !== requesterOrgId,
+  };
+}
+
+// GET /api/sensors — датчики своей организации + чужие датчики, нацеленные
+// на группу своей организации (D37, только для чтения — см. isForeign в
+// ответе). SUPERADMIN — все/по orgId, как раньше.
 sensorsRouter.get('/', requireDispatcher, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const role = req.user!.role;
@@ -90,40 +156,38 @@ sensorsRouter.get('/', requireDispatcher, async (req: Request, res: Response, ne
     const where: Prisma.SensorWhereInput =
       role === UserRole.SUPERADMIN
         ? (requestedOrgId ? { organizationId: requestedOrgId } : {})
-        : { organizationId: orgId };
+        : { OR: [{ organizationId: orgId }, { groups: { some: { group: { organizationId: orgId } } } }] };
 
     const sensors = await prisma.sensor.findMany({
       where,
-      include: {
-        group: { select: { id: true, name: true } },
-        organization: { select: { name: true, slug: true } },
-      },
+      include: sensorGroupsInclude,
       orderBy: { name: 'asc' },
     });
 
-    res.json(sensors);
+    res.json(sensors.map((s) => serializeSensor(s, orgId)));
   } catch (err) {
     next(err);
   }
 });
 
-// GET /api/sensors/:id — один датчик + последние замеры
+// GET /api/sensors/:id — один датчик + последние замеры. Та же видимость,
+// что и в списке (владелец ИЛИ организация-получатель одной из целевых групп).
 sensorsRouter.get('/:id', requireDispatcher, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const sensor = await prisma.sensor.findUnique({
       where: { id: param(req.params.id, 'sensor id') },
-      include: {
-        group: { select: { id: true, name: true } },
-        readings: { take: 100, orderBy: { createdAt: 'desc' } },
-      },
+      include: { ...sensorGroupsInclude, readings: { take: 100, orderBy: { createdAt: 'desc' } } },
     });
     if (!sensor) throw new AppError(404, 'Sensor not found');
 
-    if (req.user!.role !== UserRole.SUPERADMIN && sensor.organizationId !== req.user!.organizationId) {
+    const orgId = req.user!.organizationId;
+    const isOwner = sensor.organizationId === orgId;
+    const isTargetOrg = sensor.groups.some((g) => g.group.organizationId === orgId);
+    if (req.user!.role !== UserRole.SUPERADMIN && !isOwner && !isTargetOrg) {
       throw new AppError(403, 'Access denied');
     }
 
-    res.json(sensor);
+    res.json(serializeSensor(sensor, orgId));
   } catch (err) {
     next(err);
   }
@@ -134,8 +198,9 @@ sensorsRouter.post('/', requireSuperAdmin, async (req: Request, res: Response, n
   try {
     const data = createSensorSchema.parse(req.body);
     const orgId = data.organizationId ?? req.user!.organizationId;
+    const groupIds = data.groupIds ?? [];
 
-    if (data.groupId) await assertGroupInOrg(data.groupId, orgId);
+    await assertGroupsForSensor(groupIds, orgId, req.user!.role);
     if (data.ingest === 'PULL' && (!data.adapter || !data.sourceUrl)) {
       throw new AppError(400, 'PULL sensor requires adapter and sourceUrl');
     }
@@ -152,16 +217,17 @@ sensorsRouter.post('/', requireSuperAdmin, async (req: Request, res: Response, n
         sensorKey: data.ingest === 'PUSH' ? (data.sensorKey ?? generateSensorKey()) : null,
         thresholds: (data.thresholds ?? []) as Prisma.InputJsonValue,
         reportIntervalSec: data.reportIntervalSec ?? null,
-        groupId: data.groupId ?? null,
         lat: data.lat ?? null,
         lng: data.lng ?? null,
         enabled: data.enabled,
         alarmSound: data.alarmSound,
+        groups: { create: groupIds.map((groupId) => ({ groupId })) },
       },
+      include: sensorGroupsInclude,
     });
 
     emitOrgDataChanged(req, orgId, 'sensors', { sensorId: sensor.id, action: 'created' });
-    res.status(201).json(sensor); // для PUSH включает sensorKey
+    res.status(201).json(serializeSensor(sensor, req.user!.organizationId)); // для PUSH включает sensorKey
   } catch (err) {
     next(err);
   }
@@ -179,7 +245,9 @@ sensorsRouter.patch('/:id', requireAdmin, async (req: Request, res: Response, ne
     }
 
     const data = updateSensorSchema.parse(req.body);
-    if (data.groupId) await assertGroupInOrg(data.groupId, sensor.organizationId);
+    if (data.groupIds !== undefined) {
+      await assertGroupsForSensor(data.groupIds, sensor.organizationId, req.user!.role);
+    }
 
     const updateData: Prisma.SensorUncheckedUpdateInput = {};
     if (data.name !== undefined) updateData.name = data.name;
@@ -187,13 +255,14 @@ sensorsRouter.patch('/:id', requireAdmin, async (req: Request, res: Response, ne
     if (data.enabled !== undefined) updateData.enabled = data.enabled;
     if (data.lat !== undefined) updateData.lat = data.lat;
     if (data.lng !== undefined) updateData.lng = data.lng;
-    if (data.groupId !== undefined) updateData.groupId = data.groupId;
     if (data.reportIntervalSec !== undefined) updateData.reportIntervalSec = data.reportIntervalSec;
     if (data.alarmSound !== undefined) updateData.alarmSound = data.alarmSound;
     if (data.sensorKey !== undefined) updateData.sensorKey = data.sensorKey;
 
-    // Reassign to another organization — SUPERADMIN only. Groups are per-org, so
-    // drop any stale group reference when moving the sensor across organizations.
+    // Reassign to another organization — SUPERADMIN only. Целевые группы были
+    // проверены/выставлены в контексте СТАРОЙ организации, поэтому при смене
+    // орга сбрасываем набор целиком — так было и раньше (одиночный groupId).
+    let clearGroupsOnReassign = false;
     if (data.organizationId !== undefined && data.organizationId !== sensor.organizationId) {
       if (req.user!.role !== UserRole.SUPERADMIN) {
         throw new AppError(403, 'Only superadmin can reassign a sensor to another organization');
@@ -204,13 +273,24 @@ sensorsRouter.patch('/:id', requireAdmin, async (req: Request, res: Response, ne
       });
       if (!org) throw new AppError(400, 'Organization not found');
       updateData.organizationId = data.organizationId;
-      updateData.groupId = null;
+      clearGroupsOnReassign = true;
     }
 
-    const updated = await prisma.sensor.update({ where: { id }, data: updateData });
+    const nextGroupIds = clearGroupsOnReassign ? [] : data.groupIds;
+
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.sensor.update({ where: { id }, data: updateData });
+      if (nextGroupIds !== undefined) {
+        await tx.sensorGroup.deleteMany({ where: { sensorId: id } });
+        if (nextGroupIds.length > 0) {
+          await tx.sensorGroup.createMany({ data: nextGroupIds.map((groupId) => ({ sensorId: id, groupId })) });
+        }
+      }
+      return tx.sensor.findUniqueOrThrow({ where: { id }, include: sensorGroupsInclude });
+    });
 
     emitOrgDataChanged(req, sensor.organizationId, 'sensors', { sensorId: id, action: 'updated' });
-    res.json(updated);
+    res.json(serializeSensor(updated, req.user!.organizationId));
   } catch (err) {
     next(err);
   }

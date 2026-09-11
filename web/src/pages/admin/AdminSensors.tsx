@@ -130,6 +130,46 @@ function RulesEditor({ rules, onChange }: { rules: SensorRule[]; onChange: (r: S
   );
 }
 
+// D37 — датчик может слать тревоги в несколько групп, в т.ч. из других
+// организаций. Мультиселектов в проекте нет — переиспользуем уже
+// устоявшийся паттерн (чекбокс-список, как DISPATCHER SCOPE в
+// AdminUsers.tsx), с разбивкой на подзаголовки по организации, когда групп
+// больше одной организации.
+function GroupPicker({ groups, selected, onChange }: { groups: Group[]; selected: string[]; onChange: (ids: string[]) => void }) {
+  const byOrg = new Map<string, Group[]>();
+  for (const g of groups) {
+    const label = g.organization?.name ?? 'unknown org';
+    if (!byOrg.has(label)) byOrg.set(label, []);
+    byOrg.get(label)!.push(g);
+  }
+  const toggle = (id: string, checked: boolean) =>
+    onChange(checked ? [...selected, id] : selected.filter((x) => x !== id));
+
+  return (
+    <div className="space-y-1 max-h-48 overflow-y-auto border border-ptt-border rounded p-2">
+      {[...byOrg.entries()].map(([orgLabel, orgGroups]) => (
+        <div key={orgLabel}>
+          {byOrg.size > 1 && (
+            <p className="font-mono text-ptt-muted text-[10px] tracking-widest mt-1.5 mb-0.5 uppercase">{orgLabel}</p>
+          )}
+          {orgGroups.map((g) => (
+            <label key={g.id} className="flex items-center gap-2 cursor-pointer py-0.5">
+              <input
+                type="checkbox"
+                checked={selected.includes(g.id)}
+                onChange={(e) => toggle(g.id, e.target.checked)}
+                className="accent-ptt-green"
+              />
+              <span className="font-mono text-xs text-ptt-text">{g.name}</span>
+            </label>
+          ))}
+        </div>
+      ))}
+      {groups.length === 0 && <p className="font-mono text-ptt-muted text-xs">no groups</p>}
+    </div>
+  );
+}
+
 function KeyBox({ sensorKey, onRotate }: { sensorKey: string; onRotate?: () => void }) {
   const url = `${window.location.origin}/api/telemetry`;
   return (
@@ -162,12 +202,12 @@ export function AdminSensors() {
   const [selectedOrgId, setSelectedOrgId] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const [edit, setEdit] = useState({ name: '', groupId: '', enabled: true, alarmSound: false, reportIntervalSec: '', sensorKey: '', rules: [] as SensorRule[] });
+  const [edit, setEdit] = useState({ name: '', groupIds: [] as string[], enabled: true, alarmSound: false, reportIntervalSec: '', sensorKey: '', rules: [] as SensorRule[] });
 
   const [createOpen, setCreateOpen] = useState(false);
   const emptyCreate = {
     ingest: 'PUSH' as 'PUSH' | 'PULL',
-    name: '', kind: 'FRIDGE', organizationId: '', groupId: '',
+    name: '', kind: 'FRIDGE', organizationId: '', groupIds: [] as string[],
     adapter: 'FRIGO', sourceUrl: '', externalId: '', reportIntervalSec: '',
     sensorKey: '',
     alarmSound: false,
@@ -182,7 +222,11 @@ export function AdminSensors() {
   const load = () => {
     const org = isSuperAdmin ? selectedOrgId || undefined : undefined;
     sensorsApi.list(org).then(setSensors).catch(console.error);
-    groupsApi.list(org).then(setGroups).catch(console.error);
+    // D37 — группы-получатели могут быть из ЛЮБОЙ организации (SUPERADMIN),
+    // поэтому пикер групп всегда тянет весь список, независимо от фильтра
+    // organizationId страницы (тот фильтр — только для списка датчиков).
+    // Для не-суперадмина сервер и так отдаёт только группы своей орг.
+    groupsApi.list(isSuperAdmin ? undefined : org).then(setGroups).catch(console.error);
   };
 
   useEffect(() => { if (isSuperAdmin) orgsApi.list().then(setOrgs).catch(console.error); }, [isSuperAdmin]);
@@ -194,7 +238,7 @@ export function AdminSensors() {
     setError('');
     setEdit({
       name: s.name,
-      groupId: s.groupId ?? '',
+      groupIds: s.groups.map((g) => g.id),
       enabled: s.enabled,
       alarmSound: s.alarmSound ?? false,
       reportIntervalSec: s.reportIntervalSec?.toString() ?? '',
@@ -208,7 +252,7 @@ export function AdminSensors() {
     try {
       await sensorsApi.update(s.id, {
         name: edit.name,
-        groupId: edit.groupId || null,
+        groupIds: edit.groupIds,
         enabled: edit.enabled,
         alarmSound: edit.alarmSound,
         reportIntervalSec: edit.reportIntervalSec.trim() === '' ? null : Number(edit.reportIntervalSec),
@@ -246,7 +290,7 @@ export function AdminSensors() {
         kind: create.kind,
         ingest: create.ingest,
         organizationId: create.organizationId || undefined,
-        groupId: create.groupId || undefined,
+        groupIds: create.groupIds,
         reportIntervalSec: create.reportIntervalSec.trim() === '' ? undefined : Number(create.reportIntervalSec),
         alarmSound: create.alarmSound,
         thresholds: create.rules,
@@ -268,8 +312,6 @@ export function AdminSensors() {
       }
     } catch (e: any) { setError(e?.response?.data?.error ?? 'Error'); } finally { setLoading(false); }
   }
-
-  const createGroups = groups.filter((g) => !create.organizationId || g.organizationId === create.organizationId);
 
   return (
     <div className="p-4 space-y-4">
@@ -303,11 +345,17 @@ export function AdminSensors() {
                 <KindIcon className="w-4 h-4 text-ptt-text shrink-0" />
                 {s.ingest === 'PUSH' ? <Radio className="w-3 h-3 text-ptt-blue shrink-0" /> : <Globe className="w-3 h-3 text-ptt-muted shrink-0" />}
                 <div className="flex-1 min-w-0">
-                  <p className="font-rajdhani font-bold text-white truncate">{s.name}</p>
+                  <p className="font-rajdhani font-bold text-white truncate flex items-center gap-1.5">
+                    {s.name}
+                    {s.isForeign && (
+                      <span className="font-mono text-[9px] tracking-widest px-1.5 py-0.5 rounded border border-ptt-blue/50 text-ptt-blue shrink-0">EXTERNAL</span>
+                    )}
+                  </p>
                   <p className="font-mono text-ptt-muted text-xs truncate">
-                    {s.group?.name ?? 'no group'}{!s.enabled && ' · OFF'}
+                    {s.groups.length > 0 ? s.groups.map((g) => g.name).join(', ') : 'no group'}{!s.enabled && ' · OFF'}
                     {s.batteryPct != null && ` · 🔋${s.batteryPct}%`}
-                    {isSuperAdmin && s.organization && ` · ${s.organization.name}`}
+                    {s.isForeign && s.organization && ` · owned by ${s.organization.name}`}
+                    {!s.isForeign && isSuperAdmin && s.organization && ` · ${s.organization.name}`}
                   </p>
                 </div>
                 <span className="font-mono text-xs text-white/70 shrink-0 hidden sm:block truncate max-w-[40%]">{fmtMetrics(s.lastValue)}</span>
@@ -316,16 +364,25 @@ export function AdminSensors() {
                 <ChevronDown className={clsx('w-4 h-4 text-ptt-muted shrink-0 transition-transform', open && 'rotate-180')} />
               </button>
 
-              {open && (
+              {open && s.isForeign && (
+                // D37 — датчик чужой организации, нацеленный на одну из наших
+                // групп: видим, но настраивать нельзя (сервер и так отклонит
+                // запись — решение Eugene было "видит, но только для чтения").
+                <div className="px-4 pb-4 pt-1 border-t border-ptt-border/50 space-y-2">
+                  <p className="font-mono text-ptt-blue text-[10px] tracking-widest">
+                    EXTERNAL SENSOR — owned by {s.organization?.name ?? 'another organization'}, read-only
+                  </p>
+                  <p className="font-mono text-ptt-muted text-xs">Targets: {s.groups.map((g) => g.name).join(', ') || '—'}</p>
+                  <p className="font-mono text-ptt-muted text-xs">{fmtMetrics(s.lastValue)}</p>
+                </div>
+              )}
+              {open && !s.isForeign && (
                 <div className="px-4 pb-4 pt-1 border-t border-ptt-border/50 space-y-3">
                   <Field label="NAME">
                     <input value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} className={inputCls} />
                   </Field>
-                  <Field label="GROUP (alerts / push target)">
-                    <select value={edit.groupId} onChange={(e) => setEdit({ ...edit, groupId: e.target.value })} className={inputCls}>
-                      <option value="">— no group —</option>
-                      {groups.filter((g) => g.organizationId === s.organizationId).map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-                    </select>
+                  <Field label="GROUPS (alerts / push targets — можно из других организаций)">
+                    <GroupPicker groups={groups} selected={edit.groupIds} onChange={(groupIds) => setEdit({ ...edit, groupIds })} />
                   </Field>
 
                   <Field label="THRESHOLD RULES (metric · condition · severity)">
@@ -430,11 +487,8 @@ export function AdminSensors() {
                   <Field label="SOURCE URL"><input value={create.sourceUrl} placeholder="https://..." onChange={(e) => setCreate({ ...create, sourceUrl: e.target.value })} className={inputCls} /></Field>
                 </>
               )}
-              <Field label="GROUP (alerts / push)">
-                <select value={create.groupId} onChange={(e) => setCreate({ ...create, groupId: e.target.value })} className={inputCls}>
-                  <option value="">— no group —</option>
-                  {createGroups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-                </select>
+              <Field label="GROUPS (alerts / push targets — можно из других организаций)">
+                <GroupPicker groups={groups} selected={create.groupIds} onChange={(groupIds) => setCreate({ ...create, groupIds })} />
               </Field>
               <Field label="THRESHOLD RULES">
                 <RulesEditor rules={create.rules} onChange={(rules) => setCreate({ ...create, rules })} />

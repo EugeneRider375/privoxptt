@@ -310,7 +310,7 @@ export function useSocket() {
       metrics?: Record<string, number | boolean>;
       temperature: number | null;
       humidity: number | null;
-      groupId: string | null;
+      groupIds: string[]; // D37 — было groupId (одна группа), теперь может быть несколько
       lat: number | null;
       lng: number | null;
       at: string;
@@ -332,7 +332,7 @@ export function useSocket() {
       state.addAlert({
         type: 'sensor',
         message: `${a.name}: ${a.message}`,
-        groupId: a.groupId ?? undefined,
+        groupId: a.groupIds[0], // первая из целевых групп — для будущей навигации по клику, если понадобится
       });
       // Звуковая сирена: только если включена на датчике (alarmSound) И только
       // диспетчеру/админу/суперадмину (у них пульт мониторинга).

@@ -262,6 +262,14 @@ async function notify(
   metrics: Metrics,
   now: Date,
 ): Promise<void> {
+  // D37 — датчик теперь может слать тревоги в НЕСКОЛЬКО групп, в том числе
+  // из других организаций (SUPERADMIN-only на write-стороне, см. sensors.ts).
+  const targets = await prisma.sensorGroup.findMany({
+    where: { sensorId: sensor.id },
+    select: { group: { select: { id: true, organizationId: true } } },
+  });
+  const targetGroups = targets.map((t) => t.group);
+
   const payload = {
     sensorId: sensor.id,
     name: sensor.name,
@@ -271,24 +279,31 @@ async function notify(
     metrics,
     temperature: num(metrics.temperature),
     humidity: num(metrics.humidity),
-    groupId: sensor.groupId,
+    groupIds: targetGroups.map((g) => g.id),
     lat: sensor.lat,
     lng: sensor.lng,
     at: now.toISOString(),
     alarmSound: sensor.alarmSound, // диспетчерский пульт решает, играть ли сирену
   };
-  // Один emit с объединением комнат: socket.io шлёт сокету, состоящему и в org-,
-  // и в group-комнате, ОДИН раз (раньше два отдельных emit давали дубль уведомления
-  // тем, кто член группы датчика; кто только в org — получал один раз).
-  const target = sensor.groupId
-    ? io.to(`org:${sensor.organizationId}`).to(sensor.groupId)
-    : io.to(`org:${sensor.organizationId}`);
-  target.emit('sensor-alert', payload);
+  // Домашняя организация — как раньше, целиком (не только персонал).
+  // Плюс "голая" комната каждой целевой группы (без префикса организации —
+  // уже работает бесшовно для участников любой из них), плюс
+  // org:{id}:dispatchers ЧУЖОЙ организации-получателя, чтобы её персонал
+  // тоже видел тревогу живьём, а не только по push (переиспользуем уже
+  // существующую комнату, ничего нового заводить не нужно).
+  const rooms = new Set<string>([`org:${sensor.organizationId}`]);
+  for (const g of targetGroups) {
+    rooms.add(g.id);
+    if (g.organizationId !== sensor.organizationId) rooms.add(`org:${g.organizationId}:dispatchers`);
+  }
+  io.to([...rooms]).emit('sensor-alert', payload);
 
   // Telegram-аларм (Privox Monitor). No-op, если бот не сконфигурен (TELEGRAM_*).
   // Per-account: шлём в Telegram-чат организации датчика (telegramChatId). Если у
   // аккаунта чат не задан — sendTelegram падает на глобальный TELEGRAM_CHAT_ID (env).
   // Fire-and-forget: уведомление не должно влиять на обработку телеметрии.
+  // Осознанно НЕ фан-аутится на организации-получатели целевых групп — только
+  // домашняя организация датчика, как и раньше (D37, не запрашивалось явно).
   const tgEmoji = status === 'STALE' ? '🟠' : status === 'OK' ? '🟢' : '🔴';
   const tgText = `${tgEmoji} ${sensor.name}\n${message}\n${now.toLocaleString('ru-RU')}`;
   void prisma.organization
@@ -296,20 +311,22 @@ async function notify(
     .then((org) => sendTelegram(tgText, org?.telegramChatId || undefined))
     .catch(() => {});
 
-  // Получатели пуша: члены группы датчика + диспетчеры/админы/суперадмины орга.
-  // Раньше пуш уходил ТОЛЬКО членам группы → диспетчер (обычно не в группе) не
-  // получал ничего, кроме in-app socket (а ночью вкладка закрыта = тишина).
+  // Получатели пуша: члены ВСЕХ целевых групп + персонал домашней
+  // организации + персонал КАЖДОЙ организации, чья группа тоже является
+  // целью (иначе диспетчер организации-получателя не узнал бы о тревоге
+  // чужого датчика ночью, когда вкладка закрыта).
   const recipientIds = new Set<string>();
-  if (sensor.groupId) {
+  for (const g of targetGroups) {
     const members = await prisma.groupMember.findMany({
-      where: { groupId: sensor.groupId },
+      where: { groupId: g.id },
       select: { userId: true },
     });
     members.forEach((m) => recipientIds.add(m.userId));
   }
+  const staffOrgIds = new Set([sensor.organizationId, ...targetGroups.map((g) => g.organizationId)]);
   const staff = await prisma.user.findMany({
     where: {
-      organizationId: sensor.organizationId,
+      organizationId: { in: [...staffOrgIds] },
       isActive: true,
       role: { in: ['DISPATCHER', 'ADMIN', 'SUPERADMIN'] },
     },

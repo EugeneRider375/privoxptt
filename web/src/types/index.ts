@@ -204,8 +204,12 @@ export interface Sensor {
   rssi: number | null;
   lat: number | null;
   lng: number | null;
-  groupId: string | null;
-  group?: { id: string; name: string } | null;
+  // D37 — было groupId/group (одна группа, своя орг). Теперь список,
+  // может включать группы ДРУГИХ организаций.
+  groups: SensorGroupTarget[];
+  // true, если датчиком владеет ДРУГАЯ организация, а видим мы его только
+  // потому что он нацелен на нашу группу — редактировать такой нельзя.
+  isForeign: boolean;
   organization?: { name: string; slug: string };
   lastValue: Record<string, number | boolean> | null;
   lastSeenAt: string | null;
@@ -214,6 +218,14 @@ export interface Sensor {
   alarmSound: boolean; // играть ли звуковую сирену диспетчеру при тревоге
   createdAt: string;
   updatedAt: string;
+}
+
+export interface SensorGroupTarget {
+  id: string;
+  name: string;
+  organizationId: string;
+  organizationName: string;
+  organizationSlug: string;
 }
 
 export interface SensorState {
