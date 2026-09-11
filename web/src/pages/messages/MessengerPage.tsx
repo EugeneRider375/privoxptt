@@ -471,7 +471,12 @@ export function MessengerPage({ embedded = false }: { embedded?: boolean }) {
       <aside className={`${selected ? 'hidden md:flex' : 'flex'} min-h-0 min-w-0 flex-col border-r border-ptt-border bg-ptt-panel`}>
         <div className="flex items-center gap-3 px-4 h-14 border-b border-ptt-border">
           {!embedded && (
-            <button onClick={() => navigate(-1)} className="text-ptt-muted hover:text-white">
+            // D44 — navigate(-1) зависел от глубины истории браузера: если
+            // до чата дошли за несколько переходов, один тап назад не
+            // возвращал на главный экран, и тестировщик не понял, как
+            // выйти. /messages — отдельный маршрут только для обычного
+            // абонента (USER), его главный экран всегда /radio.
+            <button onClick={() => navigate('/radio')} className="text-ptt-muted hover:text-white">
               <ArrowLeft className="w-4 h-4" />
             </button>
           )}
