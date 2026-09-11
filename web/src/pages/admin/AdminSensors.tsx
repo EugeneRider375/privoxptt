@@ -202,7 +202,7 @@ export function AdminSensors() {
   const [selectedOrgId, setSelectedOrgId] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const [edit, setEdit] = useState({ name: '', groupIds: [] as string[], enabled: true, alarmSound: false, reportIntervalSec: '', sensorKey: '', rules: [] as SensorRule[] });
+  const [edit, setEdit] = useState({ name: '', organizationId: '', groupIds: [] as string[], enabled: true, alarmSound: false, reportIntervalSec: '', sensorKey: '', rules: [] as SensorRule[] });
 
   const [createOpen, setCreateOpen] = useState(false);
   const emptyCreate = {
@@ -238,6 +238,7 @@ export function AdminSensors() {
     setError('');
     setEdit({
       name: s.name,
+      organizationId: s.organizationId,
       groupIds: s.groups.map((g) => g.id),
       enabled: s.enabled,
       alarmSound: s.alarmSound ?? false,
@@ -252,6 +253,9 @@ export function AdminSensors() {
     try {
       await sensorsApi.update(s.id, {
         name: edit.name,
+        // Перенос в другую организацию — только SUPERADMIN (проверка на сервере).
+        // Сброс групп при смене орга сервер делает сам — тут просто передаём выбор.
+        organizationId: isSuperAdmin && edit.organizationId !== s.organizationId ? edit.organizationId : undefined,
         groupIds: edit.groupIds,
         enabled: edit.enabled,
         alarmSound: edit.alarmSound,
@@ -381,6 +385,13 @@ export function AdminSensors() {
                   <Field label="NAME">
                     <input value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} className={inputCls} />
                   </Field>
+                  {isSuperAdmin && (
+                    <Field label="ORGANIZATION (owner — moving clears all target groups)">
+                      <select value={edit.organizationId} onChange={(e) => setEdit({ ...edit, organizationId: e.target.value })} className={inputCls}>
+                        {orgs.map((o) => <option key={o.id} value={o.id}>{o.name} · {o.slug}</option>)}
+                      </select>
+                    </Field>
+                  )}
                   <Field label="GROUPS (alerts / push targets — можно из других организаций)">
                     <GroupPicker groups={groups} selected={edit.groupIds} onChange={(groupIds) => setEdit({ ...edit, groupIds })} />
                   </Field>
