@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { LogOut, ChevronDown, Users, Radio, Signal, AlertTriangle, BellRing, PhoneCall, MessageSquare, BatteryCharging, BatteryFull, BatteryMedium, BatteryLow, BatteryWarning, Volume2, Ear } from 'lucide-react';
+import { LogOut, ChevronDown, Users, Radio, Signal, AlertTriangle, BellRing, PhoneCall, MessageSquare, BatteryCharging, BatteryFull, BatteryMedium, BatteryLow, BatteryWarning, Volume2, Ear, MapPin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
 import { PRIVOX_DATA_CHANGED_EVENT, disconnectPrivoxSocket, useSocket } from '@/hooks/useSocket';
@@ -36,7 +36,7 @@ export function UserRadioPage() {
   const directUnreadByUser = useStore((s) => s.directUnreadByUser);
 
   const battery = useBattery();
-  const { joinGroup, leaveGroup, sendSos, callUser, wakeGroup, callDispatcher } = useSocket();
+  const { joinGroup, leaveGroup, sendSos, reportArrived, callUser, wakeGroup, callDispatcher } = useSocket();
   const { startPtt, stopPtt } = usePTT(activeGroupId);
   useGeolocation(true);
 
@@ -45,6 +45,8 @@ export function UserRadioPage() {
   const [callingDispatcher, setCallingDispatcher] = useState(false);
   // Побудка всей группы — главная кнопка на экране рации.
   const [wakingGroup, setWakingGroup] = useState(false);
+  // D53 — ручной чек-ин "Я прибыл".
+  const [arriving, setArriving] = useState(false);
   // Групповой канал звучит в динамик: рацию держат в руке или в кармане.
   // Переключатель — на случай, когда рядом люди и слушать надо тихо.
   const [speakerOn, setSpeakerOn] = useState(true);
@@ -144,6 +146,22 @@ export function UserRadioPage() {
       });
     } finally {
       setWakingGroup(false);
+    }
+  }
+
+  async function handleArrived() {
+    if (arriving) return;
+    setArriving(true);
+    try {
+      await reportArrived(activeGroupId ?? undefined);
+      useStore.getState().addAlert({ type: 'info', message: 'Arrival reported' });
+    } catch (err) {
+      useStore.getState().addAlert({
+        type: 'warn',
+        message: err instanceof Error ? err.message : 'Failed to report arrival',
+      });
+    } finally {
+      setArriving(false);
     }
   }
 
@@ -397,6 +415,19 @@ export function UserRadioPage() {
           >
             <AlertTriangle className="w-3 h-3" />
             SOS
+          </button>
+
+          {/* D53 — ручной чек-ин "Я прибыл". Не привязан к activeGroupId:
+              прибытие абонента само по себе значимо для диспетчера, даже
+              если он не стоит сейчас ни в каком канале. */}
+          <button
+            onClick={handleArrived}
+            disabled={arriving}
+            title="Report that you've arrived at your destination"
+            className="flex items-center gap-2 px-4 py-2 border border-ptt-green/50 rounded text-ptt-green font-mono text-xs tracking-widest hover:bg-ptt-green/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <MapPin className="w-3 h-3" />
+            {arriving ? 'REPORTING' : 'I ARRIVED'}
           </button>
         </div>
       </div>

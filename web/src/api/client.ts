@@ -1,5 +1,6 @@
 import axios, { AxiosError } from 'axios';
 import { useStore } from '@/store/useStore';
+import type { ArrivalCheckIn } from '@/types';
 
 const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -235,6 +236,8 @@ export const locationsApi = {
     userId: string; callsign: string; lat: number; lng: number;
     heading?: number; speed?: number; timestamp: number;
   }>> => api.get('/locations').then((r) => r.data),
+  // D53 — недавние чек-ины "Я прибыл" для холодной загрузки карты диспетчера.
+  arrivals: (): Promise<ArrivalCheckIn[]> => api.get('/locations/arrivals').then((r) => r.data),
 };
 
 // ─── Native push devices ─────────────────────────────────

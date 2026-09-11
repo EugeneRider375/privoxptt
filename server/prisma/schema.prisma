@@ -24,6 +24,7 @@ model Organization {
   sensors      Sensor[]
   invites      Invite[]
   auditLogs    AdminAuditLog[]
+  arrivals     ArrivalCheckIn[]
 }
 
 model User {
@@ -60,6 +61,7 @@ model User {
   // D30 — если у диспетчера есть хотя бы одна строка здесь, он видит только
   // перечисленные группы. Пусто = без ограничений (сегодняшнее поведение).
   dispatcherScope  DispatcherGroupScope[] @relation("DispatcherScope")
+  arrivalCheckIns  ArrivalCheckIn[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -145,6 +147,7 @@ model Group {
   sensors        Sensor[]
   invites        Invite[]
   dispatcherScope DispatcherGroupScope[]
+  arrivalCheckIns ArrivalCheckIn[]
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   isPrivate      Boolean       @default(false)
@@ -198,6 +201,30 @@ model DispatcherGroupScope {
   @@unique([userId, groupId])
   @@index([userId])
   @@index([groupId])
+}
+
+// D53 — ручной чек-ин "Я прибыл". Отдельная таблица, а не поле на User: за
+// смену прибытий может быть несколько (курьер объезжает точки), нужна
+// история, а не только последняя точка. groupId — активная группа
+// абонента в момент нажатия, тот же критерий видимости для scoped-
+// диспетчера (D30), что и у location-update/sos. callsign продублирован,
+// как в ActivityLog — запись должна остаться читаемой, даже если абонента
+// потом переименуют или удалят.
+model ArrivalCheckIn {
+  id             String        @id @default(uuid())
+  userId         String
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  groupId        String?
+  group          Group?        @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  callsign       String
+  lat            Float
+  lng            Float
+  createdAt      DateTime      @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([groupId, createdAt])
 }
 
 model Message {

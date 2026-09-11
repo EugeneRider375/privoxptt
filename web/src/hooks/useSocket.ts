@@ -283,6 +283,18 @@ export function useSocket() {
       useStore.getState().addAlert({ type: 'sos', userId, callsign, message: `SOS: ${callsign} - ${message}` });
     });
 
+    // D53 — чек-ин "Я прибыл": видимое подтверждение диспетчеру, плюс
+    // отметка на маркере абонента на карте (arrivedCheckIns в сторе).
+    socket.on('arrival-checkin', (checkIn: { id: string; userId: string; callsign: string; groupId?: string; lat: number; lng: number; timestamp: number }) => {
+      useStore.getState().addAlert({
+        type: 'arrival',
+        userId: checkIn.userId,
+        callsign: checkIn.callsign,
+        message: `${checkIn.callsign} arrived`,
+      });
+      useStore.getState().addArrival(checkIn);
+    });
+
     // ─── Датчики: живое значение (всегда) ───────────────────
     socket.on('sensor-update', (s: SensorState) => {
       useStore.getState().upsertSensor(s);
@@ -491,6 +503,30 @@ export function useSocket() {
     socketRef.current?.emit('sos', { groupId, message });
   }, []);
 
+  // D53 — ручной чек-ин "Я прибыл". Свежие координаты на момент нажатия
+  // (не переиспользуем фоновый поток useGeolocation), чтобы точка точно
+  // соответствовала моменту нажатия, а не последнему GPS-тику.
+  const reportArrived = useCallback((groupId?: string) => {
+    return new Promise<void>((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error('Geolocation is not supported'));
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          socketRef.current?.emit('arrived', {
+            groupId,
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+          });
+          resolve();
+        },
+        (err) => reject(err),
+        { enableHighAccuracy: true, maximumAge: 10_000, timeout: 15_000 }
+      );
+    });
+  }, []);
+
   const callUser = useCallback((targetUserId: string, groupId: string) => {
     return new Promise<{ callId?: string }>((resolve, reject) => {
       const socket = socketRef.current;
@@ -610,6 +646,7 @@ export function useSocket() {
     pttStop,
     sendLocation,
     sendSos,
+    reportArrived,
     callUser,
     wakeGroup,
     callDispatcher,

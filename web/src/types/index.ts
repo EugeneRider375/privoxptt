@@ -80,6 +80,17 @@ export interface UserLocation {
   timestamp: number;
 }
 
+// D53 — ручной чек-ин "Я прибыл"
+export interface ArrivalCheckIn {
+  id: string;
+  userId: string;
+  callsign: string;
+  groupId?: string;
+  lat: number;
+  lng: number;
+  timestamp: number;
+}
+
 export interface AuthState {
   accessToken: string | null;
   refreshToken: string | null;
@@ -221,7 +232,7 @@ export interface SensorState {
 
 export interface Alert {
   id: string;
-  type: 'sos' | 'info' | 'warn' | 'error' | 'sensor';
+  type: 'sos' | 'info' | 'warn' | 'error' | 'sensor' | 'arrival';
   variant?: 'toast' | 'user-call' | 'message';
   userId?: string;
   callsign?: string;

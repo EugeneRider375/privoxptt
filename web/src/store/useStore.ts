@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { User, Group, UserLocation, Alert, PttStatus, DispatcherCall, DispatcherCallStatus, UserCallStatusEvent, SensorState } from '@/types';
+import type { User, Group, UserLocation, Alert, PttStatus, DispatcherCall, DispatcherCallStatus, UserCallStatusEvent, SensorState, ArrivalCheckIn } from '@/types';
 
 interface AppStore {
   // ─── Auth ──────────────────────────────────────────────
@@ -36,6 +36,12 @@ interface AppStore {
   // ─── Местоположение ────────────────────────────────────
   locations: Record<string, UserLocation>;
   updateLocation: (loc: UserLocation) => void;
+
+  // ─── Чек-ины "Я прибыл" (D53) ───────────────────────────
+  // По userId, как locations — новый чек-ин затирает предыдущий отображаемый,
+  // старые остаются только в истории на сервере.
+  arrivals: Record<string, ArrivalCheckIn>;
+  addArrival: (checkIn: ArrivalCheckIn) => void;
 
   // ─── Датчики ───────────────────────────────────────────
   sensors: Record<string, SensorState>;
@@ -141,6 +147,11 @@ export const useStore = create<AppStore>()(
       locations: {},
       updateLocation: (loc) =>
         set((s) => ({ locations: { ...s.locations, [loc.userId]: loc } })),
+
+      // Чек-ины "Я прибыл" (D53)
+      arrivals: {},
+      addArrival: (checkIn) =>
+        set((s) => ({ arrivals: { ...s.arrivals, [checkIn.userId]: checkIn } })),
 
       // Датчики
       sensors: {},

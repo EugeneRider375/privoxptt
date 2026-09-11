@@ -15,6 +15,7 @@ import { mediasoupManager } from './mediasoup/server';
 import { startUdpBridge } from './udp-bridge';
 import { startSensorPoller } from './services/sensorPoller';
 import { startMessageCleanup } from './services/messageCleanup';
+import { startLocationCleanup } from './services/locationCleanup';
 import { authRouter } from './routes/auth';
 import { organizationsRouter } from './routes/organizations';
 import { usersRouter } from './routes/users';
@@ -149,6 +150,13 @@ async function bootstrap() {
     startMessageCleanup();
   } catch (err) {
     logger.warn({ msg: '⚠️  Автоудаление сообщений не запустилось — сообщения продолжают работать', err });
+  }
+
+  // Автоудаление устаревших геоданных (D52) — graceful, по той же схеме
+  try {
+    startLocationCleanup();
+  } catch (err) {
+    logger.warn({ msg: '⚠️  Автоудаление геоданных не запустилось — геолокация продолжает работать', err });
   }
 
   // ─── Запуск ───────────────────────────────────────────────

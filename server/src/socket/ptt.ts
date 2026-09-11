@@ -648,6 +648,39 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
     socket.to(`org:${organizationId}`).emit('sos-alert', { userId, callsign, groupId, message });
   });
 
+  // ─── Ручной чек-ин "Я прибыл" (D53) ────────────────────────
+  // Честное подтверждение вручную — курьер физически на месте и сам жмёт
+  // кнопку, поэтому, в отличие от location-update, не проверяем
+  // canShareLocation: это не фоновая слежка, а разовое явное действие
+  // самого человека о самом себе. groupId необязателен (могло не быть
+  // активного канала в момент нажатия) — тогда виден только
+  // org-wide комнате диспетчеров, не scoped.
+  socket.on('arrived', async ({ groupId, lat, lng }: { groupId?: string; lat: number; lng: number }) => {
+    try {
+      const checkIn = await prisma.arrivalCheckIn.create({
+        data: { userId, organizationId, groupId: groupId || null, callsign, lat, lng },
+      });
+
+      const targetRooms = [
+        `org:${organizationId}:dispatchers`,
+        ...(groupId ? [`org:${organizationId}:dispatch-group:${groupId}`] : []),
+      ];
+      const payload = {
+        id: checkIn.id,
+        userId,
+        callsign,
+        groupId: groupId || undefined,
+        lat,
+        lng,
+        timestamp: checkIn.createdAt.getTime(),
+      };
+      io.to(targetRooms).emit('arrival-checkin', payload);
+      logger.info({ msg: 'Абонент прибыл (ручной чек-ин)', userId, callsign, groupId, lat, lng });
+    } catch (err) {
+      logger.error({ msg: 'Ошибка записи arrival-checkin', err, userId, groupId });
+    }
+  });
+
   // ─── Вызов диспетчера ─────────────────────────────────────
   socket.on('dispatcher-call-request', async (
     { groupId, message }: { groupId: string; message?: string },
