@@ -69,7 +69,7 @@ const features = [
   ['Dispatcher mode', Headphones],
   ['Administration tools', TerminalSquare],
   ['Browser access', Cloud],
-  ['Android app path', Smartphone],
+  ['Mobile apps (Android / iPhone)', Smartphone],
   ['PRIVOX Mini Radio hardware', Radio],
   ['WebRTC audio', Wifi],
   ['Secure authentication', Lock],
@@ -80,19 +80,19 @@ const platforms = [
   { title: 'Android', status: 'Signed APK available', icon: Smartphone, tone: 'text-emerald-700 bg-emerald-50 border-emerald-100' },
   { title: 'Inrico T320', status: 'Hardware radio — verified', icon: Radio, tone: 'text-orange-700 bg-orange-50 border-orange-100' },
   { title: 'PRIVOX Mini Radio', status: 'Available — self-build', icon: Radio, tone: 'text-indigo-700 bg-indigo-50 border-indigo-100' },
-  { title: 'iPhone', status: 'Use web version now', icon: BadgeCheck, tone: 'text-slate-700 bg-slate-50 border-slate-200' },
+  { title: 'iPhone', status: 'Available via TestFlight', icon: BadgeCheck, tone: 'text-slate-700 bg-slate-50 border-slate-200' },
 ];
 
 const docs = [
   {
     title: 'System overview',
-    text: 'PRIVOX PTT is a browser-based push-to-talk system with a signed Android wrapper. The platform uses the web interface, authorization, groups, WebRTC audio, dispatcher tools, and backend.',
-    items: ['Web app: /app', 'Signed Android APK: /download', 'Roles: superadmin, admin, dispatcher, user', 'Organizations isolate groups and users'],
+    text: 'PRIVOX PTT is a browser-based push-to-talk system with a signed Android wrapper and a native iPhone app. The platform uses the web interface, authorization, groups, WebRTC audio, dispatcher tools, and backend.',
+    items: ['Web app: /app', 'Signed Android APK: /download', 'iPhone app via TestFlight: /download', 'Roles: superadmin, admin, dispatcher, user', 'Organizations isolate groups and users'],
   },
   {
     title: 'Quick start for testers',
     text: 'Use this flow when giving access to a new test team.',
-    items: ['Create or choose an organization', 'Create an organization admin', 'Let the admin create groups and users', 'Install Android APK or open the web app', 'Allow microphone and location permissions', 'Test transmit, receive, logout, and login'],
+    items: ['Create or choose an organization', 'Create an organization admin', 'Let the admin create groups and users', 'Install the Android APK, install the iPhone app via TestFlight, or open the web app', 'Allow microphone and location permissions', 'Test transmit, receive, logout, and login'],
   },
   {
     title: 'Organizations',
@@ -281,7 +281,7 @@ const docs = [
 ];
 
 const faqs = [
-  ['What is PRIVOX PTT?', 'PRIVOX PTT is a secure push-to-talk communication system for teams, dispatchers, and future PoC devices. Users press, speak, and release, similar to radio communication over the internet.'],
+  ['What is PRIVOX PTT?', 'PRIVOX PTT is a secure push-to-talk communication system for teams, dispatchers, and dedicated hardware radios. Users press, speak, and release, similar to radio communication over the internet.'],
   ['Do I need the Android app?', 'No. The web version works today in a modern browser. The Android APK is useful for mobile field testing and faster access from the phone launcher.'],
   ['Can iPhone users test PRIVOX PTT?', 'Yes. Either open the web app in Safari (no install needed) and add it to the Home Screen from the Share menu, or install the native app via TestFlight from the iPhone card on /download for calls that ring with the screen locked.'],
   ['What does the Android app support now?', 'It supports PTT, individual calls, CALL GROUP, Firebase wake-up, native ANSWER and DECLINE controls, and background availability through a foreground service.'],
@@ -455,7 +455,7 @@ export function HomePage() {
                 PRIVOX PTT
               </h1>
               <p className="mt-6 max-w-2xl text-xl leading-8 text-slate-600">
-                A secure push-to-talk communication system for teams, dispatchers, and future PoC devices.
+                A secure push-to-talk communication system for teams, dispatchers, and dedicated hardware radios.
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <Link to="/app" className="inline-flex items-center justify-center gap-2 rounded-md bg-sky-600 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-sky-700">
@@ -478,7 +478,7 @@ export function HomePage() {
           <SectionHeader
             eyebrow="What it is"
             title="Digital radio over the internet"
-            text="PRIVOX PTT gives teams a press-to-talk voice workflow across web access, Android, and future PoC devices."
+            text="PRIVOX PTT gives teams a press-to-talk voice workflow across web, Android, iPhone, and dedicated hardware radios."
           />
           <div className="mx-auto mt-10 grid max-w-5xl gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {['User groups', 'Dispatcher mode', 'Administration', 'WebRTC audio', 'Secure authentication', 'Device-ready roadmap'].map((item) => (
