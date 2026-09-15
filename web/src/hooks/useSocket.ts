@@ -284,14 +284,22 @@ export function useSocket() {
     });
 
     // D53 — чек-ин "Я прибыл": видимое подтверждение диспетчеру, плюс
-    // отметка на маркере абонента на карте (arrivedCheckIns в сторе).
+    // отметка на маркере абонента на карте (store.arrivals).
+    // D55 — этот же эвент теперь доходит и обычным участникам той же
+    // группы (голая комната groupId на сервере), но алерт в колокольчик —
+    // осознанно только персоналу: иначе каждое прибытие спамило бы всю
+    // группу уведомлением. Рядовому участнику достаточно тихого обновления
+    // store.arrivals — метка сама появится в списке SUBSCRIBERS.
     socket.on('arrival-checkin', (checkIn: { id: string; userId: string; callsign: string; groupId?: string; lat: number; lng: number; timestamp: number }) => {
-      useStore.getState().addAlert({
-        type: 'arrival',
-        userId: checkIn.userId,
-        callsign: checkIn.callsign,
-        message: `${checkIn.callsign} arrived`,
-      });
+      const role = useStore.getState().user?.role;
+      if (role && ['DISPATCHER', 'ADMIN', 'SUPERADMIN'].includes(role)) {
+        useStore.getState().addAlert({
+          type: 'arrival',
+          userId: checkIn.userId,
+          callsign: checkIn.callsign,
+          message: `${checkIn.callsign} arrived`,
+        });
+      }
       useStore.getState().addArrival(checkIn);
     });
 

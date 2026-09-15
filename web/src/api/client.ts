@@ -237,7 +237,10 @@ export const locationsApi = {
     heading?: number; speed?: number; timestamp: number;
   }>> => api.get('/locations').then((r) => r.data),
   // D53 — недавние чек-ины "Я прибыл" для холодной загрузки карты диспетчера.
-  arrivals: (): Promise<ArrivalCheckIn[]> => api.get('/locations/arrivals').then((r) => r.data),
+  // D55 — обычный участник группы передаёт groupId явно (сервер проверяет
+  // членство); диспетчер может звать и без него (весь свой scope).
+  arrivals: (groupId?: string): Promise<ArrivalCheckIn[]> =>
+    api.get('/locations/arrivals', { params: groupId ? { groupId } : undefined }).then((r) => r.data),
 };
 
 // ─── Native push devices ─────────────────────────────────

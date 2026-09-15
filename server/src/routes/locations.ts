@@ -80,42 +80,69 @@ locationsRouter.get('/', async (req: Request, res: Response, next: NextFunction)
  * что и у LOCATION_STALE_MS выше. */
 const ARRIVAL_VISIBLE_MS = 24 * 60 * 60 * 1000;
 
+function serializeArrivals(checkIns: Array<{ id: string; userId: string; callsign: string; groupId: string | null; lat: number; lng: number; createdAt: Date }>) {
+  return checkIns.map((c) => ({
+    id: c.id,
+    userId: c.userId,
+    callsign: c.callsign,
+    groupId: c.groupId ?? undefined,
+    lat: c.lat,
+    lng: c.lng,
+    timestamp: c.createdAt.getTime(),
+  }));
+}
+
+const arrivalSelect = { id: true, userId: true, callsign: true, groupId: true, lat: true, lng: true, createdAt: true } as const;
+
 /**
  * Недавние чек-ины "Я прибыл" (D53) — подгружаются один раз при открытии
  * карты, дальше живые обновления (`arrival-checkin`) освежают поверх.
- * Тот же принцип видимости и скоупинга, что у GET /api/locations.
+ * Тот же принцип видимости и скоупинга, что у GET /api/locations —
+ * диспетчер/админ видят всё в пределах своего scope (D30).
+ *
+ * D55 — обычный участник группы тоже может подгрузить, но только СВОЮ
+ * группу явно (`?groupId=`) и только если реально в ней состоит — это
+ * перекличка "кто из моей группы уже на месте", не общий доступ к чужим
+ * данным организации.
  */
 locationsRouter.get('/arrivals', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    if (!privilegedRoles.includes(req.user!.role)) {
-      throw new AppError(403, 'Only dispatchers and admins can view arrivals');
+    const groupIdParam = typeof req.query.groupId === 'string' ? req.query.groupId : undefined;
+
+    if (privilegedRoles.includes(req.user!.role)) {
+      const scope = await getDispatcherScope(req.user!.userId, req.user!.role);
+      const checkIns = await prisma.arrivalCheckIn.findMany({
+        where: {
+          organizationId: req.user!.organizationId,
+          createdAt: { gte: new Date(Date.now() - ARRIVAL_VISIBLE_MS) },
+          // scoped-диспетчер видит только чек-ины своих групп; чек-ины без
+          // группы (groupId: null) видны только неограниченному диспетчеру.
+          ...(scope ? { groupId: { in: scope } } : {}),
+          ...(groupIdParam ? { groupId: groupIdParam } : {}),
+        },
+        orderBy: { createdAt: 'desc' },
+        select: arrivalSelect,
+      });
+      res.json(serializeArrivals(checkIns));
+      return;
     }
 
-    const scope = await getDispatcherScope(req.user!.userId, req.user!.role);
+    if (!groupIdParam) {
+      throw new AppError(400, 'groupId is required');
+    }
+    const membership = await prisma.groupMember.findUnique({
+      where: { userId_groupId: { userId: req.user!.userId, groupId: groupIdParam } },
+    });
+    if (!membership) {
+      throw new AppError(403, 'Not a member of this group');
+    }
 
     const checkIns = await prisma.arrivalCheckIn.findMany({
-      where: {
-        organizationId: req.user!.organizationId,
-        createdAt: { gte: new Date(Date.now() - ARRIVAL_VISIBLE_MS) },
-        // scoped-диспетчер видит только чек-ины своих групп; чек-ины без
-        // группы (groupId: null) видны только неограниченному диспетчеру.
-        ...(scope ? { groupId: { in: scope } } : {}),
-      },
+      where: { groupId: groupIdParam, createdAt: { gte: new Date(Date.now() - ARRIVAL_VISIBLE_MS) } },
       orderBy: { createdAt: 'desc' },
-      select: { id: true, userId: true, callsign: true, groupId: true, lat: true, lng: true, createdAt: true },
+      select: arrivalSelect,
     });
-
-    res.json(
-      checkIns.map((c) => ({
-        id: c.id,
-        userId: c.userId,
-        callsign: c.callsign,
-        groupId: c.groupId ?? undefined,
-        lat: c.lat,
-        lng: c.lng,
-        timestamp: c.createdAt.getTime(),
-      })),
-    );
+    res.json(serializeArrivals(checkIns));
   } catch (err) {
     next(err);
   }

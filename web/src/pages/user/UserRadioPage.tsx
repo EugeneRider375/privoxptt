@@ -5,7 +5,8 @@ import { useStore } from '@/store/useStore';
 import { PRIVOX_DATA_CHANGED_EVENT, disconnectPrivoxSocket, useSocket } from '@/hooks/useSocket';
 import { usePTT } from '@/hooks/usePTT';
 import { useGeolocation } from '@/hooks/useGeolocation';
-import { groupsApi, authApi } from '@/api/client';
+import { groupsApi, authApi, locationsApi } from '@/api/client';
+import { formatDistanceToNow } from 'date-fns';
 import { canRouteAudio, setAudioRoute } from '@/utils/audioRoute';
 import { useBattery } from '@/hooks/useBattery';
 import { unregisterNativePushDevice } from '@/hooks/useNativePush';
@@ -17,6 +18,12 @@ import { RadioDeviceScreen } from '@/components/radio/RadioDeviceScreen';
 import { isRadioDevice } from '@/utils/device';
 import type { Group, GroupMember } from '@/types';
 import { groupWindowState } from '@/utils/groupWindow';
+
+// D55 — окно видимости галочки "прибыл" в списке участников. Дольше, чем
+// на карте диспетчера (10 мин, D53): там это "недавняя активность", здесь —
+// перекличка на сборе, которая может тянуться дольше короткого таймера.
+// Прикидка Eugene: ждут обычно ~15 мин, метка видна ~час.
+const ARRIVAL_ROSTER_WINDOW_MS = 60 * 60 * 1000;
 
 export function UserRadioPage() {
   const navigate = useNavigate();
@@ -34,6 +41,9 @@ export function UserRadioPage() {
   // D40 — кружочек с числом непрочитанных личных сообщений напротив
   // позывного в списке абонентов.
   const directUnreadByUser = useStore((s) => s.directUnreadByUser);
+  // D55 — перекличка "кто прибыл" в списке участников текущей группы.
+  const arrivals = useStore((s) => s.arrivals);
+  const addArrival = useStore((s) => s.addArrival);
 
   const battery = useBattery();
   const { joinGroup, leaveGroup, sendSos, reportArrived, callUser, wakeGroup, callDispatcher } = useSocket();
@@ -96,6 +106,16 @@ export function UserRadioPage() {
     refreshActiveGroup();
     return () => { leaveGroup(activeGroupId); };
   }, [activeGroupId, joinGroup, leaveGroup, refreshActiveGroup]);
+
+  // D55 — холодная загрузка недавних чек-инов "Я прибыл" этой группы: живые
+  // обновления (arrival-checkin) освежают поверх, но без этого список был бы
+  // пуст для всех, кто зашёл в канал уже после чьего-то прибытия.
+  useEffect(() => {
+    if (!activeGroupId) return;
+    locationsApi.arrivals(activeGroupId).then((list) => {
+      list.forEach((checkIn) => addArrival(checkIn));
+    }).catch(() => {});
+  }, [activeGroupId, addArrival]);
 
   useEffect(() => {
     const refresh = () => {
@@ -454,6 +474,11 @@ export function UserRadioPage() {
           const otherGroupName = inOtherGroup
             ? groups.find((g) => g.id === currentGroupId)?.name
             : undefined;
+          // D55 — перекличка: галочка держится дольше, чем на карте диспетчера
+          // (см. ARRIVAL_ROSTER_WINDOW_MS) — это не "недавняя активность", а
+          // "на месте прямо сейчас" на время сбора.
+          const arrival = arrivals[m.userId];
+          const arrived = !!arrival && arrival.groupId === activeGroupId && Date.now() - arrival.timestamp < ARRIVAL_ROSTER_WINDOW_MS;
           return (
             <div key={m.id} className="flex items-center gap-3 px-4 py-2 border-b border-ptt-border/30 last:border-0">
               <div
@@ -476,6 +501,11 @@ export function UserRadioPage() {
               </span>
               <div className="ml-auto flex items-center gap-2">
                 {isTalking && <Radio className="w-3 h-3 text-ptt-green animate-pulse" />}
+                {arrived && (
+                  <span title={`Arrived ${formatDistanceToNow(arrival!.timestamp, { addSuffix: true })}`}>
+                    <MapPin className="w-3.5 h-3.5 text-ptt-green" />
+                  </span>
+                )}
                 {!m.canSpeak && <span className="font-mono text-xs text-ptt-muted">LISTENER</span>}
                 {!!directUnreadByUser[m.userId] && (
                   <button

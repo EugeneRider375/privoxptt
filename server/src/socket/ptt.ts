@@ -661,9 +661,15 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
         data: { userId, organizationId, groupId: groupId || null, callsign, lat, lng },
       });
 
+      // D55 — помимо диспетчера, живое подтверждение видят и обычные участники
+      // ТОЙ ЖЕ группы (голая комната groupId — та же, что PTT/чат; каждый,
+      // кто сейчас в этом канале, уже состоит в ней). Клиент сам решает, что
+      // с этим делать: диспетчеру — алерт в колокольчик, обычному участнику —
+      // только тихое обновление метки в списке SUBSCRIBERS, без уведомления
+      // (осознанно, чтобы не спамить — см. D55 в бэклоге).
       const targetRooms = [
         `org:${organizationId}:dispatchers`,
-        ...(groupId ? [`org:${organizationId}:dispatch-group:${groupId}`] : []),
+        ...(groupId ? [`org:${organizationId}:dispatch-group:${groupId}`, groupId] : []),
       ];
       const payload = {
         id: checkIn.id,
