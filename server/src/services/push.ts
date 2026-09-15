@@ -75,16 +75,30 @@ function initFirebase(): boolean {
  * остаться НИ ОДНОГО токена — например, когда Apple объявила VoIP-токен мёртвым
  * и мы его обнулили. Такое устройство недостижимо, а показывалось достижимым, и
  * вызов отчитывался доставленным, хотя отправлять было некуда.
+ *
+ * D54 (2026-09-11) — второй разрыв того же рода: токен формально жив (ни
+ * FCM, ни APNs никогда явно не ответят «мёртв» на банально offline
+ * устройство — сел телефон, выключен навсегда), поэтому абонент, пропавший
+ * год назад, висел синим бессрочно. Порог — те же 30 дней, что уже приняты
+ * для хранения сообщений (D32) и геоданных (D52), не отдельная политика.
+ * Превышен порог — считаем как обычный offline (без отдельного цвета,
+ * решение Eugene 2026-09-15).
  */
+const RECENT_ACTIVITY_MS = 30 * 24 * 60 * 60 * 1000; // 30 дней
+
 export async function hasReachablePushDevice(userId: string): Promise<boolean> {
-  const count = await prisma.device.count({
-    where: {
-      userId,
-      enabled: true,
-      OR: [{ pushToken: { not: null } }, { voipToken: { not: null } }],
-    },
-  });
-  return count > 0;
+  const [count, user] = await Promise.all([
+    prisma.device.count({
+      where: {
+        userId,
+        enabled: true,
+        OR: [{ pushToken: { not: null } }, { voipToken: { not: null } }],
+      },
+    }),
+    prisma.user.findUnique({ where: { id: userId }, select: { lastSeen: true } }),
+  ]);
+  if (count === 0) return false;
+  return !!user?.lastSeen && Date.now() - user.lastSeen.getTime() < RECENT_ACTIVITY_MS;
 }
 
 /**
