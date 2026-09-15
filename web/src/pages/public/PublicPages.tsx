@@ -39,13 +39,27 @@ const navLinks = [
   // Презентация системы — отдельная статическая страница (web/public/presentation),
   // а не маршрут приложения. Поэтому external: обычная ссылка, не Link роутера —
   // иначе роутер попытается отрисовать её сам и покажет пустоту.
-  // Корень (без /ru/) — русская версия, она же язык сайта по умолчанию;
-  // EN/FR — в футере (см. PublicLayout), там же, где она видна и на мобильных
-  // (верхнее меню скрыто на маленьких экранах, footer — нет).
-  { to: '/presentation/', label: 'Overview', external: true },
+  // Корень (без /ru/) — русская версия, она же язык сайта по умолчанию.
+  // langs — языковые варианты видны сразу в шапке (замечено Eugene: в футере
+  // их было не сразу найти, обычно переключатель языка ставят наверху).
+  // Дублируются в футере — там же меню видно на мобильных, где шапка скрыта.
+  {
+    to: '/presentation/', label: 'Overview', external: true,
+    langs: [
+      { to: '/presentation/', label: 'RU' },
+      { to: '/presentation/en/', label: 'EN' },
+      { to: '/presentation/fr/', label: 'FR' },
+    ],
+  },
   // Презентация для заказчика: то же устройство (статика + external), но
   // разговор другой — не как система устроена, а зачем она объекту.
-  { to: '/business/', label: 'For business', external: true },
+  {
+    to: '/business/', label: 'For business', external: true,
+    langs: [
+      { to: '/business/', label: 'RU' },
+      { to: '/business/en/', label: 'EN' },
+    ],
+  },
   { to: '/docs', label: 'Docs' },
   { to: '/faq', label: 'FAQ' },
   { to: '/support', label: 'Support' },
@@ -330,9 +344,21 @@ function PublicLayout({ children }: { children: React.ReactNode }) {
           <nav className="hidden items-center gap-6 text-sm font-medium text-slate-600 md:flex">
             {navLinks.map((link) =>
               link.external ? (
-                <a key={link.to} href={link.to} className="hover:text-sky-700">
-                  {link.label}
-                </a>
+                <span key={link.to} className="inline-flex items-center gap-1.5">
+                  <a href={link.to} className="hover:text-sky-700">
+                    {link.label}
+                  </a>
+                  {'langs' in link && link.langs && (
+                    <span className="flex items-center gap-1 text-xs font-normal text-slate-400">
+                      {link.langs.map((lang, i) => (
+                        <span key={lang.to} className="flex items-center gap-1">
+                          {i > 0 && <span>·</span>}
+                          <a href={lang.to} className="hover:text-sky-700">{lang.label}</a>
+                        </span>
+                      ))}
+                    </span>
+                  )}
+                </span>
               ) : (
                 <Link key={link.to} to={link.to} className="hover:text-sky-700">
                   {link.label}
