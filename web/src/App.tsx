@@ -7,6 +7,7 @@ import { UserRadioPage } from '@/pages/user/UserRadioPage';
 import { DispatcherLayout } from '@/pages/dispatcher/DispatcherLayout';
 import { AdminLayout } from '@/pages/admin/AdminLayout';
 import { DownloadPage, DocsPage, FaqPage, HomePage, PrivacyPage, StatusPage, SupportPage } from '@/pages/public/PublicPages';
+import { BusinessCardPage } from '@/pages/public/BusinessCardPage';
 import { unlockAudio } from '@/hooks/useWebRTC';
 import { useNativePush } from '@/hooks/useNativePush';
 import { MessengerPage } from '@/pages/messages/MessengerPage';
@@ -118,6 +119,7 @@ export default function App() {
           <Route path="/faq" element={<FaqPage />} />
           <Route path="/support" element={<SupportPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/card" element={<BusinessCardPage />} />
           <Route path="/status" element={<StatusPage />} />
           <Route path="/login" element={<LoginPage />} />
           {/* Персональный QR ведёт сюда. Публичный маршрут: токен и есть удостоверение. */}
