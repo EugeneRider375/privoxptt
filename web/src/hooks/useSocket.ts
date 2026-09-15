@@ -8,7 +8,6 @@ import { playSensorAlarm } from '@/utils/sensorAlarm';
 import { messagesApi } from '@/api/client';
 import { refetchSensors } from '@/utils/sensors';
 import { endNativeCall } from './useNativePush';
-import { isNativeIosApp } from '@/utils/device';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || '';
 const SOCKET_ACK_TIMEOUT_MS = 6_000;
@@ -219,16 +218,17 @@ export function useSocket() {
       groupName: string;
       createdAt: number;
     }) => {
-      // D57 — на нативном iOS CallKit уже полностью ведёт этот звонок
-      // (звонит, показывает вызывающего, по ответу сам включает звук через
-      // CXProvider.didActivate — см. AppDelegate.swift). Свой попап здесь
-      // означал бы второй, несогласованный UI поверх CallKit: он появлялся
-      // одновременно с компактным системным баннером, а если ответить
-      // именно в нём — CXAnswerCallAction так и не вызывался, и звук не
-      // включался вообще. На Android аналога CallKit нет — там этот попап
-      // остаётся единственным путём, ничего не меняем.
-      if (isNativeIosApp()) return;
-
+      // D57 — было: подавлять этот попап на нативном iOS, раз CallKit и так
+      // ведёт звонок. Откатили 2026-09-15 — оказалось хуже: после ответа
+      // через CallKit iOS ненадёжно разворачивает само приложение поверх
+      // экрана звонка (известная, ранее не решённая гонка CallKit→foreground,
+      // см. D14 "После Ответить иногда приложение не выходит само на
+      // передний план"). Без JS-попапа это стало систематическим — звонок
+      // "соединялся", но звука не было, пока не открыть приложение вручную
+      // через системное меню на заблокированном экране. Двойной экран —
+      // меньшее зло по сравнению со звонком без звука; попап остаётся
+      // рабочим запасным путём войти в разговор, пока гонка не решена
+      // отдельно.
       useStore.getState().addAlert({
         type: 'info',
         variant: 'user-call',
