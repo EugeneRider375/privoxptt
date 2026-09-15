@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { devicesApi } from '@/api/client';
 import { useStore } from '@/store/useStore';
+import { isNativeIosApp } from '@/utils/device';
 import { hangupCall } from './useSocket';
 import { PRIVOX_MEDIA_RECOVER_EVENT } from './useWebRTC';
 
@@ -52,9 +53,8 @@ function getNativePushPlugin(): PrivoxPushPlugin | null {
 // iOS шлёт звонок через VoIP-push (PushKit), у него нет пуш-токена в обычном
 // смысле — getToken() на этой платформе возвращает именно voipToken
 // (см. AppDelegate.swift/PrivoxPushPlugin.swift). Android — как раньше, FCM.
-function isIos(): boolean {
-  return getCapacitor()?.getPlatform?.() === 'ios';
-}
+// Общая с useSocket.ts (D57) проверка платформы — вынесена в device.ts.
+const isIos = isNativeIosApp;
 
 export async function unregisterNativePushDevice(): Promise<void> {
   const plugin = getNativePushPlugin();

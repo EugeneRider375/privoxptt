@@ -8,6 +8,7 @@ import { playSensorAlarm } from '@/utils/sensorAlarm';
 import { messagesApi } from '@/api/client';
 import { refetchSensors } from '@/utils/sensors';
 import { endNativeCall } from './useNativePush';
+import { isNativeIosApp } from '@/utils/device';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || '';
 const SOCKET_ACK_TIMEOUT_MS = 6_000;
@@ -218,6 +219,16 @@ export function useSocket() {
       groupName: string;
       createdAt: number;
     }) => {
+      // D57 — на нативном iOS CallKit уже полностью ведёт этот звонок
+      // (звонит, показывает вызывающего, по ответу сам включает звук через
+      // CXProvider.didActivate — см. AppDelegate.swift). Свой попап здесь
+      // означал бы второй, несогласованный UI поверх CallKit: он появлялся
+      // одновременно с компактным системным баннером, а если ответить
+      // именно в нём — CXAnswerCallAction так и не вызывался, и звук не
+      // включался вообще. На Android аналога CallKit нет — там этот попап
+      // остаётся единственным путём, ничего не меняем.
+      if (isNativeIosApp()) return;
+
       useStore.getState().addAlert({
         type: 'info',
         variant: 'user-call',
