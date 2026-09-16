@@ -141,6 +141,7 @@ export function AdminCheckpoints() {
                   <p className="font-rajdhani font-bold text-white truncate">{c.name}</p>
                   <p className="font-mono text-ptt-muted text-xs truncate">
                     {groupName(c.groupId) || 'no group'} · {c.visitCount} {c.visitCount === 1 ? 'visit' : 'visits'}
+                    {c.lat != null && c.lng != null && ` · ${c.lat.toFixed(5)}, ${c.lng.toFixed(5)}`}
                   </p>
                 </div>
                 <ChevronDown className={clsx('w-4 h-4 text-ptt-muted shrink-0 transition-transform', open && 'rotate-180')} />
