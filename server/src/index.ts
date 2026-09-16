@@ -22,6 +22,7 @@ import { usersRouter } from './routes/users';
 import { groupsRouter } from './routes/groups';
 import { locationsRouter } from './routes/locations';
 import { sosRouter } from './routes/sos';
+import { checkpointsRouter } from './routes/checkpoints';
 import { onboardingRouter } from './routes/onboarding';
 import { invitesRouter } from './routes/invites';
 import { activityRouter } from './routes/activity';
@@ -98,6 +99,7 @@ async function bootstrap() {
   app.use('/api/users', usersRouter);
   app.use('/api/locations', locationsRouter);
   app.use('/api/sos', sosRouter); // D59 — история SOS-тревог (раньше только эфемерный сокет-эмит)
+  app.use('/api/checkpoints', checkpointsRouter); // D49.2 — обходы по QR-коду ("Guard Tour лайт")
   app.use('/api/groups', groupsRouter);
   app.use('/api/onboarding', onboardingRouter); // вопросник суперадмина: группа + участники + приглашения
   app.use('/api/invites', invitesRouter);       // активация по персональному QR (без JWT — токен и есть удостоверение)

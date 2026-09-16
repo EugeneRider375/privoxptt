@@ -11,6 +11,7 @@ import { BusinessCardPage } from '@/pages/public/BusinessCardPage';
 import { unlockAudio } from '@/hooks/useWebRTC';
 import { useNativePush } from '@/hooks/useNativePush';
 import { MessengerPage } from '@/pages/messages/MessengerPage';
+import { CheckpointVisitPage } from '@/pages/user/CheckpointVisitPage';
 import { ActiveCallScreen } from '@/components/ui/ActiveCallScreen';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -126,6 +127,9 @@ export default function App() {
           <Route path="/join/:token" element={<JoinPage />} />
 
           <Route path="/app" element={<RequireAuth><RoleRouter /></RequireAuth>} />
+          {/* D49.2 — QR на стене контрольной точки обхода ведёт сюда. Защищено:
+              посторонний без аккаунта увидит просто экран входа. */}
+          <Route path="/checkpoint/:token" element={<RequireAuth><CheckpointVisitPage /></RequireAuth>} />
 
           <Route path="/radio/*" element={<RequireAuth><ErrorBoundary><UserRadioPage /></ErrorBoundary></RequireAuth>} />
           <Route path="/messages" element={<RequireAuth><ErrorBoundary><MessengerPage /></ErrorBoundary></RequireAuth>} />

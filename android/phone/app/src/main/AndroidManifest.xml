@@ -28,9 +28,10 @@
                  отпечаток другой, поэтому ссылка у неё откроется в браузере —
                  это ожидаемо.
 
-                 Ограничиваемся путём /join: остальной сайт должен открываться
-                 в браузере, иначе страница загрузки APK попадала бы внутрь
-                 приложения, где скачивать уже нечего. -->
+                 Ограничиваемся путями /join и /checkpoint (D49.2, отметка
+                 обхода по QR): остальной сайт должен открываться в браузере,
+                 иначе страница загрузки APK попадала бы внутрь приложения,
+                 где скачивать уже нечего. -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -38,6 +39,9 @@
                 <data android:scheme="https"
                       android:host="ptt.privox.tech"
                       android:pathPrefix="/join" />
+                <data android:scheme="https"
+                      android:host="ptt.privox.tech"
+                      android:pathPrefix="/checkpoint" />
             </intent-filter>
 
         </activity>

@@ -1,6 +1,6 @@
 import axios, { AxiosError } from 'axios';
 import { useStore } from '@/store/useStore';
-import type { ArrivalCheckIn } from '@/types';
+import type { ArrivalCheckIn, Checkpoint, CheckpointVisit } from '@/types';
 
 const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -241,6 +241,21 @@ export const locationsApi = {
   // членство); диспетчер может звать и без него (весь свой scope).
   arrivals: (groupId?: string): Promise<ArrivalCheckIn[]> =>
     api.get('/locations/arrivals', { params: groupId ? { groupId } : undefined }).then((r) => r.data),
+};
+
+// ─── Обходы по QR-коду (D49.2) ────────────────────────────
+export const checkpointsApi = {
+  list: (): Promise<Checkpoint[]> => api.get('/checkpoints').then((r) => r.data),
+  create: (data: { name: string; groupId?: string; lat?: number; lng?: number }): Promise<Checkpoint> =>
+    api.post('/checkpoints', data).then((r) => r.data),
+  delete: (id: string) => api.delete(`/checkpoints/${id}`),
+  visits: (id: string): Promise<CheckpointVisit[]> =>
+    api.get(`/checkpoints/${id}/visits`).then((r) => r.data),
+  // Без Authorization токен подставится автоматически интерцептором, если
+  // человек уже вошёл — сама страница сканирования решает, что делать, если
+  // нет (см. CheckpointVisitPage.tsx).
+  visit: (token: string, data: { lat?: number; lng?: number }): Promise<{ checkpointName: string; timestamp: number }> =>
+    api.post(`/checkpoints/${encodeURIComponent(token)}/visit`, data).then((r) => r.data),
 };
 
 // ─── Native push devices ─────────────────────────────────

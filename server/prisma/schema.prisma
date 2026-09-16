@@ -26,6 +26,8 @@ model Organization {
   auditLogs    AdminAuditLog[]
   arrivals     ArrivalCheckIn[]
   sosAlerts    SosAlert[]
+  checkpoints  Checkpoint[]
+  checkpointVisits CheckpointVisit[]
 }
 
 model User {
@@ -64,6 +66,7 @@ model User {
   dispatcherScope  DispatcherGroupScope[] @relation("DispatcherScope")
   arrivalCheckIns  ArrivalCheckIn[]
   sosAlerts        SosAlert[]
+  checkpointVisits CheckpointVisit[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -150,6 +153,7 @@ model Group {
   dispatcherScope DispatcherGroupScope[]
   arrivalCheckIns ArrivalCheckIn[]
   sosAlerts       SosAlert[]
+  checkpoints     Checkpoint[]
   sensorTargets   SensorGroup[]
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
@@ -252,6 +256,50 @@ model SosAlert {
 
   @@index([organizationId, createdAt])
   @@index([groupId, createdAt])
+}
+
+// D49.2 — "Guard Tour лайт" из идеи тестировщика: QR-код печатается один раз
+// и клеится на контрольную точку обхода (дверь, щит и т.п.). `token` — то,
+// что зашито в сам QR, обычной камерой телефона, без датчика на каждой
+// точке. `lat`/`lng` необязательны — это координаты САМОЙ точки на момент
+// создания (для карты/сверки), а не место скана — то, где скан произошёл,
+// хранится отдельно в CheckpointVisit.
+model Checkpoint {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  groupId        String?
+  group          Group?       @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  name           String
+  token          String       @unique @default(uuid())
+  lat            Float?
+  lng            Float?
+  createdAt      DateTime     @default(now())
+
+  visits CheckpointVisit[]
+
+  @@index([organizationId, createdAt])
+}
+
+// Запись одного скана. lat/lng здесь — где физически произошёл скан (по
+// геолокации телефона в момент открытия страницы), не путать с
+// координатами самой точки в Checkpoint — их сверка (обнаружение "скан
+// издалека") оставлена на будущее, не реализована сейчас.
+model CheckpointVisit {
+  id             String       @id @default(uuid())
+  checkpointId   String
+  checkpoint     Checkpoint   @relation(fields: [checkpointId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  callsign       String
+  lat            Float?
+  lng            Float?
+  createdAt      DateTime     @default(now())
+
+  @@index([checkpointId, createdAt])
+  @@index([organizationId, createdAt])
 }
 
 model Message {

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Routes, Route, NavLink, useNavigate } from 'react-router-dom';
-import { Radio, Users, Layers, Building2, LogOut, ChevronLeft, ChevronRight, ClipboardList, ClipboardPen, MessageSquare, Thermometer } from 'lucide-react';
+import { Radio, Users, Layers, Building2, LogOut, ChevronLeft, ChevronRight, ClipboardList, ClipboardPen, MessageSquare, Thermometer, MapPin } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { authApi } from '@/api/client';
 import { downloadClientQuestionnairePdf } from '@/utils/clientQuestionnairePdf';
@@ -11,6 +11,7 @@ import { AdminUsers } from './AdminUsers';
 import { AdminGroups } from './AdminGroups';
 import { AdminOrgs } from './AdminOrgs';
 import { AdminSensors } from './AdminSensors';
+import { AdminCheckpoints } from './AdminCheckpoints';
 import { ActivityLogPage } from '../activity/ActivityLogPage';
 import { DispatcherDashboard } from '../dispatcher/DispatcherDashboard';
 import { MessengerPage } from '../messages/MessengerPage';
@@ -24,6 +25,7 @@ const NAV = [
   { to: '/admin/users',    icon: Users,       label: 'Users',         roles: ['SUPERADMIN','ADMIN'] },
   { to: '/admin/groups',   icon: Layers,      label: 'Groups',        roles: ['SUPERADMIN','ADMIN'] },
   { to: '/admin/sensors',  icon: Thermometer, label: 'Sensors',       roles: ['SUPERADMIN','ADMIN'] },
+  { to: '/admin/checkpoints', icon: MapPin,  label: 'Checkpoints',   roles: ['SUPERADMIN','ADMIN'] },
   { to: '/admin/orgs',     icon: Building2,   label: 'Organizations', roles: ['SUPERADMIN'] },
 ];
 
@@ -159,6 +161,7 @@ export function AdminLayout() {
             <Route path="users" element={<AdminUsers />} />
             <Route path="groups" element={<AdminGroups />} />
             <Route path="sensors" element={<AdminSensors />} />
+            <Route path="checkpoints" element={<AdminCheckpoints />} />
             <Route path="orgs" element={<AdminOrgs />} />
           </Routes>
         </div>

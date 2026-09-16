@@ -54,6 +54,11 @@ export function buildInviteUrl(baseUrl: string, token: string): string {
   return `${baseUrl.replace(/\/+$/, '')}/join/${token}`;
 }
 
+/** D49.2 — та же идея, для QR контрольной точки обхода. */
+export function buildCheckpointUrl(baseUrl: string, token: string): string {
+  return `${baseUrl.replace(/\/+$/, '')}/checkpoint/${token}`;
+}
+
 /** Мягкая проверка качества общего пароля, когда админ задаёт его вручную. */
 export function checkSharedPassword(password: string): { ok: boolean; error?: string } {
   if (password.length < 8) {

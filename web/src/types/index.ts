@@ -91,6 +91,28 @@ export interface ArrivalCheckIn {
   timestamp: number;
 }
 
+// D49.2 — контрольная точка обхода: печатается один раз, QR клеится на месте
+export interface Checkpoint {
+  id: string;
+  name: string;
+  groupId?: string;
+  token: string;
+  visitUrl: string;
+  lat?: number;
+  lng?: number;
+  createdAt: number;
+  visitCount: number;
+}
+
+export interface CheckpointVisit {
+  id: string;
+  userId: string;
+  callsign: string;
+  lat?: number;
+  lng?: number;
+  timestamp: number;
+}
+
 export interface AuthState {
   accessToken: string | null;
   refreshToken: string | null;

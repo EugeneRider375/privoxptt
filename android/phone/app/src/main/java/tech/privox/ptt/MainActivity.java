@@ -218,14 +218,18 @@ public class MainActivity extends BridgeActivity {
     }
 
     /**
-     * Приглашение по персональному QR: ссылка вида
-     * https://ptt.privox.tech/join/<токен> должна открыть приложение на нужной
-     * странице, а не главный экран.
+     * Ссылки вида https://ptt.privox.tech/join/<токен> (приглашение по QR) и
+     * .../checkpoint/<токен> (D49.2, отметка обхода QR-кодом на стене) должны
+     * открывать приложение на нужной странице, а не главный экран.
      *
      * Приложение всегда грузит один адрес из capacitor.config.json, поэтому
      * без этой обработки система открыла бы его, но человек оказался бы там,
-     * где был, и приглашение потерялось бы.
+     * где был, и ссылка потерялась бы. Список путей должен совпадать с тем,
+     * что объявлено в AndroidManifest.xml (intent-filter) — иначе система
+     * вообще не отдаст ссылку приложению, до этого метода дело не дойдёт.
      */
+    private static final String[] DEEP_LINK_PATH_PREFIXES = { "/join", "/checkpoint" };
+
     private void handleInviteLink(Intent intent) {
         if (intent == null) return;
 
@@ -235,17 +239,22 @@ public class MainActivity extends BridgeActivity {
         if (!APP_HOST.equals(data.getHost())) return;
 
         final String path = data.getPath();
-        if (path == null || !path.startsWith("/join")) return;
+        if (path == null) return;
+        boolean matches = false;
+        for (String prefix : DEEP_LINK_PATH_PREFIXES) {
+            if (path.startsWith(prefix)) { matches = true; break; }
+        }
+        if (!matches) return;
 
         if (getBridge() == null || getBridge().getWebView() == null) return;
 
         // На холодном старте Capacitor сразу после onCreate грузит адрес из
         // capacitor.config.json и перебивает нашу навигацию. Поэтому не
         // переходим один раз, а повторяем попытки, пока адрес не станет нашим.
-        navigateToInvite(data.toString(), 0);
+        navigateToInvite(data.toString(), data.getPath(), 0);
     }
 
-    private void navigateToInvite(final String url, final int attempt) {
+    private void navigateToInvite(final String url, final String targetPath, final int attempt) {
         if (attempt >= 6) return;
         if (getBridge() == null || getBridge().getWebView() == null) return;
 
@@ -254,9 +263,9 @@ public class MainActivity extends BridgeActivity {
             @Override
             public void run() {
                 final String current = webView.getUrl();
-                if (current != null && current.contains("/join/")) return; // уже пришли
+                if (current != null && current.contains(targetPath)) return; // уже пришли
                 webView.loadUrl(url);
-                navigateToInvite(url, attempt + 1);
+                navigateToInvite(url, targetPath, attempt + 1);
             }
         }, attempt == 0 ? 300 : 800);
     }
