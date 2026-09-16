@@ -1,16 +1,14 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { prisma } from '../database/prisma';
-import { authenticate, requireAdmin } from '../middleware/auth';
+import { authenticate, requireDispatcher } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
-import { getDispatcherScope, PRIVILEGED_ROLES } from '../services/groupAccess';
+import { getDispatcherScope } from '../services/groupAccess';
 import { config } from '../config';
 import { buildCheckpointUrl } from '../utils/credentials';
 
 export const checkpointsRouter = Router();
 
 checkpointsRouter.use(authenticate);
-
-const privilegedRoles = PRIVILEGED_ROLES;
 
 function param(value: string | string[] | undefined, name: string): string {
   if (typeof value !== 'string') throw new AppError(400, `Invalid ${name}`);
@@ -23,9 +21,15 @@ function param(value: string | string[] | undefined, name: string): string {
  * камерой телефона во время обхода — без установки настоящего датчика на
  * каждой точке (идея из формы тестировщиков, Streltcoff, 2026-09-03).
  *
- * Управление точками (создание/список/удаление) — только ADMIN+, по образцу
- * остальных админских ресурсов (датчики, группы). Сама отметка визита
- * (`POST /:token/visit`) — любой аутентифицированный сотрудник организации,
+ * Управление точками (создание/список/удаление) — диспетчер и выше
+ * (`requireDispatcher`), не только ADMIN: в отличие от датчиков/групп это
+ * повседневная операционная задача, а не настройка системы (решение
+ * Eugene, 2026-09-16, после первого живого теста). Скоуп по группе (D30) —
+ * тот же принцип, что и у истории визитов: у диспетчера с ограниченным
+ * scope список/создание/удаление видят только точки его групп.
+ *
+ * Сама отметка визита (`POST /:token/visit`) — любой аутентифицированный
+ * сотрудник организации,
  * без проверки членства в конкретной группе: это разовое явное действие
  * самого человека о самом себе, тот же принцип, что и у чек-ина "Я прибыл"
  * (D53). Посторонний без аккаунта в системе до этого эндпоинта не дойдёт —
@@ -37,10 +41,15 @@ async function assertGroupInOrg(groupId: string, organizationId: string): Promis
   if (!group) throw new AppError(400, 'Group not found in this organization');
 }
 
-checkpointsRouter.get('/', requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+checkpointsRouter.get('/', requireDispatcher, async (req: Request, res: Response, next: NextFunction) => {
   try {
+    // D30 — тот же принцип скоупа, что и у истории визитов ниже.
+    const scope = await getDispatcherScope(req.user!.userId, req.user!.role);
     const checkpoints = await prisma.checkpoint.findMany({
-      where: { organizationId: req.user!.organizationId },
+      where: {
+        organizationId: req.user!.organizationId,
+        ...(scope ? { groupId: { in: scope } } : {}),
+      },
       orderBy: { createdAt: 'desc' },
       include: { _count: { select: { visits: true } } },
     });
@@ -62,11 +71,21 @@ checkpointsRouter.get('/', requireAdmin, async (req: Request, res: Response, nex
   }
 });
 
-checkpointsRouter.post('/', requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+checkpointsRouter.post('/', requireDispatcher, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { name, groupId, lat, lng } = req.body as { name?: string; groupId?: string; lat?: number; lng?: number };
     if (!name || !name.trim()) throw new AppError(400, 'name is required');
     if (groupId) await assertGroupInOrg(groupId, req.user!.organizationId);
+
+    // Скоуп-диспетчер не может создать точку вне своих групп и не может
+    // создать точку без группы вообще — она была бы невидима ему самому
+    // сразу после создания (тот же критерий, что и в GET '/' /:id/visits).
+    const scope = await getDispatcherScope(req.user!.userId, req.user!.role);
+    if (scope) {
+      if (!groupId || !scope.includes(groupId)) {
+        throw new AppError(403, 'Choose a group within your dispatcher scope');
+      }
+    }
 
     const checkpoint = await prisma.checkpoint.create({
       data: {
@@ -93,12 +112,18 @@ checkpointsRouter.post('/', requireAdmin, async (req: Request, res: Response, ne
   }
 });
 
-checkpointsRouter.delete('/:id', requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+checkpointsRouter.delete('/:id', requireDispatcher, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const checkpoint = await prisma.checkpoint.findFirst({
       where: { id: param(req.params.id, 'checkpoint id'), organizationId: req.user!.organizationId },
     });
     if (!checkpoint) throw new AppError(404, 'Checkpoint not found');
+
+    const scope = await getDispatcherScope(req.user!.userId, req.user!.role);
+    if (scope && (!checkpoint.groupId || !scope.includes(checkpoint.groupId))) {
+      throw new AppError(403, 'Checkpoint outside your dispatcher scope');
+    }
+
     await prisma.checkpoint.delete({ where: { id: checkpoint.id } });
     res.status(204).end();
   } catch (err) {
@@ -107,11 +132,8 @@ checkpointsRouter.delete('/:id', requireAdmin, async (req: Request, res: Respons
 });
 
 /** История визитов одной точки — по образцу `GET /api/locations/arrivals` (D53). */
-checkpointsRouter.get('/:id/visits', async (req: Request, res: Response, next: NextFunction) => {
+checkpointsRouter.get('/:id/visits', requireDispatcher, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    if (!privilegedRoles.includes(req.user!.role)) {
-      throw new AppError(403, 'Only dispatchers and admins can view checkpoint history');
-    }
     const checkpoint = await prisma.checkpoint.findFirst({
       where: { id: param(req.params.id, 'checkpoint id'), organizationId: req.user!.organizationId },
     });

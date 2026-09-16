@@ -25,7 +25,7 @@ const NAV = [
   { to: '/admin/users',    icon: Users,       label: 'Users',         roles: ['SUPERADMIN','ADMIN'] },
   { to: '/admin/groups',   icon: Layers,      label: 'Groups',        roles: ['SUPERADMIN','ADMIN'] },
   { to: '/admin/sensors',  icon: Thermometer, label: 'Sensors',       roles: ['SUPERADMIN','ADMIN'] },
-  { to: '/admin/checkpoints', icon: MapPin,  label: 'Checkpoints',   roles: ['SUPERADMIN','ADMIN'] },
+  { to: '/admin/checkpoints', icon: MapPin,  label: 'Checkpoints',   roles: ['SUPERADMIN','ADMIN','DISPATCHER'] },
   { to: '/admin/orgs',     icon: Building2,   label: 'Organizations', roles: ['SUPERADMIN'] },
 ];
 
