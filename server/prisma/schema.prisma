@@ -25,6 +25,7 @@ model Organization {
   invites      Invite[]
   auditLogs    AdminAuditLog[]
   arrivals     ArrivalCheckIn[]
+  sosAlerts    SosAlert[]
 }
 
 model User {
@@ -62,6 +63,7 @@ model User {
   // перечисленные группы. Пусто = без ограничений (сегодняшнее поведение).
   dispatcherScope  DispatcherGroupScope[] @relation("DispatcherScope")
   arrivalCheckIns  ArrivalCheckIn[]
+  sosAlerts        SosAlert[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -147,6 +149,7 @@ model Group {
   invites        Invite[]
   dispatcherScope DispatcherGroupScope[]
   arrivalCheckIns ArrivalCheckIn[]
+  sosAlerts       SosAlert[]
   sensorTargets   SensorGroup[]
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
@@ -222,6 +225,30 @@ model ArrivalCheckIn {
   lat            Float
   lng            Float
   createdAt      DateTime      @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([groupId, createdAt])
+}
+
+// D59 — раньше SOS был чисто эфемерной рассылкой по сокету: если в момент
+// тревоги ни один диспетчер не подключён, сигнал терялся без следа. Эта
+// таблица — запись до рассылки (не вместо неё, живой сокет в ptt.ts остаётся
+// для немедленного оповещения). Retention сознательно не заведён — для
+// аварийных сигналов дольше 30-дневного окна сообщений/геоданных (D32/D52)
+// может быть оправдано, решать отдельно, не переносить автоматически.
+model SosAlert {
+  id             String       @id @default(uuid())
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  groupId        String?
+  group          Group?       @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  callsign       String
+  message        String
+  lat            Float?
+  lng            Float?
+  createdAt      DateTime     @default(now())
 
   @@index([organizationId, createdAt])
   @@index([groupId, createdAt])

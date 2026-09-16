@@ -641,8 +641,21 @@ export function setupPtt(io: Server, socket: AuthenticatedSocket): void {
   // Намеренно без проверки срока группы (D7): это аварийный сигнал, он уходит
   // не только в группу, но и всей организации. Глушить крик о помощи из-за
   // календарной даты нельзя.
+  //
+  // D59 — запись в базу ДО рассылки: раньше сигнал существовал только на
+  // время сокет-эмита, если ни один диспетчер не был подключён в этот
+  // момент — тревога терялась без следа, ни строки в логах, ни возможности
+  // посмотреть позже. Ошибку записи не считаем поводом глушить живую
+  // рассылку (тот же принцип, что у location-update выше) — важнее, чтобы
+  // онлайн-диспетчеры получили сигнал немедленно, даже если БД в этот
+  // момент недоступна.
   socket.on('sos', async ({ groupId, message }: { groupId: string; message: string }) => {
     logger.warn({ msg: 'SOS!', userId, callsign, groupId });
+
+    prisma.sosAlert
+      .create({ data: { userId, organizationId, groupId: groupId || null, callsign, message } })
+      .catch((err) => logger.error({ msg: 'Не удалось сохранить SOS-алерт', err, userId, groupId }));
+
     // Рассылаем всем в группе и в организации
     io.to(groupId).emit('sos-alert', { userId, callsign, groupId, message });
     socket.to(`org:${organizationId}`).emit('sos-alert', { userId, callsign, groupId, message });
