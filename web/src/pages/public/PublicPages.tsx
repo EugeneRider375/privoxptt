@@ -12,6 +12,7 @@ import {
   ExternalLink,
   FileQuestion,
   FileText,
+  Globe,
   Headphones,
   Lock,
   MapPinned,
@@ -33,297 +34,76 @@ import { PrivoxLogo } from '@/components/brand/PrivoxLogo';
 import { disconnectPrivoxSocket } from '@/hooks/useSocket';
 import { useStore } from '@/store/useStore';
 import { downloadUserGuidePdf } from '@/utils/userGuidePdf';
+import { LanguageProvider, useLanguage } from '@/i18n/context';
+import type { LanguageCode } from '@/i18n/types';
 
-const navLinks = [
-  { to: '/download', label: 'Download' },
-  // Презентация системы — отдельная статическая страница (web/public/presentation),
-  // а не маршрут приложения. Поэтому external: обычная ссылка, не Link роутера —
-  // иначе роутер попытается отрисовать её сам и покажет пустоту.
-  // Корень (без /ru/) — русская версия, она же язык сайта по умолчанию.
-  // langs — языковые варианты видны сразу в шапке (замечено Eugene: в футере
-  // их было не сразу найти, обычно переключатель языка ставят наверху).
-  // Дублируются в футере — там же меню видно на мобильных, где шапка скрыта.
-  {
-    to: '/presentation/', label: 'Overview', external: true,
-    langs: [
-      { to: '/presentation/', label: 'RU' },
-      { to: '/presentation/en/', label: 'EN' },
-      { to: '/presentation/fr/', label: 'FR' },
-    ],
-  },
-  // Презентация для заказчика: то же устройство (статика + external), но
-  // разговор другой — не как система устроена, а зачем она объекту.
-  {
-    to: '/business/', label: 'For business', external: true,
-    langs: [
-      { to: '/business/', label: 'RU' },
-      { to: '/business/en/', label: 'EN' },
-    ],
-  },
-  { to: '/docs', label: 'Docs' },
-  { to: '/faq', label: 'FAQ' },
-  { to: '/support', label: 'Support' },
-  { to: '/status', label: 'Status' },
+// Иконки не переводятся — привязаны к текстовым массивам из словаря (t.home.*)
+// по индексу, порядок должен совпадать между en/ru/fr (см. i18n/types.ts).
+const AUDIENCE_ICONS = [ShieldCheck, Headphones, MapPinned, Cloud, Wifi, Building2, Wrench, Users];
+const HOW_IT_WORKS_ICONS = [Smartphone, Router, Users, Radio];
+const CAPABILITY_ICONS = [Mic, Users, Headphones, TerminalSquare, Cloud, Smartphone, Radio, Wifi, Lock];
+const PLATFORM_ICONS = [Cloud, Smartphone, Radio, Radio, BadgeCheck];
+const PLATFORM_TONES = [
+  'text-sky-700 bg-sky-50 border-sky-100',
+  'text-emerald-700 bg-emerald-50 border-emerald-100',
+  'text-orange-700 bg-orange-50 border-orange-100',
+  'text-indigo-700 bg-indigo-50 border-indigo-100',
+  'text-slate-700 bg-slate-50 border-slate-200',
 ];
 
-const audience = [
-  ['Security teams', ShieldCheck],
-  ['Dispatch centers', Headphones],
-  ['Logistics', MapPinned],
-  ['Farms and field teams', Cloud],
-  ['Remote sites', Wifi],
-  ['Garages and monitoring', Building2],
-  ['Technical services', Wrench],
-  ['Private teams', Users],
-];
+const LANGUAGE_LABELS: Record<LanguageCode, string> = { en: 'EN', ru: 'RU', fr: 'FR' };
 
-const features = [
-  ['Push-to-talk voice', Mic],
-  ['User groups', Users],
-  ['Dispatcher mode', Headphones],
-  ['Administration tools', TerminalSquare],
-  ['Browser access', Cloud],
-  ['Mobile apps (Android / iPhone)', Smartphone],
-  ['PRIVOX Mini Radio hardware', Radio],
-  ['WebRTC audio', Wifi],
-  ['Secure authentication', Lock],
-];
-
-const platforms = [
-  { title: 'Web', status: 'Available now', icon: Cloud, tone: 'text-sky-700 bg-sky-50 border-sky-100' },
-  { title: 'Android', status: 'Signed APK available', icon: Smartphone, tone: 'text-emerald-700 bg-emerald-50 border-emerald-100' },
-  { title: 'Inrico T320', status: 'Hardware radio — verified', icon: Radio, tone: 'text-orange-700 bg-orange-50 border-orange-100' },
-  { title: 'PRIVOX Mini Radio', status: 'Available — self-build', icon: Radio, tone: 'text-indigo-700 bg-indigo-50 border-indigo-100' },
-  { title: 'iPhone', status: 'Available via TestFlight', icon: BadgeCheck, tone: 'text-slate-700 bg-slate-50 border-slate-200' },
-];
-
-const docs = [
-  {
-    title: 'System overview',
-    text: 'PRIVOX PTT is a browser-based push-to-talk system with a signed Android wrapper and a native iPhone app. The platform uses the web interface, authorization, groups, WebRTC audio, dispatcher tools, and backend.',
-    items: ['Web app: /app', 'Signed Android APK: /download', 'iPhone app via TestFlight: /download', 'Roles: superadmin, admin, dispatcher, user', 'Organizations isolate groups and users'],
-  },
-  {
-    title: 'Quick start for testers',
-    text: 'Use this flow when giving access to a new test team.',
-    items: ['Create or choose an organization', 'Create an organization admin', 'Let the admin create groups and users', 'Install the Android APK, install the iPhone app via TestFlight, or open the web app', 'Allow microphone and location permissions', 'Test transmit, receive, logout, and login'],
-  },
-  {
-    title: 'Organizations',
-    text: 'Organizations separate customers, teams, or test environments. A superadmin can create organizations and move users between them.',
-    items: ['Superadmin sees all organizations', 'Admin works only inside their organization', 'Moving a user removes memberships in groups from the previous organization', 'After moving a user, add them to groups in the new organization'],
-  },
-  {
-    title: 'User roles',
-    text: 'Roles define what each account can do inside the system.',
-    items: ['SUPERADMIN: manages all organizations', 'ADMIN: manages users and groups inside one organization', 'DISPATCHER: uses dispatcher console and map', 'USER: uses radio/PTT mode'],
-  },
-  {
-    title: 'Groups and channels',
-    text: 'Groups are the voice channels used for PTT communication.',
-    items: ['Create groups inside the selected organization', 'Add users to one or more groups', 'Use can-speak permission to control who may transmit', 'Keep test groups small at first: 2-4 users is ideal'],
-  },
-  {
-    title: 'Dispatcher workflow',
-    text: 'Dispatcher mode is used for operational monitoring and calls.',
-    items: ['Open dispatcher console', 'Monitor online users and active channel state', 'Use map view when location permission is enabled', 'Check SOS/user call behavior during tests'],
-  },
-  {
-    title: 'Android application',
-    text: 'The Android app combines the production web interface with native background calling and Firebase wake-up support.',
-    items: ['Uses existing login and groups', 'Supports PTT, individual calls, and CALL GROUP', 'Wakes a sleeping phone through Firebase', 'Shows native ANSWER and DECLINE controls', 'Uses a foreground service for background availability'],
-  },
-  {
-    title: 'iPhone and desktop web',
-    text: 'iPhone users can use the web version in Safari, or install the native app via TestFlight for calls that ring even with the screen locked (see the iPhone card on /download).',
-    items: ['Open /app in Safari on iPhone for the web version — no installation needed', 'Use Share -> Add to Home Screen for a home icon', 'For locked-screen wake-up on incoming calls, install the native app via TestFlight instead of the web version', 'On desktop, use a modern browser and allow microphone access'],
-  },
-  {
-    title: 'Android app — user guide',
-    text: 'Step-by-step instructions for the PRIVOX PTT Android app. Works over Wi-Fi or mobile data. PTT works like a radio: press to speak, release to listen.',
-    steps: [
-      'Open PRIVOX PTT and allow microphone, notification, and full-screen call permissions when prompted.',
-      'Allow unrestricted battery usage when prompted — this keeps the app reachable while the screen is off.',
-      'Enter the login and password given by your administrator and tap Sign in. Credentials are saved — you will not need to log in again after a normal restart.',
-      'Tap the active group name at the top of the screen to open the group list and select your group.',
-      'Press and hold the large microphone button. Speak after TRANSMITTING appears. Release the button to stop transmitting and listen to others.',
-      'To call one person: find them in the participant list with a green or blue phone icon and tap it. Green means online now; blue means the phone is asleep but can be woken by the call.',
-      'Incoming call: the screen lights up with the caller name and group. Tap ANSWER to open PRIVOX PTT and join the group, or DECLINE to dismiss without opening the app.',
-      'To stay available: lock the screen normally — do not tap Log out. Use Log out only when switching accounts.',
-    ],
-    items: [
-      'No audio: check microphone permission in Android settings and confirm the correct group is selected.',
-      'No ringtone on incoming call: check that notifications and full-screen call permissions are enabled for PRIVOX PTT.',
-      'App not reachable when screen is off: set battery to Unrestricted in Android settings for PRIVOX PTT.',
-      'Connection lost after switching networks: wait a few seconds for automatic reconnection, then press PTT.',
-      'Status colours take up to 60 seconds to update across all devices — this is normal.',
-    ],
-  },
-  {
-    title: 'iPhone — user guide',
-    text: 'PRIVOX PTT runs as a web app in Safari on iPhone. No App Store installation is needed. Works over Wi-Fi or mobile data.',
-    steps: [
-      'Open Safari and go to https://ptt.privox.tech/app — do not use Safari private mode, as login will not be saved.',
-      'Enter your login and password and tap Sign in. Allow microphone access when Safari asks.',
-      'To add a home screen icon: tap the Share button (square with arrow), scroll to Add to Home Screen, and tap Add. Open the app from that icon in the future.',
-      'Tap the group name at the top to select your group before transmitting.',
-      'Press and hold the large microphone button. Speak after TRANSMITTING appears. Release to listen.',
-      'To call one person: tap the phone icon next to their name in the participant list.',
-      'Incoming call while the app is open: tap ANSWER to join the group, or DECLINE to dismiss.',
-      'Web version (Safari): keep PRIVOX PTT open and the screen unlocked during duty — it cannot wake a locked iPhone. For calls that ring even with the screen locked, install the native app via TestFlight (see the iPhone card on /download).',
-    ],
-    items: [
-      'No microphone: in Safari, open website settings for ptt.privox.tech and allow microphone access.',
-      'No sound: raise media volume with the side buttons and disconnect any Bluetooth device.',
-      'Missed call with screen locked: this is a current iOS web limitation — keep the app open on screen.',
-      'Old interface after update: fully close and reopen the app, or force-reload in Safari.',
-    ],
-  },
-  {
-    title: 'Desktop browser — user guide',
-    text: 'PRIVOX PTT works directly in a modern browser on any computer. No installation needed. Recommended browsers: Chrome, Edge, or Safari.',
-    steps: [
-      'Open https://ptt.privox.tech/app in Chrome, Edge, or Safari.',
-      'Enter your login and password and tap Sign in. Allow the browser to use the microphone when prompted.',
-      'Select a group from the list on the screen. The active group name is shown at the top.',
-      'Press and hold the PTT button, or hold the Space bar (when not in a text field) to transmit. Release to stop.',
-      'To call one person: click the phone icon next to their name. Green = online, blue = sleeping Android reachable via push, grey = unavailable.',
-      'Dispatchers can click CALL GROUP to ring all members of a group at once — even those currently in other groups.',
-      'After the called participant taps ANSWER, their device switches to the called group automatically.',
-    ],
-    items: [
-      'No microphone: click the lock or microphone icon in the browser address bar and allow access.',
-      'Old interface: press Ctrl+Shift+R on Windows or Cmd+Shift+R on macOS to force-reload.',
-      'Connection lost after switching networks: wait a few seconds, then press PTT once to resume.',
-      'Close any other app that may be holding the microphone (video calls, recording software).',
-    ],
-  },
-  {
-    title: 'Test checklist',
-    text: 'Use this list before reporting that a test account is ready.',
-    items: ['Login works', 'Microphone permission appears', 'Transmit and receive work', 'Dispatcher map shows location when allowed', 'Screen does not sleep during active Android test', 'Logout/login works after restart'],
-  },
-  {
-    title: 'Current limitations',
-    text: 'These items are not part of the current release.',
-    items: ['iOS native app available via TestFlight only — no App Store listing yet', 'No Bluetooth headset certification yet', 'No Google Play distribution for Android yet (direct APK download)', 'PRIVOX Mini Radio cannot switch groups automatically after a call yet'],
-  },
-  {
-    title: 'Inrico T320 digital radio',
-    text: 'Inrico T320 is a commercial Android-based PTT radio that runs the PRIVOX PTT application natively. It has a dedicated hardware PTT button, an integrated speaker and microphone, a 3800 mAh battery, and supports SIM card (2G/3G), Wi-Fi, Bluetooth, and GPS. The device runs Android 8.1 with an updatable WebView and works as a drop-in radio for PRIVOX PTT without any visible difference from the web or Android app experience.',
-    items: [
-      'Works in the same groups as web and Android users — all users hear each other',
-      'Dedicated hardware PTT side button triggers transmit instantly, same as pressing the on-screen button',
-      'SIM card option lets the device work on cellular data without a Wi-Fi hotspot',
-      'Standalone device — no phone or computer needed during operation',
-      'Full dispatcher map, SOS, and dispatcher call features work on the device',
-      'WebRTC audio (transmit and receive) confirmed on hardware',
-    ],
-  },
-  {
-    title: 'Inrico T320 — setup and installation',
-    text: 'The T320 requires one-time preparation before use: updating the system WebView and installing the PRIVOX PTT APK. An administrator completes this setup once; after that the user only needs to log in.',
-    items: [
-      'Connect the T320 to Wi-Fi and open the Play Store — update Chrome to the latest version (WebView is powered by Chrome on this device)',
-      'Download the PRIVOX PTT APK from ptt.privox.tech/download on the device or sideload it via USB',
-      'Allow installation from the browser if Android asks — tap Settings, enable the option, go back and install',
-      'Open PRIVOX PTT, allow microphone and location permissions, and sign in',
-      'Press the hardware PTT button on the side — the app immediately enters TRANSMITTING state',
-      'The T320 appears in the dispatcher console and on the map the same way as any other user',
-    ],
-  },
-  {
-    title: 'Inrico T320 — installing via USB cable (if the on-device browser does not work)',
-    text: 'Use this only if the T320 cannot download the APK on its own (old or restricted factory browser, no working Wi-Fi yet, Play Store not signed in). No command-line tools, no developer mode — just copying a file over USB, the same way you would move a photo off a phone.',
-    steps: [
-      'On a Windows or Mac computer (not the radio), open a browser, go to ptt.privox.tech/download, and download the "T320 APK" file onto the computer.',
-      'Connect the T320 to the computer with a USB cable.',
-      'On the T320 screen, a notification appears about the USB connection — tap it and choose "File Transfer" or "Transfer files" (sometimes called MTP). If you only see "Charging", tap the notification to change the mode.',
-      'On the computer, the T320 appears as a removable drive (like a USB flash drive). Open it and copy the downloaded APK file into its "Download" folder.',
-      'Unplug the cable. On the T320 itself, open its file manager app (or "My Files"), go to the Download folder, and tap the APK file.',
-      'Android will ask to allow installing from this source — tap Settings, enable it for this app, go back, and tap Install.',
-      'Open PRIVOX PTT once installed and continue with the normal setup guide above (Wi-Fi, permissions, sign in).',
-    ],
-  },
-  {
-    title: 'PRIVOX Mini Radio',
-    text: 'PRIVOX Mini Radio is a compact push-to-talk radio that connects to the PRIVOX PTT server over Wi-Fi. It has a built-in microphone, speaker, PTT button, and a status indicator. No phone or computer is needed during operation — just power on and press to talk.',
-    items: [
-      'Works in the same groups as web and Android users — all hear each other',
-      'Status indicator shows connection state and active transmission at a glance',
-      'Volume control built in',
-      'Supports up to 5 saved Wi-Fi networks — connects automatically to any available',
-      'Works on home Wi-Fi, office networks, or a mobile hotspot',
-      'No apps or drivers needed on the user\'s phone',
-    ],
-  },
-  {
-    title: 'PRIVOX Mini Radio — first-time setup',
-    text: 'The device is configured once through a browser. An administrator prepares the account; the user only needs to add their Wi-Fi network.',
-    items: [
-      'Administrator creates a user account in PRIVOX PTT and adds it to the required group',
-      'Administrator connects to the device setup page and enters the account details',
-      'User powers on the device — the indicator blinks purple during setup mode',
-      'User connects phone or laptop to the Wi-Fi network named PRIVOX-XXXX (no password required)',
-      'Browser opens the setup page automatically — enter Wi-Fi name and password, tap Save',
-      'Device restarts, connects to Wi-Fi, and the indicator turns blue — ready to use',
-    ],
-  },
-  {
-    title: 'PRIVOX Mini Radio — indicator',
-    text: 'The status indicator shows what the device is doing without any sound or display.',
-    items: [
-      'Purple blinking — setup mode, waiting for Wi-Fi configuration',
-      'Purple solid — connecting to Wi-Fi or to the server',
-      'Orange — account error, contact the administrator',
-      'Blue — connected and ready, no activity in the group',
-      'Green — someone in the group is speaking, audio is playing',
-      'Red — PTT button is pressed, you are transmitting',
-    ],
-  },
-  {
-    title: 'PRIVOX Mini Radio — adding a new Wi-Fi network',
-    text: 'To add a new Wi-Fi network without losing existing settings, use the short PTT hold at power-on.',
-    items: [
-      'Hold the PTT button while powering on the device',
-      'Release when the indicator turns yellow (after 3–8 seconds)',
-      'Connect to PRIVOX-XXXX Wi-Fi and open the browser',
-      'Existing networks and account details are preserved — just add the new network',
-      'For a full reset, hold PTT until the indicator turns red (more than 8 seconds)',
-    ],
-  },
-];
-
-const faqs = [
-  ['What is PRIVOX PTT?', 'PRIVOX PTT is a secure push-to-talk communication system for teams, dispatchers, and dedicated hardware radios. Users press, speak, and release, similar to radio communication over the internet.'],
-  ['Do I need the Android app?', 'No. The web version works today in a modern browser. The Android APK is useful for mobile field testing and faster access from the phone launcher.'],
-  ['Can iPhone users test PRIVOX PTT?', 'Yes. Either open the web app in Safari (no install needed) and add it to the Home Screen from the Share menu, or install the native app via TestFlight from the iPhone card on /download for calls that ring with the screen locked.'],
-  ['What does the Android app support now?', 'It supports PTT, individual calls, CALL GROUP, Firebase wake-up, native ANSWER and DECLINE controls, and background availability through a foreground service.'],
-  ['Does Android work with the screen locked?', 'Yes. A high-priority Firebase call can wake a registered sleeping Android phone and show the native incoming-call screen. Network access, notifications, and unrestricted battery settings must remain enabled.'],
-  ['Does iPhone receive calls with the screen locked?', 'Not in the web version — keep PRIVOX PTT open for active use there. The native iOS app (install via TestFlight) rings and wakes a locked iPhone for incoming calls, the same way Android already does.'],
-  ['Why does Android ask to install an APK from the browser?', 'PRIVOX PTT is distributed directly from this site rather than through Google Play, so Android asks you to confirm the installation. The build is signed with the production PRIVOX key.'],
-  ['Why did an older Android phone show render errors?', 'Older devices may have an outdated Android System WebView. Update Android System WebView from Google Play, restart PRIVOX PTT, and test again.'],
-  ['Who creates organizations?', 'A superadmin creates organizations and can assign users to them. Organization admins then manage users and groups inside their own organization.'],
-  ['Can a user be moved to another organization?', 'Yes. A superadmin can edit an existing user and select another organization. The user must then be added to groups in the new organization.'],
-  ['Can administrators create groups?', 'Yes. Organization admins can create groups, create users, assign users to groups, and manage speaking permissions inside their organization.'],
-  ['What if there is no sound?', 'Check that users are in the same group, microphone permission is allowed, the browser or Android WebView is updated, and the network connection is stable. Restart the app once after first installation if needed.'],
-  ['What should testers report?', 'Report the device model, Android or browser version, account role, group name, whether transmit or receive failed, and whether restarting the app changed the result.'],
-  ['What is Inrico T320?', 'Inrico T320 is a commercial Android-based digital radio. It runs the PRIVOX PTT application as a native APK and works alongside web and Android users in the same groups. The hardware PTT side button is fully integrated and triggers transmit instantly.'],
-  ['Does Inrico T320 require a SIM card?', 'No. The T320 works over Wi-Fi without a SIM. A SIM card (2G/3G) can also be used for cellular connectivity in the field, giving the device standalone operation without a separate hotspot.'],
-  ['How is Inrico T320 different from the Android app?', 'Both run the same PRIVOX PTT web app through a Capacitor wrapper. The main difference is that T320 is a dedicated radio device with a hardware PTT button, a louder built-in speaker, a large battery, and no distraction from a phone. The T320 APK also intercepts the hardware PTT key and maps it to push-to-talk.'],
-  ['Does the hardware PTT button work on Inrico T320?', 'Yes. The side PTT button on the T320 is captured by the PRIVOX PTT app and triggers transmit immediately. Releasing the button stops transmission. No on-screen interaction is needed during operation.'],
-  ['What if the Inrico T320 shows a blank screen after opening PRIVOX PTT?', 'The factory Chrome on older T320 units is version 70, which is too old for the web app. Open the Play Store, update Chrome to version 100 or later, then restart PRIVOX PTT. The system WebView on T320 is powered by Chrome, so updating Chrome is sufficient.'],
-  ['What is PRIVOX Mini Radio?', 'PRIVOX Mini Radio is a self-build PTT radio based on the ESP32-S3 microcontroller. It connects to the PRIVOX PTT server over Wi-Fi and works inside the same groups as web and Android users.'],
-  ['Do I need to program the PRIVOX Mini Radio?', 'No programming tools are needed for configuration. The device starts a Wi-Fi setup portal on first power-on. Connect a phone to the PRIVOX-XXXX network, open a browser, and fill in the Wi-Fi and account details.'],
-  ['What hardware do I need to build PRIVOX Mini Radio?', 'ESP32-S3 DevKitC-1, INMP441 I2S microphone, MAX98357A I2S amplifier, a small 4Ω speaker, and a push button. Full wiring details are in the Docs section.'],
-  ['How do I add a new Wi-Fi network to PRIVOX Mini Radio?', 'Hold the PTT button while powering on until the LED turns yellow (3–8 seconds), then release. The portal opens with existing settings preserved. Add the new network and save.'],
-  ['How do I factory reset PRIVOX Mini Radio?', 'Hold the PTT button while powering on until the LED turns red (more than 8 seconds), then release. All settings are erased and the device restarts the setup portal.'],
-  ['Can PRIVOX Mini Radio work on mobile data?', 'Yes. Connect the radio to a mobile hotspot like any other Wi-Fi network. It will authenticate and work the same way as on a home or office network.'],
-];
+function LanguageSwitcher({ className }: { className?: string }) {
+  const { lang, setLang } = useLanguage();
+  return (
+    <span className={clsx('inline-flex items-center gap-1 text-xs font-semibold text-slate-500', className)}>
+      <Globe className="h-3.5 w-3.5" />
+      {(Object.keys(LANGUAGE_LABELS) as LanguageCode[]).map((code, i) => (
+        <span key={code} className="flex items-center gap-1">
+          {i > 0 && <span className="text-slate-300">·</span>}
+          <button
+            onClick={() => setLang(code)}
+            className={clsx('hover:text-sky-700', lang === code ? 'text-sky-700' : 'text-slate-500')}
+          >
+            {LANGUAGE_LABELS[code]}
+          </button>
+        </span>
+      ))}
+    </span>
+  );
+}
 
 function PublicLayout({ children }: { children: React.ReactNode }) {
   const user = useStore((s) => s.user);
   const clearAuth = useStore((s) => s.clearAuth);
+  const { t } = useLanguage();
+
+  const navLinks = [
+    { to: '/download', label: t.nav.download },
+    // Презентация системы — отдельная статическая страница (web/public/presentation),
+    // а не маршрут приложения, и не часть этого переключателя (у неё свой,
+    // независимый RU/EN/FR — см. langs ниже). Поэтому external: обычная
+    // ссылка, не Link роутера.
+    {
+      to: '/presentation/', label: t.nav.overview, external: true,
+      langs: [
+        { to: '/presentation/', label: 'RU' },
+        { to: '/presentation/en/', label: 'EN' },
+        { to: '/presentation/fr/', label: 'FR' },
+      ],
+    },
+    {
+      to: '/business/', label: t.nav.forBusiness, external: true,
+      langs: [
+        { to: '/business/', label: 'RU' },
+        { to: '/business/en/', label: 'EN' },
+      ],
+    },
+    { to: '/docs', label: t.nav.docs },
+    { to: '/faq', label: t.nav.faq },
+    { to: '/support', label: t.nav.support },
+    { to: '/status', label: t.nav.status },
+  ];
 
   async function handleLogout() {
     const refreshToken = localStorage.getItem('refreshToken') ?? '';
@@ -350,10 +130,10 @@ function PublicLayout({ children }: { children: React.ReactNode }) {
                   </a>
                   {'langs' in link && link.langs && (
                     <span className="flex items-center gap-1 text-xs font-normal text-slate-400">
-                      {link.langs.map((lang, i) => (
-                        <span key={lang.to} className="flex items-center gap-1">
+                      {link.langs.map((lng, i) => (
+                        <span key={lng.to} className="flex items-center gap-1">
                           {i > 0 && <span>·</span>}
-                          <a href={lang.to} className="hover:text-sky-700">{lang.label}</a>
+                          <a href={lng.to} className="hover:text-sky-700">{lng.label}</a>
                         </span>
                       ))}
                     </span>
@@ -365,6 +145,7 @@ function PublicLayout({ children }: { children: React.ReactNode }) {
                 </Link>
               )
             )}
+            <LanguageSwitcher />
           </nav>
           <div className="flex items-center gap-2">
             {user && (
@@ -372,14 +153,14 @@ function PublicLayout({ children }: { children: React.ReactNode }) {
                 onClick={handleLogout}
                 className="hidden rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-sky-300 hover:text-sky-700 sm:inline-flex"
               >
-                Log out
+                {t.nav.logOut}
               </button>
             )}
             <Link
               to="/app"
               className="inline-flex items-center gap-2 rounded-md bg-slate-950 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700"
             >
-              {user ? 'Open app' : 'Sign in'} <ArrowRight className="h-4 w-4" />
+              {user ? t.nav.openApp : t.nav.signIn} <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
         </div>
@@ -389,25 +170,28 @@ function PublicLayout({ children }: { children: React.ReactNode }) {
         <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
           <div>
             <p className="font-bold text-slate-950">PRIVOX PTT</p>
-            <p className="mt-1 text-sm text-slate-500">Secure push-to-talk platform for operational teams.</p>
+            <p className="mt-1 text-sm text-slate-500">{t.footer.tagline}</p>
           </div>
-          <div className="flex flex-wrap gap-4 text-sm font-medium text-slate-600">
-            <Link to="/app" className="hover:text-sky-700">Sign in</Link>
-            <Link to="/download" className="hover:text-sky-700">Download</Link>
-            <Link to="/docs" className="hover:text-sky-700">Docs</Link>
-            <Link to="/faq" className="hover:text-sky-700">FAQ</Link>
-            <Link to="/support" className="hover:text-sky-700">Support</Link>
-            <Link to="/privacy" className="hover:text-sky-700">Privacy</Link>
+          <div className="flex flex-wrap items-center gap-4 text-sm font-medium text-slate-600">
+            <Link to="/app" className="hover:text-sky-700">{t.footer.signIn}</Link>
+            <Link to="/download" className="hover:text-sky-700">{t.footer.download}</Link>
+            <Link to="/docs" className="hover:text-sky-700">{t.footer.docs}</Link>
+            <Link to="/faq" className="hover:text-sky-700">{t.footer.faq}</Link>
+            <Link to="/support" className="hover:text-sky-700">{t.footer.support}</Link>
+            <Link to="/privacy" className="hover:text-sky-700">{t.footer.privacy}</Link>
             {/* Верхнее меню (nav выше) скрыто на мобильных — footer нет,
                 поэтому презентация продублирована сюда на всех трёх языках
-                (замечено Eugene: без этого её легко потерять). */}
+                (замечено Eugene: без этого её легко потерять), плюс сам
+                переключатель языка сайта. */}
             <span className="text-slate-400">·</span>
-            <a href="/presentation/" className="hover:text-sky-700">Overview (RU)</a>
+            <a href="/presentation/" className="hover:text-sky-700">{t.footer.overviewLabel} (RU)</a>
             <a href="/presentation/en/" className="hover:text-sky-700">EN</a>
             <a href="/presentation/fr/" className="hover:text-sky-700">FR</a>
             <span className="text-slate-400">·</span>
-            <a href="/business/" className="hover:text-sky-700">For business (RU)</a>
+            <a href="/business/" className="hover:text-sky-700">{t.footer.businessLabel} (RU)</a>
             <a href="/business/en/" className="hover:text-sky-700">EN</a>
+            <span className="text-slate-400">·</span>
+            <LanguageSwitcher />
           </div>
         </div>
       </footer>
@@ -426,6 +210,7 @@ function SectionHeader({ eyebrow, title, text }: { eyebrow: string; title: strin
 }
 
 function AppMockup() {
+  const { t } = useLanguage();
   return (
     <div className="relative rounded-xl border border-slate-200 bg-white p-3 shadow-2xl shadow-sky-900/10">
       <div className="rounded-lg border border-slate-200 bg-slate-950 p-4 text-white">
@@ -438,7 +223,7 @@ function AppMockup() {
         </div>
         <div className="grid gap-3 py-4 sm:grid-cols-[1fr_150px]">
           <div className="space-y-2">
-            {['Priority channel', 'Field team', 'Operations channel'].map((name, index) => (
+            {t.home.mockupChannels.map((name, index) => (
               <div key={name} className={clsx('rounded-md border p-3', index === 1 ? 'border-emerald-400/50 bg-emerald-400/10' : 'border-white/10 bg-white/5')}>
                 <div className="flex items-center gap-2">
                   <span className={clsx('h-2 w-2 rounded-full', index === 0 ? 'bg-red-400' : index === 1 ? 'bg-emerald-400' : 'bg-sky-400')} />
@@ -450,23 +235,20 @@ function AppMockup() {
           </div>
           <div className="flex flex-col items-center justify-center rounded-lg border border-white/10 bg-white/5 p-4">
             <PrivoxLogo className="h-24 w-24 rounded-2xl shadow-lg shadow-emerald-400/20" markClassName="h-16 w-16" />
-            <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-200">Push to talk</p>
+            <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-200">{t.home.mockupPushToTalk}</p>
           </div>
         </div>
         <div className="grid grid-cols-3 gap-2 border-t border-white/10 pt-3 text-xs text-slate-300">
-          <span>Team online</span>
-          <span>WebRTC</span>
-          <span>Secure auth</span>
+          {t.home.mockupFooter.map((label) => <span key={label}>{label}</span>)}
         </div>
       </div>
-      <p className="mt-3 px-1 text-xs text-slate-500">
-        Placeholder mockup. Future real media can include Android screenshots, dispatcher views, PoC devices, and the PTT interface.
-      </p>
+      <p className="mt-3 px-1 text-xs text-slate-500">{t.home.mockupCaption}</p>
     </div>
   );
 }
 
-export function HomePage() {
+function HomePageInner() {
+  const { t } = useLanguage();
   return (
     <PublicLayout>
       <main>
@@ -475,23 +257,23 @@ export function HomePage() {
             <div>
               <div className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-white px-3 py-1 text-sm font-medium text-sky-800 shadow-sm">
                 <ShieldCheck className="h-4 w-4" />
-                Web version available now
+                {t.home.heroBadge}
               </div>
               <h1 className="mt-6 text-5xl font-bold tracking-tight text-slate-950 sm:text-6xl lg:text-7xl">
                 PRIVOX PTT
               </h1>
               <p className="mt-6 max-w-2xl text-xl leading-8 text-slate-600">
-                A secure push-to-talk communication system for teams, dispatchers, and dedicated hardware radios.
+                {t.home.heroSubtitle}
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <Link to="/app" className="inline-flex items-center justify-center gap-2 rounded-md bg-sky-600 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-sky-700">
-                  Sign in to the system <ArrowRight className="h-4 w-4" />
+                  {t.home.signInCta} <ArrowRight className="h-4 w-4" />
                 </Link>
                 <Link to="/download" className="inline-flex items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-5 py-3 font-semibold text-slate-800 shadow-sm transition hover:border-sky-300 hover:text-sky-700">
-                  Download app <Download className="h-4 w-4" />
+                  {t.home.downloadCta} <Download className="h-4 w-4" />
                 </Link>
                 <Link to="/docs" className="inline-flex items-center justify-center gap-2 rounded-md border border-transparent px-5 py-3 font-semibold text-slate-700 transition hover:text-sky-700">
-                  Documentation <BookOpen className="h-4 w-4" />
+                  {t.home.docsCta} <BookOpen className="h-4 w-4" />
                 </Link>
                 <HeroGuideDownloadButton />
               </div>
@@ -502,12 +284,12 @@ export function HomePage() {
 
         <section className="bg-white px-4 py-20 sm:px-6 lg:px-8">
           <SectionHeader
-            eyebrow="What it is"
-            title="Digital radio over the internet"
-            text="PRIVOX PTT gives teams a press-to-talk voice workflow across web, Android, iPhone, and dedicated hardware radios."
+            eyebrow={t.home.whatItIs.eyebrow}
+            title={t.home.whatItIs.title}
+            text={t.home.whatItIs.text}
           />
           <div className="mx-auto mt-10 grid max-w-5xl gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {['User groups', 'Dispatcher mode', 'Administration', 'WebRTC audio', 'Secure authentication', 'Device-ready roadmap'].map((item) => (
+            {t.home.whatItIs.items.map((item) => (
               <div key={item} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                 <CheckCircle2 className="h-5 w-5 text-sky-600" />
                 <p className="mt-3 font-semibold text-slate-900">{item}</p>
@@ -517,44 +299,48 @@ export function HomePage() {
         </section>
 
         <section className="bg-slate-50 px-4 py-20 sm:px-6 lg:px-8">
-          <SectionHeader eyebrow="Who it serves" title="Teams that need fast operational voice" />
+          <SectionHeader eyebrow={t.home.audience.eyebrow} title={t.home.audience.title} />
           <div className="mx-auto mt-10 grid max-w-6xl gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {audience.map(([title, Icon]) => (
-              <div key={title as string} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-                <Icon className="h-6 w-6 text-sky-600" />
-                <p className="mt-4 font-semibold text-slate-900">{title as string}</p>
-              </div>
-            ))}
+            {t.home.audience.items.map((title, i) => {
+              const Icon = AUDIENCE_ICONS[i];
+              return (
+                <div key={title} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                  <Icon className="h-6 w-6 text-sky-600" />
+                  <p className="mt-4 font-semibold text-slate-900">{title}</p>
+                </div>
+              );
+            })}
           </div>
         </section>
 
         <section className="bg-white px-4 py-20 sm:px-6 lg:px-8">
-          <SectionHeader eyebrow="How it works" title="One server, roles, and voice channels" />
+          <SectionHeader eyebrow={t.home.howItWorks.eyebrow} title={t.home.howItWorks.title} />
           <div className="mx-auto mt-12 grid max-w-6xl gap-4 lg:grid-cols-4">
-            {[
-              ['User / Android / PoC device', Smartphone],
-              ['PRIVOX PTT Server', Router],
-              ['Groups / dispatcher / admin', Users],
-              ['Other users', Radio],
-            ].map(([title, Icon], index) => (
-              <div key={title as string} className="relative rounded-lg border border-slate-200 bg-slate-50 p-6">
-                <Icon className="h-7 w-7 text-sky-600" />
-                <p className="mt-4 font-semibold text-slate-900">{title as string}</p>
-                {index < 3 && <ArrowRight className="absolute -right-3 top-1/2 hidden h-6 w-6 -translate-y-1/2 text-slate-300 lg:block" />}
-              </div>
-            ))}
+            {t.home.howItWorks.items.map((title, index) => {
+              const Icon = HOW_IT_WORKS_ICONS[index];
+              return (
+                <div key={title} className="relative rounded-lg border border-slate-200 bg-slate-50 p-6">
+                  <Icon className="h-7 w-7 text-sky-600" />
+                  <p className="mt-4 font-semibold text-slate-900">{title}</p>
+                  {index < 3 && <ArrowRight className="absolute -right-3 top-1/2 hidden h-6 w-6 -translate-y-1/2 text-slate-300 lg:block" />}
+                </div>
+              );
+            })}
           </div>
         </section>
 
         <section className="bg-slate-50 px-4 py-20 sm:px-6 lg:px-8">
-          <SectionHeader eyebrow="Capabilities" title="Core pieces for a production PTT platform" />
+          <SectionHeader eyebrow={t.home.capabilities.eyebrow} title={t.home.capabilities.title} />
           <div className="mx-auto mt-10 grid max-w-6xl gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {features.map(([title, Icon]) => (
-              <div key={title as string} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-                <Icon className="h-6 w-6 text-sky-600" />
-                <p className="mt-3 font-semibold text-slate-900">{title as string}</p>
-              </div>
-            ))}
+            {t.home.capabilities.items.map((title, i) => {
+              const Icon = CAPABILITY_ICONS[i];
+              return (
+                <div key={title} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                  <Icon className="h-6 w-6 text-sky-600" />
+                  <p className="mt-3 font-semibold text-slate-900">{title}</p>
+                </div>
+              );
+            })}
           </div>
         </section>
 
@@ -566,35 +352,40 @@ export function HomePage() {
 }
 
 function PlatformsSection() {
+  const { t } = useLanguage();
   return (
     <section className="bg-white px-4 py-20 sm:px-6 lg:px-8">
-      <SectionHeader eyebrow="Platforms" title="Web today, mobile and hardware next" />
+      <SectionHeader eyebrow={t.home.platforms.eyebrow} title={t.home.platforms.title} />
       <div className="mx-auto mt-10 grid max-w-6xl gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        {platforms.map(({ title, status, icon: Icon, tone }) => (
-          <div key={title} className={clsx('rounded-lg border p-5', tone)}>
-            <Icon className="h-7 w-7" />
-            <h3 className="mt-4 text-lg font-bold">{title}</h3>
-            <p className="mt-2 text-sm">{status}</p>
-          </div>
-        ))}
+        {t.home.platforms.items.map(({ title, status }, i) => {
+          const Icon = PLATFORM_ICONS[i];
+          return (
+            <div key={title} className={clsx('rounded-lg border p-5', PLATFORM_TONES[i])}>
+              <Icon className="h-7 w-7" />
+              <h3 className="mt-4 text-lg font-bold">{title}</h3>
+              <p className="mt-2 text-sm">{status}</p>
+            </div>
+          );
+        })}
       </div>
     </section>
   );
 }
 
 function HelpSection() {
+  const { t } = useLanguage();
   return (
     <section className="bg-slate-950 px-4 py-16 text-white sm:px-6 lg:px-8">
       <div className="mx-auto grid max-w-6xl gap-8 md:grid-cols-[1fr_1.2fr] md:items-center">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-sky-300">Docs and help</p>
-          <h2 className="mt-3 text-3xl font-bold tracking-tight">Launch, support, and operating materials</h2>
+          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-sky-300">{t.home.help.eyebrow}</p>
+          <h2 className="mt-3 text-3xl font-bold tracking-tight">{t.home.help.title}</h2>
         </div>
         <div className="grid gap-3 sm:grid-cols-3">
           {[
-            ['/docs', 'Docs', BookOpen],
-            ['/faq', 'FAQ', FileQuestion],
-            ['/support', 'Support', MessageCircle],
+            ['/docs', t.home.help.docs, BookOpen],
+            ['/faq', t.home.help.faq, FileQuestion],
+            ['/support', t.home.help.support, MessageCircle],
           ].map(([to, label, Icon]) => (
             <Link key={to as string} to={to as string} className="rounded-lg border border-white/10 bg-white/5 p-5 transition hover:bg-white/10">
               <Icon className="h-6 w-6 text-sky-300" />
@@ -628,6 +419,7 @@ function useGuideDownload() {
 
 function GuideDownloadButton() {
   const { state, handleClick } = useGuideDownload();
+  const { t } = useLanguage();
 
   return (
     <div className="mt-5">
@@ -636,7 +428,7 @@ function GuideDownloadButton() {
         disabled={state === 'working'}
         className="inline-flex items-center gap-2 rounded-md bg-emerald-600 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-60"
       >
-        {state === 'working' ? 'Preparing PDF…' : 'Download the guide (PDF)'} <Download className="h-4 w-4" />
+        {state === 'working' ? t.home.guideCtaWorking : t.home.guideCta} <Download className="h-4 w-4" />
       </button>
       {state === 'error' && (
         <p className="mt-3 text-sm text-red-600">Could not generate the PDF. Try again, or use a different browser.</p>
@@ -649,6 +441,7 @@ function GuideDownloadButton() {
  * хук/генерация, что и GuideDownloadButton, просто вписана в общий ряд. */
 function HeroGuideDownloadButton() {
   const { state, handleClick } = useGuideDownload();
+  const { t } = useLanguage();
 
   return (
     <button
@@ -656,12 +449,13 @@ function HeroGuideDownloadButton() {
       disabled={state === 'working'}
       className="inline-flex items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-5 py-3 font-semibold text-slate-800 shadow-sm transition hover:border-sky-300 hover:text-sky-700 disabled:opacity-60"
     >
-      {state === 'working' ? 'Preparing…' : 'Download the guide'} <FileText className="h-4 w-4" />
+      {state === 'working' ? t.home.guideCtaWorking : t.home.guideCta} <FileText className="h-4 w-4" />
     </button>
   );
 }
 
-export function DownloadPage() {
+function DownloadPageInner() {
+  const { t } = useLanguage();
   // Сборки подписаны рабочим ключом PRIVOX — обновляются поверх предыдущих.
   // ?v= обязателен и должен расти с каждой сборкой: без него Cloudflare и
   // браузер отдадут закешированный APK со старым содержимым.
@@ -672,181 +466,145 @@ export function DownloadPage() {
   // понадобится сменить (например, при переходе на полную публикацию в App
   // Store) — обновить и здесь, и в JoinPage.tsx (IOS_TESTFLIGHT_URL).
   const iosTestFlightUrl = 'https://testflight.apple.com/join/zRVpz5WR';
+  const d = t.download;
 
   return (
     <PublicLayout>
       <main className="bg-slate-50 px-4 py-16 sm:px-6 lg:px-8">
-        <SectionHeader eyebrow="Download" title="PRIVOX PTT downloads" text="Use PRIVOX PTT on Android, iPhone, a computer, or a dedicated hardware radio." />
+        <SectionHeader eyebrow={d.eyebrow} title={d.title} text={d.text} />
         <div className="mx-auto mt-10 grid max-w-5xl gap-5 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-lg border border-emerald-200 bg-white p-6 shadow-sm">
             <Smartphone className="h-8 w-8 text-emerald-600" />
-            <h2 className="mt-5 text-xl font-bold text-slate-950">Android APK</h2>
-            <p className="mt-2 text-sm font-medium uppercase tracking-[0.12em] text-emerald-700">Signed release</p>
-            <p className="mt-3 text-sm leading-6 text-slate-600">v2.1 — opens invitation links directly, works with the screen off, rings on incoming calls.</p>
+            <h2 className="mt-5 text-xl font-bold text-slate-950">{d.android.title}</h2>
+            <p className="mt-2 text-sm font-medium uppercase tracking-[0.12em] text-emerald-700">{d.android.badge}</p>
+            <p className="mt-3 text-sm leading-6 text-slate-600">{d.android.text}</p>
             <a href={androidApkUrl} download className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-emerald-700">
-              Download Android APK <Download className="h-4 w-4" />
+              {d.android.cta} <Download className="h-4 w-4" />
             </a>
           </div>
           <div className="rounded-lg border border-orange-200 bg-white p-6 shadow-sm">
             <Radio className="h-8 w-8 text-orange-600" />
-            <h2 className="mt-5 text-xl font-bold text-slate-950">Inrico T320</h2>
-            <p className="mt-2 text-sm font-medium uppercase tracking-[0.12em] text-orange-700">Hardware PTT radio</p>
-            <p className="mt-3 text-sm leading-6 text-slate-600">Android-based radio with a dedicated PTT button. Runs the PRIVOX PTT app natively.</p>
-            <p className="mt-2 text-sm leading-6 text-slate-500">v2.0 — opens invitation links directly, starts on its own after power-on, stays signed in.</p>
+            <h2 className="mt-5 text-xl font-bold text-slate-950">{d.t320.title}</h2>
+            <p className="mt-2 text-sm font-medium uppercase tracking-[0.12em] text-orange-700">{d.t320.badge}</p>
+            <p className="mt-3 text-sm leading-6 text-slate-600">{d.t320.text}</p>
+            <p className="mt-2 text-sm leading-6 text-slate-500">{d.t320.version}</p>
             <a href={t320ApkUrl} download className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-md bg-orange-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-orange-700">
-              Download T320 APK <Download className="h-4 w-4" />
+              {d.t320.cta} <Download className="h-4 w-4" />
             </a>
             <Link to="/docs" className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md border border-orange-300 px-4 py-3 font-semibold text-orange-700 transition hover:bg-orange-50">
-              Setup guide <BookOpen className="h-4 w-4" />
+              {d.t320.setupGuide} <BookOpen className="h-4 w-4" />
             </Link>
           </div>
           <div className="rounded-lg border border-sky-200 bg-white p-6 shadow-sm">
             <BadgeCheck className="h-8 w-8 text-sky-600" />
-            <h2 className="mt-5 text-xl font-bold text-slate-950">iPhone</h2>
+            <h2 className="mt-5 text-xl font-bold text-slate-950">{d.iphone.title}</h2>
             <p className="mt-2 text-sm font-medium uppercase tracking-[0.12em] text-sky-700">
-              {iosTestFlightUrl ? 'TestFlight app' : 'Use web version'}
+              {iosTestFlightUrl ? d.iphone.badgeTestflight : d.iphone.badgeWeb}
             </p>
             <p className="mt-3 text-sm leading-6 text-slate-600">
-              {iosTestFlightUrl
-                ? 'Rings on incoming calls even with the screen locked.'
-                : 'Works fully in Safari — add it to your Home Screen below for an app-like experience.'}
+              {iosTestFlightUrl ? d.iphone.textTestflight : d.iphone.textWeb}
             </p>
             {iosTestFlightUrl ? (
               <a href={iosTestFlightUrl} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-md bg-sky-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-sky-700">
-                Install via TestFlight <ExternalLink className="h-4 w-4" />
+                {d.iphone.ctaTestflight} <ExternalLink className="h-4 w-4" />
               </a>
             ) : (
               <a href={webAppUrl} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-md bg-sky-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-sky-700">
-                Open web app <ExternalLink className="h-4 w-4" />
+                {d.iphone.ctaWeb} <ExternalLink className="h-4 w-4" />
               </a>
             )}
             <Link to="/docs" className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md border border-sky-200 bg-white px-4 py-3 font-semibold text-sky-700 transition hover:bg-sky-50">
-              Setup guide <BookOpen className="h-4 w-4" />
+              {d.iphone.setupGuide} <BookOpen className="h-4 w-4" />
             </Link>
           </div>
           <div className="rounded-lg border border-indigo-200 bg-white p-6 shadow-sm">
             <Radio className="h-8 w-8 text-indigo-600" />
-            <h2 className="mt-5 text-xl font-bold text-slate-950">PRIVOX Mini Radio</h2>
-            <p className="mt-2 text-sm font-medium uppercase tracking-[0.12em] text-indigo-700">Hardware PTT radio</p>
+            <h2 className="mt-5 text-xl font-bold text-slate-950">{d.mini.title}</h2>
+            <p className="mt-2 text-sm font-medium uppercase tracking-[0.12em] text-indigo-700">{d.mini.badge}</p>
             <Link to="/docs" className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-md bg-indigo-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-indigo-700">
-              Setup guide <BookOpen className="h-4 w-4" />
+              {d.mini.setupGuide} <BookOpen className="h-4 w-4" />
             </Link>
           </div>
         </div>
         <section className="mx-auto mt-8 max-w-5xl rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-bold text-slate-950">Two ways to sign in</h2>
+          <h2 className="text-xl font-bold text-slate-950">{d.signInWays.title}</h2>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             <div className="rounded-md bg-slate-50 p-4 text-sm leading-6 text-slate-600">
-              <p className="font-semibold text-slate-950">QR invitation (fastest)</p>
-              <p className="mt-2">
-                Your administrator sends a personal QR code or link. Scan it or open the link, confirm your name and group, and tap JOIN — no password to type. Works the same on Android and iPhone, in the app or in the browser.
-              </p>
+              <p className="font-semibold text-slate-950">{d.signInWays.qrTitle}</p>
+              <p className="mt-2">{d.signInWays.qrText}</p>
             </div>
             <div className="rounded-md bg-slate-50 p-4 text-sm leading-6 text-slate-600">
-              <p className="font-semibold text-slate-950">Login and password</p>
+              <p className="font-semibold text-slate-950">{d.signInWays.passwordTitle}</p>
               <p className="mt-2">
-                If you were given a login (short name or email) and a password instead — for example on a dedicated radio — open{' '}
-                <Link to="/login" className="font-semibold text-sky-700 hover:underline">the sign-in page</Link>{' '}
-                and enter them there. This also works as a backup if your QR invitation link stops working.
+                {d.signInWays.passwordTextBefore}{' '}
+                <Link to="/login" className="font-semibold text-sky-700 hover:underline">{d.signInWays.passwordLink}</Link>{' '}
+                {d.signInWays.passwordTextAfter}
               </p>
             </div>
           </div>
         </section>
         <section className="mx-auto mt-8 max-w-5xl rounded-lg border border-emerald-200 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-bold text-slate-950">Printable step-by-step guide</h2>
-          <p className="mt-3 leading-7 text-slate-600">
-            A plain-language walkthrough — scanning the code, installing the app, signing in, and using push-to-talk
-            — in Russian, English, and French. Good for printing or sending over WhatsApp to someone new to
-            smartphones.
-          </p>
+          <h2 className="text-xl font-bold text-slate-950">{d.guide.title}</h2>
+          <p className="mt-3 leading-7 text-slate-600">{d.guide.text}</p>
           <GuideDownloadButton />
         </section>
         <section className="mx-auto mt-8 max-w-5xl rounded-lg border border-amber-300 bg-amber-50 p-6">
-          <h2 className="text-lg font-bold text-slate-950">Upgrading from an earlier build? Uninstall it first</h2>
-          <p className="mt-3 leading-7 text-slate-700">
-            These builds are signed with the production PRIVOX key, while earlier ones were test builds. Android
-            refuses to install over an app signed with a different key, so remove the old PRIVOX PTT before
-            installing. You will sign in once more afterwards.
-          </p>
-          <p className="mt-2 leading-7 text-slate-700">
-            This is a one-time step. From now on new versions install straight over the previous one and keep you
-            signed in.
-          </p>
+          <h2 className="text-lg font-bold text-slate-950">{d.upgradeWarning.title}</h2>
+          <p className="mt-3 leading-7 text-slate-700">{d.upgradeWarning.text1}</p>
+          <p className="mt-2 leading-7 text-slate-700">{d.upgradeWarning.text2}</p>
         </section>
 
         <section className="mx-auto mt-8 max-w-5xl rounded-lg border border-sky-200 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-bold text-slate-950">Web version for iPhone and computers</h2>
-          <p className="mt-3 leading-7 text-slate-600">
-            If you use an iPhone, open the PRIVOX PTT web version in Safari. You can also use the same web version on a desktop or laptop computer.
-          </p>
+          <h2 className="text-xl font-bold text-slate-950">{d.webVersion.title}</h2>
+          <p className="mt-3 leading-7 text-slate-600">{d.webVersion.text}</p>
           <a href={webAppUrl} className="mt-5 inline-flex items-center gap-2 rounded-md bg-slate-950 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-sky-700">
-            Open PRIVOX PTT web app <ArrowRight className="h-4 w-4" />
+            {d.webVersion.cta} <ArrowRight className="h-4 w-4" />
           </a>
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             <div className="rounded-md bg-slate-50 p-4 text-sm leading-6 text-slate-600">
-              <p className="font-semibold text-slate-950">Add to iPhone Home Screen</p>
+              <p className="font-semibold text-slate-950">{d.webVersion.addHomeScreenTitle}</p>
               <ol className="mt-2 space-y-1">
-                <li>1. Open PRIVOX PTT in Safari.</li>
-                <li>2. Tap the Share button.</li>
-                <li>3. Choose Add to Home Screen.</li>
-                <li>4. Tap Add.</li>
+                {d.webVersion.addHomeScreenSteps.map((step) => <li key={step}>{step}</li>)}
               </ol>
             </div>
             <div className="rounded-md bg-slate-50 p-4 text-sm leading-6 text-slate-600">
-              <p className="font-semibold text-slate-950">Use on a computer</p>
-              <p className="mt-2">
-                Open this site in Chrome, Edge, Safari, or another modern browser, sign in, allow microphone access, and use PRIVOX PTT directly from the web.
-              </p>
+              <p className="font-semibold text-slate-950">{d.webVersion.computerTitle}</p>
+              <p className="mt-2">{d.webVersion.computerText}</p>
             </div>
           </div>
         </section>
         <section className="mx-auto mt-8 max-w-5xl rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-bold text-slate-950">Android installation steps</h2>
+          <h2 className="text-xl font-bold text-slate-950">{d.androidSteps.title}</h2>
           <ol className="mt-4 grid gap-3 text-sm leading-6 text-slate-600 md:grid-cols-2">
-            <li className="rounded-md bg-slate-50 p-4"><span className="font-semibold text-slate-950">1.</span> Open this page on the Android phone and tap Download Android APK.</li>
-            <li className="rounded-md bg-slate-50 p-4"><span className="font-semibold text-slate-950">2.</span> Confirm the APK download warning in Chrome or the browser.</li>
-            <li className="rounded-md bg-slate-50 p-4"><span className="font-semibold text-slate-950">3.</span> Open the downloaded APK and allow installation from the browser if Android asks.</li>
-            <li className="rounded-md bg-slate-50 p-4"><span className="font-semibold text-slate-950">4.</span> Install PRIVOX PTT, sign in, allow microphone and location access, and test PTT with the screen on.</li>
+            {d.androidSteps.steps.map((step, i) => (
+              <li key={step} className="rounded-md bg-slate-50 p-4"><span className="font-semibold text-slate-950">{i + 1}.</span> {step}</li>
+            ))}
           </ol>
           <div className="mt-5 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
-            If PRIVOX PTT asks to update Android System WebView, tap Update, install the update from Google Play, then restart the app.
+            {d.androidSteps.webviewWarning}
           </div>
-          <p className="mt-4 text-xs text-slate-500">
-            Signed release build, distributed directly from this site. Upgrading from an earlier test build requires uninstalling it first — the signing key changed. Play Store distribution is planned later.
-          </p>
+          <p className="mt-4 text-xs text-slate-500">{d.androidSteps.footnote}</p>
         </section>
         {iosTestFlightUrl && (
           <section className="mx-auto mt-8 max-w-5xl rounded-lg border border-sky-200 bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-bold text-slate-950">iPhone installation steps (TestFlight)</h2>
-            <p className="mt-3 text-sm leading-6 text-slate-600">
-              Apple does not allow installing apps directly from a website, so the PRIVOX PTT app for iPhone is distributed through Apple&apos;s own TestFlight program instead. This is a one-time setup — updates install automatically afterwards.
-            </p>
+            <h2 className="text-xl font-bold text-slate-950">{d.iosSteps.title}</h2>
+            <p className="mt-3 text-sm leading-6 text-slate-600">{d.iosSteps.text}</p>
             <ol className="mt-4 grid gap-3 text-sm leading-6 text-slate-600 md:grid-cols-2">
-              <li className="rounded-md bg-slate-50 p-4"><span className="font-semibold text-slate-950">1.</span> Install the free TestFlight app from the App Store (search &quot;TestFlight&quot;, by Apple).</li>
-              <li className="rounded-md bg-slate-50 p-4"><span className="font-semibold text-slate-950">2.</span> On your iPhone, open this page and tap Install via TestFlight below, or open the link your administrator sent you.</li>
-              <li className="rounded-md bg-slate-50 p-4"><span className="font-semibold text-slate-950">3.</span> In TestFlight, tap Accept, then Install for PRIVOX PTT.</li>
-              <li className="rounded-md bg-slate-50 p-4"><span className="font-semibold text-slate-950">4.</span> Open PRIVOX PTT from your Home Screen, sign in (QR invitation or login and password), and allow microphone access when asked.</li>
+              {d.iosSteps.steps.map((step, i) => (
+                <li key={step} className="rounded-md bg-slate-50 p-4"><span className="font-semibold text-slate-950">{i + 1}.</span> {step}</li>
+              ))}
             </ol>
             <a href={iosTestFlightUrl} className="mt-5 inline-flex items-center gap-2 rounded-md bg-sky-600 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-sky-700">
-              Install via TestFlight <ExternalLink className="h-4 w-4" />
+              {d.iosSteps.cta} <ExternalLink className="h-4 w-4" />
             </a>
-            <p className="mt-4 text-xs text-slate-500">
-              TestFlight builds expire after 90 days and are replaced with a newer one before that happens — TestFlight installs the update automatically, no action needed.
-            </p>
+            <p className="mt-4 text-xs text-slate-500">{d.iosSteps.footnote}</p>
           </section>
         )}
         <section className="mx-auto mt-8 grid max-w-5xl gap-5 md:grid-cols-2">
           <div className="rounded-lg border border-emerald-200 bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-bold text-slate-950">Tester checklist</h2>
+            <h2 className="text-xl font-bold text-slate-950">{d.checklist.title}</h2>
             <ul className="mt-4 space-y-2 text-sm leading-6 text-slate-600">
-              {[
-                'App launches from the phone launcher.',
-                'Login works with the issued test account.',
-                'Microphone and location permissions are requested.',
-                'PTT transmit and receive work with the screen on.',
-                'Dispatcher map shows the Android app user.',
-                'Logout and login work after restarting the app.',
-              ].map((item) => (
+              {d.checklist.items.map((item) => (
                 <li key={item} className="flex gap-2">
                   <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
                   <span>{item}</span>
@@ -855,15 +613,9 @@ export function DownloadPage() {
             </ul>
           </div>
           <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-bold text-slate-950">If something does not work</h2>
+            <h2 className="text-xl font-bold text-slate-950">{d.troubleshoot.title}</h2>
             <ul className="mt-4 space-y-2 text-sm leading-6 text-slate-600">
-              {[
-                'Close PRIVOX PTT and open it again once after the first install.',
-                'Check Android app permissions for microphone and location.',
-                'Update Android System WebView if the app asks for it.',
-                'Use a real Android phone for final PTT/audio checks.',
-                'Hard-refresh the web page or clear site data if old icons remain visible.',
-              ].map((item) => (
+              {d.troubleshoot.items.map((item) => (
                 <li key={item} className="flex gap-2">
                   <Wrench className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
                   <span>{item}</span>
@@ -877,33 +629,31 @@ export function DownloadPage() {
   );
 }
 
-export function DocsPage() {
+function DocsPageInner() {
+  const { t } = useLanguage();
+  const d = t.docs;
   return (
     <PublicLayout>
       <main className="bg-white px-4 py-16 sm:px-6 lg:px-8">
-        <SectionHeader
-          eyebrow="Docs"
-          title="PRIVOX PTT documentation"
-          text="Operating notes for test teams, organization admins, dispatchers, Android testers, and web users."
-        />
+        <SectionHeader eyebrow={d.eyebrow} title={d.title} text={d.text} />
         <div className="mx-auto mt-10 max-w-5xl space-y-4">
-          {docs.map((section, index) => (
+          {d.sections.map((section, index) => (
             <details key={section.title} className="group rounded-lg border border-slate-200 bg-slate-50 p-5 shadow-sm">
               <summary className="cursor-pointer list-none">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="text-sm font-semibold text-sky-700">Section {index + 1}</p>
+                    <p className="text-sm font-semibold text-sky-700">{d.sectionLabel} {index + 1}</p>
                     <h2 className="mt-2 text-xl font-bold text-slate-950">{section.title}</h2>
                   </div>
                   <span className="mt-1 rounded-md border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-500 group-open:text-sky-700">
-                    <span className="group-open:hidden">Open</span>
-                    <span className="hidden group-open:inline">Close</span>
+                    <span className="group-open:hidden">{d.open}</span>
+                    <span className="hidden group-open:inline">{d.close}</span>
                   </span>
                 </div>
               </summary>
               <div className="mt-4 border-t border-slate-200 pt-4">
                 <p className="leading-7 text-slate-600">{section.text}</p>
-                {'steps' in section && section.steps && (
+                {section.steps && (
                   <ol className="mt-4 space-y-2 text-sm leading-6 text-slate-600">
                     {section.steps.map((step, i) => (
                       <li key={step} className="flex gap-3">
@@ -913,8 +663,8 @@ export function DocsPage() {
                     ))}
                   </ol>
                 )}
-                {'items' in section && section.items && (
-                  <ul className={`space-y-2 text-sm leading-6 text-slate-600 ${'steps' in section && section.steps ? 'mt-4 border-t border-slate-100 pt-4' : 'mt-4'}`}>
+                {section.items && (
+                  <ul className={clsx('space-y-2 text-sm leading-6 text-slate-600', section.steps ? 'mt-4 border-t border-slate-100 pt-4' : 'mt-4')}>
                     {section.items.map((item) => (
                       <li key={item} className="flex gap-2">
                         <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
@@ -928,18 +678,9 @@ export function DocsPage() {
           ))}
         </div>
         <section className="mx-auto mt-10 max-w-6xl rounded-lg border border-sky-200 bg-sky-50 p-6">
-          <h2 className="text-xl font-bold text-slate-950">Recommended first test scenario</h2>
+          <h2 className="text-xl font-bold text-slate-950">{d.scenario.title}</h2>
           <ol className="mt-4 grid gap-3 text-sm leading-6 text-slate-700 md:grid-cols-2">
-            {[
-              'Superadmin creates a new organization.',
-              'Superadmin creates one admin and one dispatcher in that organization.',
-              'Admin logs in and creates one group.',
-              'Admin creates two users and adds them to the group.',
-              'Two phones or browsers log in as users and test PTT.',
-              'Dispatcher logs in, checks online users, calls, and map markers.',
-              'One user is moved to another organization by superadmin.',
-              'Admin adds the moved user to a group in the new organization and tests again.',
-            ].map((step, index) => (
+            {d.scenario.steps.map((step, index) => (
               <li key={step} className="rounded-md bg-white p-4 shadow-sm">
                 <span className="font-semibold text-slate-950">{index + 1}.</span> {step}
               </li>
@@ -951,20 +692,21 @@ export function DocsPage() {
   );
 }
 
-export function FaqPage() {
+function FaqPageInner() {
+  const { t } = useLanguage();
   return (
     <PublicLayout>
       <main className="bg-slate-50 px-4 py-16 sm:px-6 lg:px-8">
-        <SectionHeader eyebrow="FAQ" title="Frequently asked questions" />
+        <SectionHeader eyebrow={t.faq.eyebrow} title={t.faq.title} />
         <div className="mx-auto mt-10 max-w-4xl space-y-4">
-          {faqs.map(([question, answer], index) => (
+          {t.faq.items.map(([question, answer]) => (
             <details key={question} className="group rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
               <summary className="cursor-pointer list-none">
                 <div className="flex items-start justify-between gap-4">
                   <h2 className="text-lg font-bold text-slate-950">{question}</h2>
                   <span className="rounded-md border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-500 group-open:text-sky-700">
-                    <span className="group-open:hidden">Open</span>
-                    <span className="hidden group-open:inline">Close</span>
+                    <span className="group-open:hidden">{t.faq.open}</span>
+                    <span className="hidden group-open:inline">{t.faq.close}</span>
                   </span>
                 </div>
               </summary>
@@ -977,8 +719,10 @@ export function FaqPage() {
   );
 }
 
-export function SupportPage() {
+function SupportPageInner() {
   const [sent, setSent] = useState(false);
+  const { t } = useLanguage();
+  const s = t.support;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -988,21 +732,13 @@ export function SupportPage() {
   return (
     <PublicLayout>
       <main className="bg-white px-4 py-16 sm:px-6 lg:px-8">
-        <SectionHeader
-          eyebrow="Support"
-          title="Support and feedback"
-          text="Use this page to prepare useful test reports. The contact form is local-only for now and will be connected to a delivery channel later."
-        />
+        <SectionHeader eyebrow={s.eyebrow} title={s.title} text={s.text} />
         <section className="mx-auto mt-10 grid max-w-6xl gap-5 md:grid-cols-3">
-          {[
-            ['Before reporting', ['Restart the app once after first install.', 'Check microphone and location permissions.', 'Confirm users are in the same group.', 'Update Android System WebView on older phones.']],
-            ['Include in the report', ['Device model and Android version.', 'Browser or Android app version if known.', 'User role and callsign.', 'Group name and organization.', 'Whether transmit, receive, login, or map failed.']],
-            ['Fast checks', ['Try web app in Chrome or Safari.', 'Try another group with two users.', 'Log out and log in again.', 'Check if dispatcher sees the user online.']],
-          ].map(([title, items]) => (
-            <article key={title as string} className="rounded-lg border border-slate-200 bg-slate-50 p-5 shadow-sm">
-              <h2 className="text-lg font-bold text-slate-950">{title as string}</h2>
+          {s.columns.map(({ title, items }) => (
+            <article key={title} className="rounded-lg border border-slate-200 bg-slate-50 p-5 shadow-sm">
+              <h2 className="text-lg font-bold text-slate-950">{title}</h2>
               <ul className="mt-4 space-y-2 text-sm leading-6 text-slate-600">
-                {(items as string[]).map((item) => (
+                {items.map((item) => (
                   <li key={item} className="flex gap-2">
                     <Wrench className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
                     <span>{item}</span>
@@ -1013,184 +749,92 @@ export function SupportPage() {
           ))}
         </section>
         <form onSubmit={handleSubmit} className="mx-auto mt-8 max-w-2xl rounded-lg border border-slate-200 bg-slate-50 p-6 shadow-sm">
-          <h2 className="text-xl font-bold text-slate-950">Prepare a support note</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-600">
-            This form does not send messages yet. Use it as a checklist for what should be sent to the PRIVOX test coordinator.
-          </p>
+          <h2 className="text-xl font-bold text-slate-950">{s.form.title}</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-600">{s.form.text}</p>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block text-sm font-semibold text-slate-700">
-              Name
-              <input className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-950 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100" placeholder="Your name" />
+              {s.form.name}
+              <input className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-950 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100" placeholder={s.form.namePlaceholder} />
             </label>
             <label className="block text-sm font-semibold text-slate-700">
-              Email
-              <input type="email" className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-950 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100" placeholder="you@example.com" />
+              {s.form.email}
+              <input type="email" className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-950 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100" placeholder={s.form.emailPlaceholder} />
             </label>
           </div>
           <label className="mt-4 block text-sm font-semibold text-slate-700">
-            Message
-            <textarea className="mt-2 min-h-36 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-950 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100" placeholder="Describe your question or deployment scenario" />
+            {s.form.message}
+            <textarea className="mt-2 min-h-36 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-950 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100" placeholder={s.form.messagePlaceholder} />
           </label>
           <button className="mt-5 inline-flex items-center gap-2 rounded-md bg-sky-600 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-sky-700">
-            Prepare note <ArrowRight className="h-4 w-4" />
+            {s.form.submit} <ArrowRight className="h-4 w-4" />
           </button>
-          {sent && <p className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">Note prepared. Delivery integration will be added later.</p>}
+          {sent && <p className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">{s.form.sent}</p>}
         </form>
       </main>
     </PublicLayout>
   );
 }
 
-export function PrivacyPage() {
+function PrivacyPageInner() {
+  const { t } = useLanguage();
+  const p = t.privacy;
   return (
     <PublicLayout>
       <main className="bg-white px-4 py-16 sm:px-6 lg:px-8">
-        <SectionHeader
-          eyebrow="Privacy"
-          title="Privacy policy"
-          text="PRIVOX PTT is a private communication platform used by organizations for their own teams. This page explains what data the app handles and why."
-        />
+        <SectionHeader eyebrow={p.eyebrow} title={p.title} text={p.text} />
         <div className="mx-auto mt-10 max-w-3xl space-y-10 text-slate-700">
-          <p className="text-sm text-slate-500">Last updated: August 2026.</p>
+          <p className="text-sm text-slate-500">{p.lastUpdated}</p>
 
-          <section>
-            <h2 className="text-xl font-bold text-slate-950">Who this applies to</h2>
-            <p className="mt-3 leading-7">
-              PRIVOX PTT is not a public consumer app. Accounts exist only inside an organization set up by its
-              administrator — there is no public sign-up. This policy covers the mobile apps (Android, iPhone), the
-              hardware radios that run the same software (Inrico T320, PRIVOX Mini Radio), and the web version.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-bold text-slate-950">What we collect and why</h2>
-            <div className="mt-4 space-y-4">
-              <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
-                <p className="font-semibold text-slate-950">Account information</p>
-                <p className="mt-1 text-sm leading-6">
-                  Callsign, display name, login or email, organization and group membership, and role. Created by
-                  your administrator when you are added to the system, not by you signing up.
+          {p.sections.map((section) => (
+            <section key={section.title}>
+              <h2 className="text-xl font-bold text-slate-950">{section.title}</h2>
+              {section.text !== undefined && section.text !== '' && (
+                <p className="mt-3 leading-7">{section.text}</p>
+              )}
+              {section.blocks && (
+                <div className="mt-4 space-y-4">
+                  {section.blocks.map((block) => (
+                    <div key={block.title} className="rounded-md border border-slate-200 bg-slate-50 p-4">
+                      <p className="font-semibold text-slate-950">{block.title}</p>
+                      <p className="mt-1 text-sm leading-6">{block.text}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {section.items && (
+                <ul className="mt-3 space-y-2 text-sm leading-6">
+                  {section.items.map((item) => (
+                    <li key={item} className="flex gap-2">
+                      {section.title === p.sections[2]?.title
+                        ? <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                        : <Lock className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />}
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {/* Последний раздел ("Questions or requests") — единственный со
+                  ссылкой на /support внутри текста, поэтому рендерится отдельно. */}
+              {section.title === p.sections[p.sections.length - 1]?.title && (
+                <p className="mt-3 leading-7">
+                  {p.contactBefore}{' '}
+                  <Link to="/support" className="font-semibold text-sky-700 hover:underline">{p.contactLink}</Link>
+                  {p.contactAfter}
                 </p>
-              </div>
-              <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
-                <p className="font-semibold text-slate-950">Microphone / voice</p>
-                <p className="mt-1 text-sm leading-6">
-                  Audio is streamed live to the other members of your radio channel or call, and to no one else. It
-                  is relayed through our server to make the connection possible, but is not recorded or stored
-                  anywhere along the way.
-                </p>
-              </div>
-              <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
-                <p className="font-semibold text-slate-950">Location</p>
-                <p className="mt-1 text-sm leading-6">
-                  If your administrator has enabled it, your device sends GPS coordinates so a dispatcher can see
-                  your position on the map. This can be turned off per person by an administrator at any time.
-                </p>
-              </div>
-              <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
-                <p className="font-semibold text-slate-950">Messages</p>
-                <p className="mt-1 text-sm leading-6">
-                  Text messages and attachments sent inside the app are stored on our server so conversations and
-                  history remain available to the people in that conversation.
-                </p>
-              </div>
-              <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
-                <p className="font-semibold text-slate-950">Push notifications</p>
-                <p className="mt-1 text-sm leading-6">
-                  To ring your phone for an incoming call or message while the app is not open, we send a small
-                  notification through Apple (APNs) on iPhone or Google (FCM) on Android. That notification includes
-                  who is calling, their callsign, and the group name — enough to show a useful call screen. It does
-                  not include the audio, message text, or attachments themselves.
-                </p>
-              </div>
-              <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
-                <p className="font-semibold text-slate-950">Sensor data (organizations using PRIVOX sensors)</p>
-                <p className="mt-1 text-sm leading-6">
-                  Readings such as temperature, humidity, or alarm state from an organization's own connected
-                  sensors, visible to that organization's dispatchers and admins.
-                </p>
-              </div>
-            </div>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-bold text-slate-950">What we do not do</h2>
-            <ul className="mt-3 space-y-2 text-sm leading-6">
-              {[
-                'No advertising and no ad networks — the app has none.',
-                'No selling or sharing of your data with third parties for their own marketing.',
-                'No recording of voice calls or radio traffic.',
-                'No access to data outside your own organization — organizations are isolated from each other.',
-              ].map((item) => (
-                <li key={item} className="flex gap-2">
-                  <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-bold text-slate-950">Who can see your data</h2>
-            <p className="mt-3 leading-7">
-              Data is visible to the people it is meant for: other members of a group or call for voice and
-              messages, and your organization's dispatchers/admins for location and sensor alarms — depending on the
-              permissions your administrator has set. Apple and Google process the small push notification payload
-              described above purely to deliver it to your device; they are not given access to your account,
-              messages, or voice traffic.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-bold text-slate-950">How long we keep it</h2>
-            <p className="mt-3 leading-7">
-              Account, message, and location data is kept for as long as your account is active in the
-              organization. Voice audio is never stored — it exists only for the moment of transmission. If your
-              administrator removes your account, your access ends immediately; contact your administrator about
-              removing historical data tied to your account.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-bold text-slate-950">Permissions the app asks for</h2>
-            <ul className="mt-3 space-y-2 text-sm leading-6">
-              {[
-                'Microphone — required to transmit on the radio channel or in a call.',
-                'Location — only used if your organization enables live location for dispatchers.',
-                'Notifications — required to ring or alert you for incoming calls and messages.',
-              ].map((item) => (
-                <li key={item} className="flex gap-2">
-                  <Lock className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-bold text-slate-950">Children</h2>
-            <p className="mt-3 leading-7">
-              PRIVOX PTT is a professional communication tool for organizations and is not directed at children.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-bold text-slate-950">Questions or requests</h2>
-            <p className="mt-3 leading-7">
-              For questions about this policy, or to request access, correction, or deletion of your data, contact
-              your organization's administrator, or reach us through the{' '}
-              <Link to="/support" className="font-semibold text-sky-700 hover:underline">Support page</Link>.
-            </p>
-          </section>
+              )}
+            </section>
+          ))}
         </div>
       </main>
     </PublicLayout>
   );
 }
 
-export function StatusPage() {
+function StatusPageInner() {
   const [status, setStatus] = useState<'loading' | 'ok' | 'error'>('loading');
-  const [details, setDetails] = useState<string>('Checking API...');
+  const { t } = useLanguage();
+  const st = t.status;
+  const [details, setDetails] = useState<string>(st.checking);
 
   useEffect(() => {
     fetch('/health')
@@ -1200,18 +844,19 @@ export function StatusPage() {
       })
       .then((data) => {
         setStatus(data?.status === 'ok' ? 'ok' : 'error');
-        setDetails(data?.status === 'ok' ? 'Service is responding normally.' : 'Service returned an unexpected response.');
+        setDetails(data?.status === 'ok' ? st.detailsOk : st.detailsError);
       })
       .catch(() => {
         setStatus('error');
-        setDetails('Could not reach the public healthcheck.');
+        setDetails(st.detailsUnreachable);
       });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
     <PublicLayout>
       <main className="bg-slate-50 px-4 py-16 sm:px-6 lg:px-8">
-        <SectionHeader eyebrow="Status" title="System status" text="This public page shows only high-level availability, without internal secrets or infrastructure details." />
+        <SectionHeader eyebrow={st.eyebrow} title={st.title} text={st.text} />
         <div className="mx-auto mt-10 max-w-3xl rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex items-center gap-4">
             <span className={clsx('flex h-12 w-12 items-center justify-center rounded-full', status === 'ok' ? 'bg-emerald-50 text-emerald-700' : status === 'error' ? 'bg-red-50 text-red-700' : 'bg-sky-50 text-sky-700')}>
@@ -1219,7 +864,7 @@ export function StatusPage() {
             </span>
             <div>
               <h2 className="text-xl font-bold text-slate-950">
-                {status === 'ok' ? 'Operational' : status === 'error' ? 'Needs attention' : 'Checking'}
+                {status === 'ok' ? st.operational : status === 'error' ? st.needsAttention : '…'}
               </h2>
               <p className="mt-1 text-slate-600">{details}</p>
             </div>
@@ -1229,3 +874,16 @@ export function StatusPage() {
     </PublicLayout>
   );
 }
+
+// Каждая экспортируемая страница оборачивается в свой LanguageProvider —
+// он лёгкий (localStorage + один объект словаря в памяти), а страницы
+// монтируются по одной за раз через роутер, так что дублирования по факту
+// не происходит; зато не пришлось трогать App.tsx ради общего провайдера
+// на всё приложение (эти семь страниц — единственное, что пользуется i18n).
+export function HomePage() { return <LanguageProvider><HomePageInner /></LanguageProvider>; }
+export function DownloadPage() { return <LanguageProvider><DownloadPageInner /></LanguageProvider>; }
+export function DocsPage() { return <LanguageProvider><DocsPageInner /></LanguageProvider>; }
+export function FaqPage() { return <LanguageProvider><FaqPageInner /></LanguageProvider>; }
+export function SupportPage() { return <LanguageProvider><SupportPageInner /></LanguageProvider>; }
+export function PrivacyPage() { return <LanguageProvider><PrivacyPageInner /></LanguageProvider>; }
+export function StatusPage() { return <LanguageProvider><StatusPageInner /></LanguageProvider>; }
