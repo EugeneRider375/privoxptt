@@ -15,5 +15,6 @@ class MainViewController: CAPBridgeViewController {
         print("[Privox] MainViewController.capacitorDidLoad — registering PrivoxPushPlugin")
         bridge?.registerPluginInstance(PrivoxPushPlugin())
         bridge?.registerPluginInstance(PrivoxDeepLinkPlugin())
+        bridge?.registerPluginInstance(PrivoxAudioPlugin())
     }
 }
