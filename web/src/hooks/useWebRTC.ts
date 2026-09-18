@@ -458,6 +458,25 @@ export function useWebRTC(groupId: string | null, joinEvent: 'join-group' | 'cal
       recoveryTimer = setTimeout(() => {
         recoveryTimer = null;
         if (disposed || !subscribedSocket?.connected) return;
+
+        // D57 (2026-09-16) — раньше сносили всю сессию безусловно на КАЖДЫЙ
+        // повод (реконнект сокета, любой visibilitychange, кастомный
+        // "app resumed"), даже когда транспорты всё это время были живы и
+        // звук шёл нормально — живой тест поймал звонок, который переживал
+        // сворачивание iPhone, но обрывался ровно в момент возврата в
+        // приложение из-за этого сноса. Транспорты уже сами закрывают себя
+        // при реальном обрыве (`connectionstatechange` выше на send/recv
+        // transport) — если оба всё ещё не закрыты, значит сессия и так
+        // жива, полный снос+пересборка не нужны. `init()` сам по себе уже
+        // идемпотентен (пересоздаёт recv transport, только если он null/
+        // closed) — ломает именно `resetMediaSession()` перед ним.
+        const sendOk = !sendTransportRef.current || !sendTransportRef.current.closed;
+        const recvOk = !recvTransportRef.current || !recvTransportRef.current.closed;
+        if (sendOk && recvOk && recvTransportRef.current) {
+          console.log(`[WebRTC] Media session still looks healthy (${reason}) — пропускаем снос`);
+          return;
+        }
+
         console.log(`[WebRTC] Recovering media session: ${reason}`);
         subscribedSocket.emit(joinEvent, { groupId });
         resetMediaSession();
