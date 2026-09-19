@@ -13,6 +13,7 @@ import { useNativePush } from '@/hooks/useNativePush';
 import { MessengerPage } from '@/pages/messages/MessengerPage';
 import { CheckpointVisitPage } from '@/pages/user/CheckpointVisitPage';
 import { ActiveCallScreen } from '@/components/ui/ActiveCallScreen';
+import { OutgoingCallScreen } from '@/components/ui/OutgoingCallScreen';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null };
@@ -139,6 +140,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         {/* Глобально поверх любой страницы — приватный дуплекс-звонок не привязан к маршруту */}
+        <OutgoingCallScreen />
         <ActiveCallScreen />
       </BrowserRouter>
     </ErrorBoundary>
